@@ -1,0 +1,35 @@
+# Blueprint Render. Ganti nilai bertanda <...> di dashboard setelah dibuat.
+services:
+  - type: web
+    name: mm-ml
+    runtime: docker
+    rootDir: ml
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - { key: ML_API_KEY, sync: false }
+  - type: web
+    name: mm-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - { key: DATABASE_URL, sync: false }   # connection string Supabase (Session pooler)
+      - { key: ML_URL, sync: false }         # URL layanan mm-ml
+      - { key: ML_API_KEY, sync: false }
+      - { key: FRONTEND_ORIGIN, sync: false }
+      - { key: GEMINI_API_KEY, sync: false }
+      - { key: GEMINI_MODEL, value: gemini-2.5-flash }
+      - { key: TELEGRAM_BOT_TOKEN, sync: false }
+      - { key: TELEGRAM_CHAT_ID, sync: false }
+  - type: web
+    name: mm-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - { key: VITE_API_URL, sync: false }   # https://<backend>/api

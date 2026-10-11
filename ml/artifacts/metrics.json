@@ -1,0 +1,142 @@
+{
+  "source": "uci_real",
+  "n_cycles": 2205,
+  "n_train": 1653,
+  "n_test": 552,
+  "split": "acak stratifikasi 75/25, seed 42",
+  "components": {
+    "cooler": {
+      "accuracy": 0.9982,
+      "macro_f1": 0.9982,
+      "classes": [
+        3,
+        20,
+        100
+      ],
+      "confusion_matrix": [
+        [
+          183,
+          0,
+          0
+        ],
+        [
+          1,
+          182,
+          0
+        ],
+        [
+          0,
+          0,
+          186
+        ]
+      ]
+    },
+    "valve": {
+      "accuracy": 0.9873,
+      "macro_f1": 0.9855,
+      "classes": [
+        73,
+        80,
+        90,
+        100
+      ],
+      "confusion_matrix": [
+        [
+          94,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          85,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          90,
+          1
+        ],
+        [
+          0,
+          0,
+          4,
+          276
+        ]
+      ]
+    },
+    "pump": {
+      "accuracy": 0.9982,
+      "macro_f1": 0.9981,
+      "classes": [
+        0,
+        1,
+        2
+      ],
+      "confusion_matrix": [
+        [
+          305,
+          0,
+          1
+        ],
+        [
+          0,
+          123,
+          0
+        ],
+        [
+          0,
+          0,
+          123
+        ]
+      ]
+    },
+    "accumulator": {
+      "accuracy": 0.9891,
+      "macro_f1": 0.9875,
+      "classes": [
+        90,
+        100,
+        115,
+        130
+      ],
+      "confusion_matrix": [
+        [
+          188,
+          2,
+          0,
+          0
+        ],
+        [
+          0,
+          117,
+          3,
+          0
+        ],
+        [
+          0,
+          0,
+          97,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          144
+        ]
+      ]
+    }
+  },
+  "anomaly": {
+    "trained_on_healthy_cycles": 60,
+    "threshold": -0.6568,
+    "false_alarm_rate_healthy_test": 0.0,
+    "detection_rate_faulty_test": 0.0092,
+    "n_healthy_test": 6,
+    "n_faulty_test": 546
+  },
+  "all_components_exact_match": 0.9764
+}

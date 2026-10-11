@@ -1,0 +1,32 @@
+{
+  "note": "Dievaluasi pada data simulasi (hold-out 25%), bukan data pabrik nyata.",
+  "n_samples": 3500,
+  "macro_f1": 0.9948,
+  "per_class_f1": {
+    "bearing": 0.9969,
+    "cavitation": 0.9903,
+    "impeller": 0.9968,
+    "normal": 0.9898,
+    "overload": 1.0
+  },
+  "anomaly_recall_on_faults": 0.9668,
+  "anomaly_false_alarm_on_normal": 0.0179,
+  "window": 30,
+  "features": [
+    "vibration_mean",
+    "vibration_std",
+    "vibration_slope",
+    "bearing_temp_mean",
+    "bearing_temp_std",
+    "bearing_temp_slope",
+    "pressure_mean",
+    "pressure_std",
+    "pressure_slope",
+    "current_mean",
+    "current_std",
+    "current_slope",
+    "flow_mean",
+    "flow_std",
+    "flow_slope"
+  ]
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.pgdata/
+__pycache__/
+.pytest_cache/
+ml/data/
+*.log
+*.tsbuildinfo

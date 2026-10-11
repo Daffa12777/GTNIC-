@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ManualMechanic</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>ManualMechanic</h1>
+        <p>Agent diagnosis dan tindak lanjut perawatan pompa industri</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="chip" id="chip-notif">Notifikasi</span>
+      <label class="field-inline">
+        <span>Mode agent</span>
+        <select id="mode-select">
+          <option value="policy">Policy (deterministik)</option>
+          <option value="llm" id="opt-llm" disabled>LLM (Gemini)</option>
+        </select>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="auto-toggle">
+        <span class="switch-track"></span>
+        <span class="switch-label">Agent otomatis</span>
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="col-left">
+      <div class="section-title">Unit pompa</div>
+      <div id="pump-list" class="pump-list"></div>
+      <button class="btn btn-ghost full" id="btn-triage">Urutkan prioritas penanganan</button>
+    </aside>
+
+    <section class="col-center">
+      <div class="card pump-head" id="pump-head"></div>
+      <div id="charts" class="charts"></div>
+
+      <div class="card">
+        <nav class="tabs" id="tabs">
+          <button data-tab="wo" class="active">Work order</button>
+          <button data-tab="inv">Stok dan pembelian</button>
+          <button data-tab="notif">Notifikasi</button>
+          <button data-tab="hist">Riwayat perbaikan</button>
+          <button data-tab="cases">Kasus agent</button>
+          <button data-tab="model">Model</button>
+          <button data-tab="sim">Simulator</button>
+        </nav>
+        <div id="tab-body" class="tab-body"></div>
+      </div>
+    </section>
+
+    <aside class="col-right">
+      <div class="card agent">
+        <div class="agent-head">
+          <div>
+            <div class="section-title">Agent</div>
+            <div class="muted small" id="agent-sub">Pilih pompa lalu jalankan analisis</div>
+          </div>
+          <button class="btn btn-primary" id="btn-diagnose">Analisis pompa ini</button>
+        </div>
+        <div id="case-view" class="case-view"></div>
+        <div class="chat">
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="chat-form" autocomplete="off">
+            <input id="chat-input" type="text" placeholder="Tulis keluhan atau perintah, mis. Pompa 3 bunyi kasar dan agak panas">
+            <button class="btn btn-primary" type="submit">Kirim</button>
+          </form>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="dlg-complete">
+    <form method="dialog" id="complete-form" class="dlg">
+      <h3>Selesaikan work order</h3>
+      <p class="muted small" id="complete-sub"></p>
+      <label>Penyebab sebenarnya<input name="root_cause" type="text" placeholder="mis. Bearing aus akibat pelumasan kurang"></label>
+      <label>Tindakan yang dilakukan<input name="action" type="text" placeholder="mis. Ganti bearing, isi grease"></label>
+      <label>Durasi pekerjaan (menit)<input name="duration" type="number" min="1" value="60"></label>
+      <div class="dlg-actions">
+        <button class="btn btn-ghost" value="cancel" type="button" id="complete-cancel">Batal</button>
+        <button class="btn btn-primary" value="ok" type="submit">Simpan dan tutup</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
