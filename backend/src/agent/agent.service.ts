@@ -339,7 +339,8 @@ export class AgentService {
     const wo = await this.db.one('SELECT * FROM work_orders WHERE id=$1', [woId]);
     if (!wo) return { error: 'work order tidak ditemukan' };
     if (wo.status === 'selesai') return { error: 'work order sudah selesai' };
-    await this.db.x("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2", [now(), woId]);
+    const closed = await this.db.one<{ id: string }>("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2 AND status NOT IN ('selesai','dibatalkan') RETURNING id", [now(), woId]);
+    if (!closed) return { error: 'work order sudah selesai atau dibatalkan' };
     if (wo.technician_id) await this.db.x('UPDATE technicians SET available=true WHERE id=$1', [wo.technician_id]);
     const c = wo.case_id ? await this.cases.get(wo.case_id) : null;
     await this.tools.save_case_history({

@@ -8,6 +8,7 @@ import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import type { Analysis } from '../src/ml/ml.service';
 const { AppModule } = require('../src/app.module');
 const { CONFIG } = require('../src/config');
 const { ToolsService } = require('../src/tools/tools.service');
@@ -22,7 +23,7 @@ const tick = async (n = 1) => { for (let i = 0; i < n; i++) await api().post('/a
 
 beforeAll(async () => {
   try { mlUp = (await realFetch(`${CONFIG.ML_URL}/health`)).ok; } catch { mlUp = false; }
-  if (!mlUp) return;
+  if (!mlUp) throw new Error('Layanan ML wajib aktif untuk tes integrasi. Jalankan ML di ML_URL terlebih dahulu.');
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = mod.createNestApplication();
   app.setGlobalPrefix('api');
@@ -31,7 +32,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { global.fetch = realFetch; if (app) await app.close(); });
 
-const run = (name: string, fn: () => Promise<void>) => it(name, async () => { if (!mlUp) { console.warn('Layanan ML tidak aktif, tes dilewati'); return; } await fn(); });
+const run = (name: string, fn: () => Promise<void>) => it(name, fn);
 
 describe('ManualMechanic end-to-end', () => {
   run('health dan overview', async () => {
@@ -55,17 +56,27 @@ describe('ManualMechanic end-to-end', () => {
   run('tingkat menengah: agent bertindak otomatis (WO, jadwal, notifikasi)', async () => {
     await api().post('/api/scenario/fault').send({ pump_id: 'Pump-02', fault: 'cooler', rate: 0.5 });
     await tick(1);
+    // Policy assertions use a fixed diagnosis; random UCI cycles can contain multiple faults.
+    const spy = jest.spyOn(app.get(ToolsService), 'analyze').mockResolvedValue(fake({ cooler: 0.95, normal: 0.05 }));
+    try {
     const c = (await api().post('/api/diagnose').send({ pump_id: 'Pump-02' })).body;
     expect(c.fault).toBe('cooler');
     expect(c.status).toBe('selesai_otomatis');
     expect(c.trace.some((t: any) => t.tool === 'create_work_order')).toBe(true);
     const wos = (await api().get('/api/work-orders')).body;
     expect(wos.some((w: any) => w.pump_id === 'Pump-02' && w.status === 'terjadwal')).toBe(true);
+    } finally { spy.mockRestore(); }
   });
 
   run('tingkat parah: menunggu persetujuan supervisor, lalu dieksekusi', async () => {
     await api().post('/api/scenario/fault').send({ pump_id: 'Pump-03', fault: 'pump', rate: 1 });
     await tick(1);
+    const diagnosis = fake({ pump: 0.95, normal: 0.05 });
+    diagnosis.components.pump.severity = 1;
+    diagnosis.components.pump.confidence = 0.95;
+    diagnosis.flags = ['Pompa: mendekati gagal total'];
+    const spy = jest.spyOn(app.get(ToolsService), 'analyze').mockResolvedValue(diagnosis);
+    try {
     const c = (await api().post('/api/diagnose').send({ pump_id: 'Pump-03' })).body;
     expect(c.risk).toBe('tinggi');
     expect(c.status).toBe('menunggu_persetujuan');
@@ -77,10 +88,12 @@ describe('ManualMechanic end-to-end', () => {
     expect(ok.status).toBe('disetujui_dijalankan');
     const wo = (await api().get('/api/work-orders')).body.find((w: any) => w.pump_id === 'Pump-03');
     expect(wo).toBeTruthy();
-    const done = await api().post(`/api/work-orders/${wo.id}/complete`).send({ root_cause: 'Seal aus', action: 'Ganti seal kit' });
-    expect(done.body.ok).toBe(true);
+    await api().post(`/api/work-orders/${wo.id}/complete`).send({ root_cause: ' ', action: '' }).expect(400);
+    const completions = await Promise.all([0, 1].map(() => api().post(`/api/work-orders/${wo.id}/complete`).send({ root_cause: 'Seal aus', action: 'Ganti seal kit' })));
+    expect(completions.map((r) => r.status).sort()).toEqual([201, 400]);
     const hist = await app.get(ToolsService).call('search_history', { pump_id: 'Pump-03' });
-    expect(hist.cases.some((h: any) => h.root_cause === 'Seal aus')).toBe(true);
+    expect(hist.cases.filter((h: { root_cause: string }) => h.root_cause === 'Seal aus')).toHaveLength(1);
+    } finally { spy.mockRestore(); }
   });
 
   run('sensor mati: agent tidak menuduh mesin, membuat tiket sensor', async () => {
@@ -96,11 +109,11 @@ describe('ManualMechanic end-to-end', () => {
     expect(r.case.status).toBe('tidak_ada_gangguan');
   });
 
-  const fake = (probs: Record<string, number>) => {
+  const fake = (probs: Record<string, number>): Analysis => {
     const top = Object.entries(probs).sort((a, b) => b[1] - a[1])[0];
     const comp = (k: string) => ({ level: 1, severity: 0.5, confidence: 0.6, probs: {}, p_degraded: probs[k] ?? 0 });
     return {
-      ready: true, is_anomaly: true, anomaly_score: -0.6, threshold: -0.48, label: top[0], confidence: top[1], probs,
+      ready: true, is_anomaly: true, anomaly_score: -0.6, threshold: -0.48, label: top[0] as Analysis['label'], confidence: top[1], probs,
       components: { pump: comp('pump'), valve: comp('valve'), cooler: comp('cooler'), accumulator: comp('accumulator') }, flags: [], source: 'test',
     };
   };

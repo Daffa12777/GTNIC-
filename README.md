@@ -56,7 +56,32 @@ npm run dev                       # http://localhost:5173
 
 Atau jalankan ketiganya sekaligus: `.\scripts\dev.ps1`. Dengan Docker: `docker compose up --build` lalu buka http://localhost:8080.
 
-Repo ini menyertakan model hasil `--demo`, tetapi file model bergantung pada versi scikit-learn; bila layanan ML menjawab "model tidak dapat dimuat", jalankan `python train.py --demo` (atau `--download`) di mesin Anda. UI menampilkan peringatan kuning selama model belum dilatih dari dataset asli. **Latih ulang dengan `--download` sebelum mengambil angka evaluasi atau merekam demo.**
+Periksa sumber model melalui `http://localhost:8100/meta`. File model bergantung pada versi scikit-learn; bila layanan ML menjawab "model tidak dapat dimuat", latih ulang dengan `python train.py --download`. `--demo` hanya untuk mencoba data sintetis dan akan menimpa artefak aktif. UI menampilkan peringatan selama model memakai data sintetis.
+
+### Docker (empat layanan)
+
+```powershell
+Set-Location C:\GTNIC-
+docker compose up --build -d
+docker compose ps
+docker compose logs -f backend ml
+# Berhenti tanpa menghapus data PostgreSQL:
+docker compose down
+```
+
+Buka `http://localhost:8080`. Frontend meneruskan `/api` ke backend melalui Nginx, sehingga akses dari perangkat lain memakai alamat host yang sama tanpa URL API `localhost` dalam bundle. Startup backend menunggu database dan model ML siap. `/health` ML memuat dan mencoba model; file yang ada tetapi rusak tetap menghasilkan HTTP 503.
+
+Build ML memeriksa kompatibilitas artefak dengan dependency dalam image. Jika tidak kompatibel atau hilang, build melatih ulang dari UCI asli (butuh internet). Model dan profil simulator dibagikan lewat volume `ml_profiles` agar backend memakai hasil training yang sama. Gunakan `docker compose up --build --force-recreate` setelah mengganti artefak, agar seluruh layanan memuat ulang data. Dockerfile root menjalankan implementasi Python terpisah di `app/`; gunakan Compose untuk React + NestJS + ML.
+
+### Navigasi dan status data
+
+URL `/units/Pump-02`, `/cases/<id>`, `/work-orders`, `/inventory`, dan `/assistant` dapat dibuka langsung. Vite dan Nginx menyediakan fallback SPA. Dashboard menampilkan antrean tindakan, filter, waktu pembaruan, serta peringatan bila data lama sedang ditampilkan. Kontrol simulasi berada dalam panel Mode demo. Daftar kasus dan work order mencakup maksimal 40/60 data terbaru; filter berlaku pada daftar tersebut.
+
+### Login opsional
+
+Default tetap mode demo. Untuk memakai login, jalankan `.\scripts\hash-password.ps1` dua kali dari root (kata sandi berbeda untuk setiap akun), lalu isi `AUTH_ENABLED=true`, username, dan hash di `backend/.env` sesuai `backend/.env.example`. Untuk Compose, letakkan variabel tersebut di `.env` root; Compose meneruskannya ke backend. Jangan commit kata sandi atau hash.
+
+Saat login aktif, backend memeriksa sesi HttpOnly dan mengambil peran dari akun server. Pemalsuan `x-role` tidak memberi hak supervisor. Semua endpoint aplikasi dilindungi, kecuali healthcheck dan endpoint autentikasi. `FRONTEND_ORIGIN` harus berisi origin eksplisit. Gunakan `SESSION_COOKIE_SECURE=true` untuk HTTPS dan frontend/API pada origin yang sama; default false untuk HTTP lokal. Sesi bertahan 8 jam dan disimpan dalam memori: restart backend mengharuskan login ulang. Implementasi akun tetap ini ditujukan untuk satu instance; pengelolaan pengguna dan session store bersama masih diperlukan untuk banyak instance.
 
 Data lokal PGlite tersimpan di `backend/.pgdata`; hapus folder itu untuk mengosongkan database.
 
@@ -82,15 +107,19 @@ Skrip rekaman lengkap: `docs/DEMO_SCRIPT.md`.
 ## Tes
 
 ```powershell
-cd ml;      python -m pytest -q          # 4 tes: pemuat UCI, pelatihan, API inferensi
-cd backend; npm test                     # 10 tes end-to-end (butuh layanan ML aktif di ML_URL)
+Set-Location C:\GTNIC-\ml
+python -m pytest -q                      # 5 tes ML, termasuk model hilang/rusak
+Set-Location C:\GTNIC-\backend
+npm.cmd test                            # 16 tes backend (ML wajib aktif di ML_URL)
+Set-Location C:\GTNIC-\frontend
+npm.cmd test                            # 5 tes regresi polling, URL, dan form work order
 ```
 Tes backend mencakup jalur otomatis, tanya balik, eskalasi, persetujuan dan penolakan peran, guardrail risiko tinggi, sensor mati, pencegahan kasus ganda, RAG bersitasi, dan loop function calling (Gemini di-mock). Telah dijalankan pada PGlite dan PostgreSQL 16 sungguhan.
 
 ## Batasan yang jujur
 - Dataset UCI adalah satu test rig hidrolik; angka evaluasi tidak menjamin performa di pabrik lain. Lihat `docs/DATASET.md`.
 - Urutan "memburuk bertahap" pada simulator dirangkai dari siklus nyata per tingkat kerusakan, bukan rekaman degradasi.
-- Peran Teknisi/Supervisor adalah pemisah hak untuk demo, bukan autentikasi. Belum ada login, izin per pengguna, atau deteksi bentrok jadwal berbasis slot.
+- Mode demo memakai pemilih peran; login sesi server tersedia lewat `AUTH_ENABLED=true`. Akun masih dikonfigurasi lewat environment, dan belum ada deteksi bentrok jadwal berbasis slot.
 - Notifikasi Telegram disimulasikan sampai token diisi. Mode LLM butuh `GEMINI_API_KEY`; hasilnya bervariasi antar model dan hanya diuji dengan respons mock di tes otomatis.
 - Panduan perawatan di `backend/knowledge` ditulis sendiri sebagai pengetahuan teknik umum; ambang dan prosedur harus disesuaikan dengan manual pabrikan dan K3 perusahaan.
 

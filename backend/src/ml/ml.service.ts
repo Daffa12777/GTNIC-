@@ -20,8 +20,6 @@ export interface Analysis {
 /** Klien layanan ML (FastAPI). Mengubah keluaran per komponen menjadi hipotesis gangguan bernormalisasi. */
 @Injectable()
 export class MlService {
-  private metaCache: any = null;
-
   private headers() {
     const h: Record<string, string> = { 'content-type': 'application/json' };
     if (CONFIG.ML_API_KEY) h['x-api-key'] = CONFIG.ML_API_KEY;
@@ -37,12 +35,10 @@ export class MlService {
   }
 
   async meta(): Promise<any> {
-    if (this.metaCache) return this.metaCache;
     try {
       const r = await fetch(`${CONFIG.ML_URL}/meta`, { headers: this.headers(), signal: AbortSignal.timeout(6000) });
       if (!r.ok) throw new Error(String(r.status));
-      this.metaCache = await r.json();
-      return this.metaCache;
+      return await r.json();
     } catch (e: any) {
       return { error: `layanan ML tidak dapat dihubungi (${e?.message ?? e})` };
     }

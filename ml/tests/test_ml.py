@@ -33,6 +33,18 @@ def test_severity_scale():
     assert 0 < severity("valve", 90) < severity("valve", 80) < 1
 
 
+def test_health_requires_loadable_model(tmp_path, monkeypatch):
+    import app as service
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(service, "ART", tmp_path)
+    monkeypatch.setattr(service, "_m", None)
+    client = TestClient(service.app)
+    assert client.get("/health").status_code == 503
+    (tmp_path / "model.joblib").write_bytes(b"invalid model")
+    assert client.get("/health").status_code == 503
+
+
 def test_loader_rejects_mismatched_profile(tmp_path):
     make_demo_data.make(tmp_path, n=50, seed=1)
     (tmp_path / "profile.txt").write_text("100\t100\t0\t130\t0\n", encoding="utf-8")

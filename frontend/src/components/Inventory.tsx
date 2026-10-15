@@ -1,32 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
 import { Badge, Empty, fmtTime } from './ui';
+import { RequestState, usePolling } from '../usePolling';
+
+const loadInventory = async (signal: AbortSignal) => {
+  const [inv, tech, pr, nt] = await Promise.all([api.inventory(signal), api.technicians(signal), api.purchases(signal), api.notifications(signal)]);
+  return { inv, tech, pr, nt };
+};
 
 export default function Inventory() {
-  const [inv, setInv] = useState<any[]>([]);
-  const [tech, setTech] = useState<any[]>([]);
-  const [pr, setPr] = useState<any[]>([]);
-  const [nt, setNt] = useState<any[]>([]);
-
-  useEffect(() => {
-    const load = () => {
-      api.inventory().then(setInv).catch(() => {}); api.technicians().then(setTech).catch(() => {});
-      api.purchases().then(setPr).catch(() => {}); api.notifications().then(setNt).catch(() => {});
-    };
-    load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, []);
+  const result = usePolling(loadInventory, 5000);
+  const [query, setQuery] = useState('');
+  const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
 
   return (
     <div className="page">
       <div className="page-head"><div><h1>Inventaris dan tim</h1><p>Data yang dibaca dan diubah agent lewat tool: stok, teknisi, permintaan pembelian, notifikasi.</p></div></div>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0,1fr))' }}>
+      <RequestState {...result} retry={result.refresh} />
+      <div className="filters"><label>Cari spare part<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama atau lokasi" /></label></div>
+      {result.data && <div className="grid inventory-grid">
         <div className="card">
           <div className="card-h"><h3>Stok spare part</h3></div>
           <table><thead><tr><th>Part</th><th>Lokasi</th><th>Stok</th></tr></thead><tbody>
-            {inv.map((i) => <tr key={i.part_id}><td>{i.name}</td><td className="sub">{i.location}</td><td>{Number(i.stock) === 0 ? <Badge tone="bad">Kosong</Badge> : <span className="num">{i.stock}</span>}</td></tr>)}
+            {inv.filter((i) => `${i.name} ${i.location}`.toLowerCase().includes(query.toLowerCase())).map((i) => <tr key={i.part_id}><td>{i.name}</td><td className="sub">{i.location}</td><td>{Number(i.stock) === 0 ? <Badge tone="bad">Kosong</Badge> : <span className="num">{i.stock}</span>}</td></tr>)}
           </tbody></table>
+          {!inv.some((i) => `${i.name} ${i.location}`.toLowerCase().includes(query.toLowerCase())) && <Empty>Tidak ada spare part yang cocok.</Empty>}
         </div>
         <div className="card">
           <div className="card-h"><h3>Teknisi</h3></div>
@@ -50,7 +48,7 @@ export default function Inventory() {
             </tbody></table>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
+import { CompleteWorkOrderDto } from './complete-work-order.dto';
 import { AgentService } from '../agent/agent.service';
 import { CaseStore } from '../agent/case.store';
 import { LlmService } from '../agent/llm.service';
@@ -28,6 +29,7 @@ export class ApiController {
   }
 
   @Get('health')
+  @SetMetadata('public', true)
   health() { return { ok: true, db: this.db.mode, time: Date.now() / 1000 }; }
 
   @Get('overview')
@@ -109,8 +111,9 @@ export class ApiController {
   }
 
   @Post('work-orders/:id/complete')
-  async complete(@Param('id') id: string, @Body() b: any) {
-    return this.fail(await this.agent.completeWorkOrder(id, b?.root_cause ?? '', b?.action ?? '', Number(b?.duration_min ?? 60)));
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async complete(@Param('id') id: string, @Body() b: CompleteWorkOrderDto) {
+    return this.fail(await this.agent.completeWorkOrder(id, b.root_cause.trim(), b.action.trim(), b.duration_min ?? 60));
   }
 
   @Get('inventory')
