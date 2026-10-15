@@ -41,7 +41,11 @@ Tier gratis Render tidur setelah beberapa menit tanpa trafik; akses sekali sebel
 ## 5. Keamanan sebelum repo dipublikasikan
 - Jangan commit `.env`. Semua `.env` sudah ada di `.gitignore`.
 - Jika API key pernah tertulis di berkas yang ter-commit, anggap bocor: cabut dan buat baru.
-- Peran Teknisi/Supervisor pada UI adalah pemisah hak untuk demo (header `x-role`), bukan autentikasi. Jangan menyebutnya autentikasi di proposal; sebut sebagai pemisahan hak persetujuan tingkat prototipe.
+- Default menggunakan pemilih peran demo. Login sesi server dapat diaktifkan melalui `AUTH_ENABLED=true` dan hash akun sesuai `backend/.env.example`. Untuk login, sajikan frontend dan API pada origin yang sama melalui reverse proxy, aktifkan `SESSION_COOKIE_SECURE=true` pada HTTPS, dan isi `FRONTEND_ORIGIN` secara eksplisit. Sesi disimpan dalam memori satu instance dan berakhir saat backend restart.
 
 ## Menjalankan dengan Docker
 `docker compose up --build` menjalankan ML (8100), backend (8000), dan frontend (8080) dengan PostgreSQL lokal. Isi `GEMINI_API_KEY` di shell bila ingin mode LLM.
+
+Compose menyediakan healthcheck dan proxy `/api` pada frontend. Variabel autentikasi untuk Compose diambil dari `.env` root, bukan `backend/.env`. Build ML melatih ulang dari UCI asli jika artefak tidak kompatibel, sehingga dapat membutuhkan internet. Profil simulator dan metrik dari image ML dipasang read-only pada backend melalui volume bersama. Setelah mengganti model, jalankan `docker compose up --build --force-recreate` agar model dan profil dimuat ulang. Data PostgreSQL tetap ada saat `docker compose down`.
+
+Untuk hosting frontend statis di luar Nginx, tambahkan fallback semua URL aplikasi ke `index.html`; bila login aktif, proxy `/api` ke backend pada origin yang sama. Jangan arahkan request `/api` ke fallback HTML.

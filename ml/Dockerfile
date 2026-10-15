@@ -3,7 +3,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-# Jika artefak model belum di-commit, latih dari data demo agar layanan tetap hidup (UI akan memberi peringatan).
-RUN [ -f artifacts/model.joblib ] || python train.py --demo
+# Validate using this image's sklearn. Rebuild incompatible/missing models from real UCI data.
+# Model and simulator profiles must be exported together before building the full stack.
+RUN python -W error::UserWarning -c "from app import model; model()" || (python train.py --download && python -W error::UserWarning -c "from app import model; model()")
 ENV PORT=8100
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT}"]

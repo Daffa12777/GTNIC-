@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/units/:id", "destination": "/index.html" },
+    { "source": "/cases/:id", "destination": "/index.html" },
+    { "source": "/cases", "destination": "/index.html" },
+    { "source": "/work-orders", "destination": "/index.html" },
+    { "source": "/inventory", "destination": "/index.html" },
+    { "source": "/assistant", "destination": "/index.html" }
+  ]
+}
