@@ -1,6 +1,7 @@
 import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
+import type { RecordsPage, WorkOrdersPage } from './types';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -66,6 +67,8 @@ export const api = {
   overview: (signal?: AbortSignal) => req<Overview>('/overview', { signal }),
   readings: (id: string, limit = 60, signal?: AbortSignal) => req<ReadingsResp>(`/pumps/${encodeURIComponent(id)}/readings?limit=${limit}`, { signal }),
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),
+  casesPage: (query: URLSearchParams, signal?: AbortSignal) => req<RecordsPage<Case>>(`/records/cases?${query}`, { signal }),
+  workOrdersPage: (query: URLSearchParams, signal?: AbortSignal) => req<WorkOrdersPage>(`/records/work-orders?${query}`, { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),
   chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = []) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm, history }),

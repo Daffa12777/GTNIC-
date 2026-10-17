@@ -12,7 +12,7 @@ export const StateBadge = ({ state }: { state: string }) => {
   return <Badge tone={t}>{l}</Badge>;
 };
 
-const CASE: Record<string, [Tone, string]> = {
+export const CASE: Record<string, [Tone, string]> = {
   selesai_otomatis: ['ok', 'Dijalankan otomatis'], disetujui_dijalankan: ['ok', 'Disetujui dan dijalankan'], selesai: ['ok', 'Selesai'],
   menunggu_persetujuan: ['warn', 'Menunggu persetujuan'], menunggu_klarifikasi: ['warn', 'Menunggu jawaban teknisi'],
   dieskalasi: ['acc', 'Dieskalasi ke senior'], ditolak: ['info', 'Ditolak'], sensor_bermasalah: ['info', 'Sensor bermasalah'],

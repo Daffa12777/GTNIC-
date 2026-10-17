@@ -44,3 +44,5 @@ export interface Technician { id: string; name: string; skill: string; level: st
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
 export interface Notification { id: number; ts: number; recipient: string; message: string; status: string }
 export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }
+export interface RecordsPage<T> { items: T[]; total: number; page: number; pageSize: number }
+export interface WorkOrdersPage extends RecordsPage<WorkOrder> { technicians: { id: string; name: string }[]; units: string[] }

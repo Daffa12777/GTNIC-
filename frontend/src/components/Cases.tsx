@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import { api } from '../api';
 import type { Case, Role } from '../types';
-import { CaseBadge, Empty, RiskBadge, fmtTime, pct } from './ui';
+import { CASE, CaseBadge, Empty, RiskBadge, fmtTime, pct } from './ui';
+import Pagination from './Pagination';
+import { useDebounced } from '../useDebounced';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 
 const KIND: Record<string, string> = { reasoning: 'Penalaran', tool: 'Tool', decision: 'Keputusan', action: 'Tindakan' };
@@ -100,19 +102,24 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
 }
 
 export default function Cases({ role, labels, flash, selected, onSelect, onChanged, authenticated = false }: { role: Role; labels: Record<string, string>; flash: (m: string) => void; selected: string | null; onSelect: (id: string) => void; onChanged: () => void; authenticated?: boolean }) {
-  const result = usePolling(api.cases, 4000);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const list = (result.data ?? []).filter((c) => (!status || c.status === status) && `${c.id} ${c.pump_id ?? ''} ${c.summary ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const search = useDebounced(query);
+  const load = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status }), signal), [page, pageSize, search, status]);
+  const result = usePolling(load, 4000);
+  const list = result.data?.items ?? [];
 
   return (
     <div className="page">
       <div className="page-head"><div><h1>Kasus</h1><p>Setiap analisis agent tersimpan sebagai kasus lengkap dengan jejak langkahnya.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
-      <div className="filters"><label>Cari kasus<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ID, unit, atau ringkasan" /></label><label>Status<select className="sel" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Semua status</option>{Array.from(new Set((result.data ?? []).map((c) => c.status))).map((s) => <option key={s}>{s}</option>)}</select></label><span className="sub">Maksimal 40 kasus terbaru</span></div>
+      <div className="filters"><label>Cari kasus<input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="ID, unit, atau ringkasan" /></label><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
       <div className="split">
         <div className="card">
-          {result.data && list.length === 0 && <Empty>{result.data.length ? 'Tidak ada kasus yang cocok dengan filter.' : 'Belum ada kasus. Jalankan skenario demo atau analisis sebuah unit.'}</Empty>}
+          {result.data && list.length === 0 && <Empty>{query || status ? 'Tidak ada kasus yang cocok dengan filter.' : 'Belum ada kasus pada halaman ini.'}</Empty>}
           {list.map((c) => (
             <button key={c.id} className={`list-item ${c.id === selected ? 'sel' : ''}`} aria-pressed={c.id === selected} onClick={() => onSelect(c.id)}>
               <div className="l1"><span className="id">{c.id} · {c.pump_id ?? '-'}</span><CaseBadge status={c.status} /></div>

@@ -77,7 +77,7 @@ describe('Web workflow regressions', () => {
 
   it('requires a completion report and submits only once while saving', async () => {
     const workOrder: WorkOrder = { id: 'WO-1', pump_id: 'Pump-01', case_id: 'C-1', title: 'Periksa seal', description: '', priority: 'sedang', status: 'terbuka', technician: null, scheduled_at: null, part: '', created_at: 1 };
-    vi.spyOn(api, 'workOrders').mockResolvedValue([workOrder]);
+    vi.spyOn(api, 'workOrdersPage').mockResolvedValue({ items: [workOrder], total: 1, page: 1, pageSize: 20, technicians: [], units: ['Pump-01'] });
     const pending = deferred<unknown>();
     const complete = vi.spyOn(api, 'complete').mockImplementation(() => pending.promise);
     render(<WorkOrders flash={() => {}} onChanged={() => {}} onOpenCase={() => {}} />);

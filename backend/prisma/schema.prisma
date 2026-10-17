@@ -84,6 +84,8 @@ model MaintenanceCase {
   orders WorkOrder[]
   logs AgentLog[]
   @@index([pump_id, created_at(sort: Desc)], map: "idx_cases_pump")
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_status_page")
   @@map("cases")
 }
 
@@ -108,6 +110,8 @@ model WorkOrder {
   @@index([pump_id, status])
   @@index([case_id])
   @@index([technician_id])
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_status_page")
   @@map("work_orders")
 }
 
