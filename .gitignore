@@ -12,3 +12,4 @@ ml/.venv/
 backend/src/generated/
 .auth-bootstrap.json
 backend/.test-cache/
+.vercel/

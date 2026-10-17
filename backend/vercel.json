@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nestjs",
+  "buildCommand": "npm run build",
+  "functions": {
+    "src/main.ts": {
+      "includeFiles": "{assets/**,knowledge/**,certs/**,package.json}",
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "SIM_ENABLED": "false",
+    "AUTO_AGENT": "false",
+    "DEMO_SCENARIO": "false",
+    "SCENARIO_CONTROLS_ENABLED": "false",
+    "SEED_DEMO_DATA": "false",
+    "DB_POOL_MAX": "2"
+  }
+}
