@@ -1,4 +1,5 @@
 import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
+import type { UserProfile } from './types';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -57,6 +58,10 @@ export const api = {
   },
   login: (username: string, password: string) => post<SessionInfo>('/auth/login', { username, password }),
   logout: () => post('/auth/logout'),
+  profile: (signal?: AbortSignal) => req<UserProfile>('/profile', { signal }),
+  updateProfile: (body: { name: string; email: string; username: string }) => post<UserProfile>('/profile', body),
+  changePassword: (body: { currentPassword: string; newPassword: string }) => post('/profile/password', body),
+  deleteAccount: (currentPassword: string) => post('/profile/delete', { currentPassword }),
   overview: (signal?: AbortSignal) => req<Overview>('/overview', { signal }),
   readings: (id: string, limit = 60, signal?: AbortSignal) => req<ReadingsResp>(`/pumps/${encodeURIComponent(id)}/readings?limit=${limit}`, { signal }),
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),

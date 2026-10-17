@@ -4,13 +4,15 @@ import Cases from './components/Cases';
 import Chat from './components/Chat';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
+import Profile from './components/Profile';
+import ProfileAvatar from './components/ProfileAvatar';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
 import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 
-const TABS: [Tab, string][] = [['ringkasan', 'Ringkasan'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
+const TABS: [Tab, string][] = [['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
 
 const store = {
   get(k: string, d: string) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -18,10 +20,10 @@ const store = {
 };
 
 export default function App() {
-  return <SessionGate>{(user, logout) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} />}</SessionGate>;
+  return <SessionGate>{(user, logout, loggingOut) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate>;
 }
 
-function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Promise<void> }) {
+function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
   const { tab, caseId, pumpId, navigate } = useNavigation();
   const overview = usePolling(api.overview, 3000);
   const ov = overview.data;
@@ -53,10 +55,10 @@ function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Prom
       <a className="skip-link" href="#main-content">Lewati ke konten utama</a>
       <header className="topbar">
         <div className="topbar-in">
-          <div className="brand">
+          <a className="brand" href="/" aria-label="ManualMechanic — Dashboard" aria-current={tab === 'ringkasan' ? 'page' : undefined} onClick={(event) => { if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate('ringkasan'); } }}>
             <span className="brand-mark"><svg width="16" height="16" viewBox="0 0 32 32"><path d="M7 23V9l9 9 9-9v14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
             ManualMechanic
-          </div>
+          </a>
           <nav className="nav" aria-label="Navigasi utama">
             {TABS.map(([k, l]) => (
               <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => navigate(k)}>
@@ -67,7 +69,7 @@ function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Prom
             ))}
           </nav>
           <div className="controls">
-            {user ? <div className="ctl"><span>{user.username} · {user.role}</span><button className="btn sm" onClick={() => void logout()}>Keluar</button></div> : <label className="ctl">Peran demo
+            {!user && <label className="ctl">Peran demo
               <select className="sel" value={role} onChange={(e) => setRoleState(e.target.value as Role)}>
                 <option value="teknisi">Teknisi</option><option value="supervisor">Supervisor</option>
               </select>
@@ -80,11 +82,13 @@ function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Prom
               <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={!ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" />
             </label>
           </div>
+          {user && <ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} />}
         </div>
       </header>
 
       <main id="main-content">
       <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>
+      {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && <Dashboard ov={ov} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}

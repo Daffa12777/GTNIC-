@@ -26,6 +26,6 @@ set('AUTH_ENABLED', 'true');
 set('SEED_DEMO_DATA', process.env.SEED_DEMO_DATA || 'false');
 writeFileSync(path, content, { mode: 0o600 });
 if (credentials.length) {
-  writeFileSync(join(ROOT, '.auth-bootstrap.json'), JSON.stringify({ note: 'Initial development credentials. Keep private. Replace hashes through scripts/hash-password.ps1 when rotating passwords.', credentials }, null, 2), { mode: 0o600 });
+  writeFileSync(join(ROOT, '.auth-bootstrap.json'), JSON.stringify({ note: 'Initial development credentials. Keep private. Change passwords through the Profile page after initial bootstrap.', credentials }, null, 2), { mode: 0o600 });
 }
 console.log('Login JWT diaktifkan di backend/.env. Akun baru (jika ada) disimpan privat di backend/.auth-bootstrap.json. Restart backend untuk membuat akun di PostgreSQL.');
