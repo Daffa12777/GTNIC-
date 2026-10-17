@@ -29,15 +29,18 @@ services:
       ml: { condition: service_healthy }
     ports: ["8000:8000"]
     environment:
-      DATABASE_URL: postgres://postgres:mm@db:5432/mm
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:mm@db:5432/mm}
+      DIRECT_URL: ${DIRECT_URL:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      JWT_SECRET: ${JWT_SECRET:-}
       ML_URL: http://ml:8100
-      FRONTEND_ORIGIN: http://localhost:8080
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       ASSETS_DIR: /shared
-      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
       AUTH_TECHNICIAN_USERNAME: ${AUTH_TECHNICIAN_USERNAME:-teknisi}
       AUTH_TECHNICIAN_PASSWORD_HASH: ${AUTH_TECHNICIAN_PASSWORD_HASH:-}
       AUTH_SUPERVISOR_USERNAME: ${AUTH_SUPERVISOR_USERNAME:-supervisor}

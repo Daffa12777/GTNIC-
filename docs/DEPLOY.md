@@ -14,7 +14,7 @@ Tier gratis Render tidur setelah beberapa menit tanpa trafik; akses sekali sebel
 ## 1. Supabase
 1. Buat project di https://supabase.com.
 2. Buka Project Settings > Database > Connection string, pilih **Session pooler** (port 5432), salin URL, ganti `[YOUR-PASSWORD]`. Pooler dipakai karena koneksi langsung Supabase hanya IPv6, sedangkan banyak host hanya IPv4.
-3. Tidak perlu membuat tabel manual: backend menjalankan `backend/schema.sql` otomatis saat start (idempoten). Salinan ada di `supabase/schema.sql` jika ingin menempel di SQL Editor.
+3. Gunakan Prisma Migrate dari folder `backend`: `npm run db:migrate`. Database tidak lagi diubah otomatis oleh proses aplikasi. `DIRECT_URL` opsional untuk koneksi migrasi; jika kosong memakai `DATABASE_URL`. Pada database GTNIC lama, ikuti prosedur baseline dalam README terlebih dahulu.
 4. Skema mengaktifkan Row Level Security tanpa kebijakan, sehingga tabel tidak terbuka lewat API publik Supabase. Backend memakai peran owner dari connection string dan tidak terpengaruh.
 
 ## 2. Layanan ML (Render)
@@ -41,7 +41,7 @@ Tier gratis Render tidur setelah beberapa menit tanpa trafik; akses sekali sebel
 ## 5. Keamanan sebelum repo dipublikasikan
 - Jangan commit `.env`. Semua `.env` sudah ada di `.gitignore`.
 - Jika API key pernah tertulis di berkas yang ter-commit, anggap bocor: cabut dan buat baru.
-- Default menggunakan pemilih peran demo. Login sesi server dapat diaktifkan melalui `AUTH_ENABLED=true` dan hash akun sesuai `backend/.env.example`. Untuk login, sajikan frontend dan API pada origin yang sama melalui reverse proxy, aktifkan `SESSION_COOKIE_SECURE=true` pada HTTPS, dan isi `FRONTEND_ORIGIN` secara eksplisit. Sesi disimpan dalam memori satu instance dan berakhir saat backend restart.
+- Untuk penggunaan tim aktifkan `AUTH_ENABLED=true`, isi `JWT_SECRET` acak minimal 32 karakter dan hash bootstrap akun sesuai `backend/.env.example`. Access JWT berlaku 15 menit; refresh token 7 hari disimpan sebagai hash di PostgreSQL, dirotasi dan dapat dicabut. Sajikan frontend/API pada origin yang sama, aktifkan `SESSION_COOKIE_SECURE=true` pada HTTPS, dan isi `FRONTEND_ORIGIN` secara eksplisit. Semua instance harus menggunakan JWT_SECRET dan database yang sama. Rate limit login saat ini per proses; untuk banyak replica tambahkan limiter bersama di gateway.
 
 ## Menjalankan dengan Docker
 `docker compose up --build` menjalankan ML (8100), backend (8000), dan frontend (8080) dengan PostgreSQL lokal. Isi `GEMINI_API_KEY` di shell bila ingin mode LLM.

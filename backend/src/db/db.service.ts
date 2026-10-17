@@ -1,76 +1,65 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { AsyncLocalStorage } from 'async_hooks';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient, Prisma } from '../generated/prisma/client';
 import { CONFIG, ROOT } from '../config';
 import { now } from '../domain';
 
-/**
- * Akses PostgreSQL.
- * - DATABASE_URL terisi  -> Postgres sungguhan (Supabase) lewat `pg`.
- * - DATABASE_URL kosong  -> PGlite (Postgres WASM, tersimpan di folder .pgdata) agar dev lokal tanpa setup.
- * SQL yang sama berjalan di keduanya.
- */
+/** Shape of legacy SQL projections. New mutations use generated Prisma model types. */
+export interface DbRow {
+  id: string; name: string; pump_id: string; case_id: string; technician_id: string | null;
+  title: string; description: string; priority: string; status: string; part: string; criticality: string;
+  scheduled_at: string | null; created_at: number; closed_at: number | null; updated_at: number;
+  n: number; ts: number; features: unknown; trace: unknown; state: unknown;
+  fault: string; confidence: number; risk: string; summary: string; mode: string;
+  symptoms: string; root_cause: string; action: string; duration_min: number;
+  stock: number; part_id: string; location: string; available: boolean; skill: string; level: string; contact: string;
+}
+
 @Injectable()
 export class DbService implements OnModuleInit, OnModuleDestroy {
-  private log = new Logger('Db');
-  private pool: any = null;
-  private lite: any = null;
-  mode: 'supabase/postgres' | 'pglite' = 'pglite';
+  private readonly log = new Logger('Db');
+  private readonly context = new AsyncLocalStorage<Prisma.TransactionClient>();
+  readonly prisma: PrismaClient;
+  readonly mode = 'postgres/prisma';
 
+  constructor() {
+    if (!CONFIG.DATABASE_URL) throw new Error('DATABASE_URL wajib diisi. Gunakan PostgreSQL lokal/Docker atau Session pooler.');
+    const url = new URL(CONFIG.DATABASE_URL);
+    const hostname = url.hostname;
+    const supabase = hostname.endsWith('.supabase.com') || hostname.endsWith('.supabase.co');
+    if (supabase) for (const key of ['sslmode', 'sslcert', 'sslrootcert', 'sslaccept']) url.searchParams.delete(key);
+    this.prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.toString(), ssl: supabase ? { rejectUnauthorized: true, ca: readFileSync(join(ROOT, 'certs', 'supabase-ca.crt'), 'utf8') } : undefined, max: Number(process.env.DB_POOL_MAX || 5), connectionTimeoutMillis: 10000 }) });
+  }
+  get client(): Prisma.TransactionClient { return this.context.getStore() ?? this.prisma; }
   async onModuleInit() {
-    if (CONFIG.DATABASE_URL) {
-      const { Pool } = await import('pg');
-      const needSsl = /supabase|pooler|sslmode=require/i.test(CONFIG.DATABASE_URL);
-      this.pool = new Pool({
-        connectionString: CONFIG.DATABASE_URL.replace(/[?&]sslmode=[^&]*/i, ''),
-        max: 5,
-        ssl: needSsl ? { rejectUnauthorized: false } : undefined,
-      });
-      this.mode = 'supabase/postgres';
-    } else {
-      const { PGlite } = await import('@electric-sql/pglite');
-      const dir = process.env.PGLITE_MEMORY === '1' ? undefined : CONFIG.PGLITE_DIR;
-      this.lite = dir ? new PGlite(dir) : new PGlite();
-      await this.lite.waitReady;
-      this.mode = 'pglite';
-    }
-    await this.exec(fs.readFileSync(path.join(ROOT, 'schema.sql'), 'utf8'));
-    await this.seed();
+    await this.prisma.$connect();
+    // Schema changes are explicit Prisma migrations, never performed by application startup.
+    if (process.env.SEED_DEMO_DATA === 'true') await this.transaction(async () => {
+      await this.q('SELECT pg_advisory_xact_lock(157001)::text');
+      await this.seed();
+    });
     this.log.log(`Database siap (${this.mode})`);
   }
-
-  async onModuleDestroy() {
-    if (this.pool) await this.pool.end();
-    if (this.lite) await this.lite.close();
+  async onModuleDestroy() { await this.prisma.$disconnect(); }
+  async transaction<T>(work: () => Promise<T>): Promise<T> {
+    if (this.context.getStore()) return work();
+    return this.prisma.$transaction((tx) => this.context.run(tx, work), { maxWait: 10000, timeout: 30000 });
   }
-
-  /** Jalankan banyak pernyataan SQL tanpa parameter (skema). */
-  async exec(sql: string) {
-    if (this.pool) await this.pool.query(sql);
-    else await this.lite.exec(sql);
+  async q<T = DbRow>(sql: string, params: unknown[] = []): Promise<T[]> {
+    return this.client.$queryRawUnsafe<T[]>(sql, ...params);
   }
-
-  async q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-    if (this.pool) return (await this.pool.query(sql, params)).rows as T[];
-    return (await this.lite.query(sql, params)).rows as T[];
-  }
-  async one<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-    return (await this.q<T>(sql, params))[0] ?? null;
-  }
-  async x(sql: string, params: any[] = []) {
-    await this.q(sql, params);
-  }
-
-  /** ID berurutan tanpa balapan: UPDATE atomik pada tabel counters. */
+  async one<T = DbRow>(sql: string, params: unknown[] = []): Promise<T | null> { return (await this.q<T>(sql, params))[0] ?? null; }
+  async x(sql: string, params: unknown[] = []): Promise<void> { await this.client.$executeRawUnsafe(sql, ...params); }
   async nextId(prefix: string, counter: string): Promise<string> {
-    await this.x('INSERT INTO counters (name, n) VALUES ($1, 0) ON CONFLICT (name) DO NOTHING', [counter]);
-    const r = await this.one<{ n: number }>('UPDATE counters SET n = n + 1 WHERE name = $1 RETURNING n', [counter]);
-    return `${prefix}-${String(Number(r!.n)).padStart(4, '0')}`;
+    const row = await this.client.counter.upsert({ where: { name: counter }, create: { name: counter, n: 1 }, update: { n: { increment: 1 } } });
+    return `${prefix}-${String(row.n).padStart(4, '0')}`;
   }
-
   /** Data awal yang mensimulasikan CMMS/ERP perusahaan (idempoten). */
   private async seed() {
-    const c = await this.one<{ n: any }>('SELECT COUNT(*) AS n FROM pumps');
+    const c = await this.one<{ n: number }>('SELECT COUNT(*) AS n FROM pumps');
     if (Number(c!.n) > 0) return;
     const pumps = [
       ['Pump-01', 'HPU Press Line 1', 'Produksi, Line 1', 'HPU-75', 'tinggi'],
@@ -109,7 +98,7 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
       ['H-0004', 'Pump-01', t - 200 * 86400, 'hentakan tekanan, denyut tekanan membesar', 'accumulator',
         'Pre-charge nitrogen turun karena bladder merembes', 'Ganti bladder akumulator, isi nitrogen sesuai spesifikasi', 110],
     ];
-    for (const h of hist) await this.x('INSERT INTO case_history VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', h);
+    for (const h of hist) await this.x('INSERT INTO case_history (id,pump_id,ts,symptoms,fault,root_cause,action,duration_min) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', h);
     await this.x("INSERT INTO counters (name, n) VALUES ('case_history', 4) ON CONFLICT (name) DO UPDATE SET n = 4");
   }
 }

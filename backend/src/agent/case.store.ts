@@ -3,7 +3,7 @@ import { DbService } from '../db/db.service';
 import { FAULT_LABEL, asObj, now } from '../domain';
 import { ToolsService } from '../tools/tools.service';
 
-export const OPEN_STATUSES = ['menunggu_klarifikasi', 'menunggu_persetujuan'];
+export const OPEN_STATUSES = ['diproses', 'menunggu_klarifikasi', 'menunggu_persetujuan'];
 
 function short(tool: string, res: any): string {
   if (!res || typeof res !== 'object') return String(res).slice(0, 120);
@@ -43,6 +43,7 @@ export class Trace {
   }
 
   async tool(name: string, args: any = {}): Promise<any> {
+    if (['create_work_order', 'escalate_to_senior'].includes(name)) args = { ...args, case_id: this.caseId };
     const res = await this.tools.call(name, args);
     this.add('tool', `Memanggil ${name}`, short(name, res), name, args, res);
     await this.db.x('INSERT INTO agent_logs (ts, case_id, step, tool, input, output) VALUES ($1,$2,$3,$4,$5,$6)',
@@ -54,6 +55,17 @@ export class Trace {
 @Injectable()
 export class CaseStore {
   constructor(private db: DbService, private tools: ToolsService) {}
+
+  async reserve(pumpId: string, complaint = '') {
+    return this.db.transaction(async () => {
+      await this.db.q('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [pumpId]);
+      const existing = await this.db.client.maintenanceCase.findFirst({ where: { pump_id: pumpId, status: { in: OPEN_STATUSES } } });
+      if (existing) return { id: existing.id, existing: true };
+      const id = await this.db.nextId('C', 'cases');
+      await this.db.client.maintenanceCase.create({ data: { id, pump_id: pumpId, status: 'diproses', state: { pump_id: pumpId, complaint }, trace: [], created_at: now(), updated_at: now(), mode: 'policy' } });
+      return { id, existing: false };
+    });
+  }
 
   trace(caseId: string, items: any[] = []) { return new Trace(this.tools, this.db, caseId, items); }
 
@@ -73,14 +85,8 @@ export class CaseStore {
   async get(caseId: string): Promise<any | null> {
     const c = await this.db.one('SELECT * FROM cases WHERE id=$1', [caseId]);
     if (!c) return null;
-    c.trace = asObj(c.trace, []);
-    c.state = asObj(c.state, {});
-    c.confidence = c.confidence == null ? null : Number(c.confidence);
-    c.created_at = Number(c.created_at); c.updated_at = Number(c.updated_at);
-    c.question = c.status === 'menunggu_klarifikasi' ? c.state.question ?? null : null;
-    c.plan = c.status === 'menunggu_persetujuan' ? c.state.plan ?? null : null;
-    c.probs = c.state.probs ?? null;
-    return c;
+    const state = asObj(c.state, {});
+    return { ...c, state, trace: asObj(c.trace, []), confidence: c.confidence == null ? null : Number(c.confidence), created_at: Number(c.created_at), updated_at: Number(c.updated_at), question: c.status === 'menunggu_klarifikasi' ? state.question ?? null : null, plan: c.status === 'menunggu_persetujuan' ? state.plan ?? null : null, probs: state.probs ?? null };
   }
 
   async list(limit = 30) {
@@ -89,6 +95,6 @@ export class CaseStore {
   }
 
   openFor(pumpId: string) {
-    return this.db.one("SELECT id FROM cases WHERE pump_id=$1 AND status IN ('menunggu_klarifikasi','menunggu_persetujuan') ORDER BY created_at DESC", [pumpId]);
+    return this.db.one("SELECT id FROM cases WHERE pump_id=$1 AND status IN ('diproses','menunggu_klarifikasi','menunggu_persetujuan') ORDER BY created_at DESC", [pumpId]);
   }
 }

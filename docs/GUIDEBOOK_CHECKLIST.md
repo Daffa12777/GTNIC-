@@ -30,5 +30,5 @@ Status: Siap = sudah ada di repo. Anda = harus dikerjakan tim sebelum pengumpula
 ## Catatan penting untuk proposal
 - Dataset dan domain berubah dari pompa sentrifugal sintetis menjadi **unit tenaga hidrolik dengan pompa** (dataset UCI). Perbarui bagian latar belakang, arsitektur ML, daftar sensor, tabel fitur, daftar pustaka, dan screenshot agar sama dengan sistem ini.
 - Angka akurasi: tulis hanya angka dari `ml/artifacts/metrics.json` hasil training dengan dataset asli, sebut metode split-nya, dan sebut bahwa data berasal dari satu test rig.
-- Jangan menyebut peran Teknisi/Supervisor sebagai autentikasi.
+- Mode demo dengan pemilih peran bukan autentikasi. Mode JWT memakai login dan role guard server; jelaskan mode yang benar-benar digunakan dalam demo/proposal.
 - Telegram bersifat simulasi (pesan dicatat) sampai `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` diisi.

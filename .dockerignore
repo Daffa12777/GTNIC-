@@ -12,3 +12,4 @@
 **/.env
 **/.env.*
 *.log
+**/.auth-bootstrap.json
