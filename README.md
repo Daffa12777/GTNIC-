@@ -63,6 +63,18 @@ Untuk mengisi instalasi kosong dengan data presentasi, pastikan layanan ML aktif
 
 Untuk presentasi yang terus bergerak, isi `SIM_ENABLED=true`, `AUTO_AGENT=true`, dan `DEMO_SCENARIO=true` di `backend/.env`, lalu jalankan ulang backend. Pump-01 tetap normal, Pump-02 mengalami penurunan pendingin bertahap, dan Pump-03 mengalami kebocoran pompa berat; prediksi dapat mencerminkan beberapa gangguan dalam satu siklus UCI. Flag skenario hanya memulai simulasi gangguan dan tidak menyetujui kasus berisiko tinggi. Tetap gunakan `SEED_DEMO_DATA=false` setelah pengisian awal. Kembalikan `DEMO_SCENARIO=false` untuk startup tanpa skenario otomatis; kontrol simulator juga tersedia di dashboard.
 
+### Fitur operasional web
+
+- Brand ManualMechanic membuka dashboard; avatar inisial di kanan atas membuka Profil.
+- Supervisor dapat menambah spare part serta stok masuk/koreksi lewat **Inventaris → Kelola inventaris**. Alasan dan pelaku dicatat dalam riwayat; stok negatif, stok yang berubah sejak form dibuka, dan pengiriman ulang transaksi dicegah di backend. Teknisi hanya dapat membaca inventaris.
+- Lonceng header menampilkan notifikasi operasional dan kasus menunggu persetujuan. Tombol tandai dibaca hanya memengaruhi akun yang sedang login. Informasi ini bersifat operasional untuk tim, bukan kotak pesan pribadi teknisi.
+- Kasus dan Work order mendukung pencarian/filter di server, 10/20/50 data per halaman, serta akses ke data lama. Indeks tanggal/ID dan status mendukung pengurutan; pencarian teks masih memakai substring (evaluasi pg_trgm bila volume membesar).
+- Percakapan dan draft Asisten disimpan di sesi browser per username, maksimal 100 pesan, serta dibersihkan saat logout. Riwayat ini belum tersinkron antarperangkat. Markdown dirender tanpa mengeksekusi HTML; delapan pesan terakhir dikirim sebagai konteks Gemini.
+- **Status layanan** memeriksa backend/database/ML. Gemini ditandai belum diuji sampai permintaan berhasil; tombol **Uji Gemini** mengirim permintaan singkat dan memakai kuota. Polling tidak otomatis memanggil Gemini. Hasil uji hanya menyatakan kondisi pada waktu terakhir diperiksa.
+- Profil memberi peringatan sebelum meninggalkan perubahan yang belum disimpan, termasuk navigasi, browser Back, logout, dan penutupan tab. Login dan Profil tidak menampilkan timestamp polling.
+
+Toolchain frontend memakai Node 22.12+ (seri 22) atau Node 24; versi Node 24 direkomendasikan untuk pengembangan. Jalankan `npm ci` setelah pull jika dependency berubah.
+
 ### Docker (empat layanan)
 
 ```powershell

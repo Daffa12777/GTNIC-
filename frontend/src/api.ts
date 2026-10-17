@@ -10,6 +10,9 @@ let role: Role = 'teknisi';
 export const setRole = (r: Role) => { role = r; };
 let refreshPending: Promise<boolean> | null = null;
 const authHeaders = { 'content-type': 'application/json', 'x-mm-client': 'web' };
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) { super(message); this.name = 'ApiError'; }
+}
 
 async function renewAccess(): Promise<boolean> {
   if (!refreshPending) {
@@ -42,7 +45,7 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
     if (r.status === 401 && !path.startsWith('/auth/') && retry && await renewAccess()) return req<T>(path, init, false);
     if (r.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('session-expired'));
     const body = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-    throw new Error(String(body.detail || body.message || `Permintaan gagal (${r.status})`));
+    throw new ApiError(r.status, String(body.detail || body.message || `Permintaan gagal (${r.status})`));
   }
   if (data === null) throw new Error('Respons server tidak valid');
   return data as T;

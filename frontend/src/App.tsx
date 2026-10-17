@@ -90,7 +90,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
 
       <main id="main-content">
       <div className="page service-container"><ServiceStatus /></div>
-      <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>
+      {tab !== 'profil' && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && <Dashboard ov={ov} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}

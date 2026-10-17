@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { useNavigation } from '../src/navigation';
@@ -24,4 +24,14 @@ it('can hide the timestamp while retaining errors and a non-submit retry button'
   view.rerender(<RequestState error="offline" loading={false} updated={1} retry={vi.fn()} showUpdated={false} />);
   expect(screen.getByRole('alert').textContent).toContain('offline');
   expect(screen.getByRole('button').getAttribute('type')).toBe('button');
+});
+it('restores the current URL when browser Back is cancelled', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  render(<Editor />); fireEvent.click(screen.getByText('Leave'));
+  expect(window.location.pathname).toBe('/work-orders');
+  confirm.mockReturnValue(false);
+  act(() => { window.history.back(); });
+  await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(window.location.pathname).toBe('/work-orders'));
+  expect(screen.getByText('wo')).toBeTruthy();
 });

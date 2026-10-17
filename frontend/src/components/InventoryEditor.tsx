@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import type { InventoryItem } from '../types';
 import { errorMessage, RequestState, usePolling } from '../usePolling';
 
@@ -10,14 +10,14 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  const operation = useRef<{ payload: string; id: string }>();
+  const operation = useRef<{ payload: string; id: string; expectedStock: number }>();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const load = useCallback((signal: AbortSignal) => api.stockMovements(selected, signal), [selected]);
   const history = usePolling(load, 10000, !!selected);
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return; pending.current = true; setBusy(true); setError(''); setMessage('');
-    try { await action(); await refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); }
+    try { await action(); await refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); if (failure instanceof ApiError && failure.status === 409) { operation.current = undefined; await refresh(); } }
     finally { pending.current = false; setBusy(false); }
   };
   const current = parts.find((item) => item.part_id === selected);
@@ -30,9 +30,9 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
         <button className="btn primary">Tambah part</button>
       </fieldset></form>
       <form onSubmit={(event) => { event.preventDefault(); if (!current) return; void run(async () => {
-        const payload = JSON.stringify({ selected, delta, reason: reason.trim(), stock: current.stock });
-        if (operation.current?.payload !== payload) operation.current = { payload, id: crypto.randomUUID() };
-        await api.adjustStock(selected, { operationId: operation.current.id, delta, reason: reason.trim(), expectedStock: current.stock });
+        const payload = JSON.stringify({ selected, delta, reason: reason.trim() });
+        if (operation.current?.payload !== payload) operation.current = { payload, id: crypto.randomUUID(), expectedStock: current.stock };
+        await api.adjustStock(selected, { operationId: operation.current.id, delta, reason: reason.trim(), expectedStock: operation.current.expectedStock });
         operation.current = undefined; setReason(''); setMessage('Perubahan stok tersimpan.'); await history.refresh();
       }); }}><h3>Stok masuk / koreksi</h3><fieldset className="form-stack" disabled={busy}>
         <label className="field">Spare part<select className="sel" required value={selected} onChange={(e) => setSelected(e.target.value)}><option value="">Pilih part</option>{parts.map((item) => <option value={item.part_id} key={item.part_id}>{item.name} — stok {item.stock}</option>)}</select></label>
