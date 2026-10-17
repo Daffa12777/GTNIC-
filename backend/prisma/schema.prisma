@@ -38,7 +38,21 @@ model Inventory {
   stock Int?
   location String?
   min_stock Int?
+  movements StockMovement[]
   @@map("inventory")
+}
+
+model StockMovement {
+  id String @id
+  partId String
+  delta Int
+  balance Int
+  reason String
+  actor String
+  createdAt DateTime @default(now())
+  part Inventory @relation(fields: [partId], references: [part_id], onDelete: Restrict)
+  @@index([partId, createdAt(sort: Desc)])
+  @@map("stock_movements")
 }
 
 model Technician {

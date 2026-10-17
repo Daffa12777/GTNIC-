@@ -11,6 +11,8 @@ import { AuthService } from '../src/auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { CompleteWorkOrderDto } from '../src/api/complete-work-order.dto';
+import { InventoryModule } from '../src/inventory/inventory.module';
+import { randomUUID } from 'crypto';
 
 @Controller('private')
 class ProtectedController {
@@ -42,7 +44,7 @@ describe('Server sessions and request validation', () => {
       process.env[`AUTH_${prefix}_USERNAME`] = prefix.toLowerCase();
       process.env[`AUTH_${prefix}_PASSWORD_HASH`] = `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
     }
-    const module = await Test.createTestingModule({ imports: [DbModule, AuthModule], controllers: [ProtectedController] }).compile();
+    const module = await Test.createTestingModule({ imports: [DbModule, AuthModule, InventoryModule], controllers: [ProtectedController] }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
@@ -156,5 +158,18 @@ describe('Server sessions and request validation', () => {
     await request(app.getHttpServer()).get('/api/profile').set('Cookie', changed.access).expect(401);
     await new AuthService(app.get(DbService)).onModuleInit();
     expect(await app.get(DbService).client.user.findUnique({ where: { username: 'technician' } })).toBeNull();
+  });
+  it('restricts inventory writes and applies a stock operation only once', async () => {
+    const server = app.getHttpServer();
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const supervisor = cookiesFrom(login.headers);
+    const part = { part_id: `test-${randomUUID().slice(0, 8)}`, name: 'Test stock', location: 'Test', stock: 4, min_stock: 1 };
+    await request(server).post('/api/inventory').set('x-mm-client', 'web').send(part).expect(401);
+    await request(server).post('/api/inventory').set('Cookie', supervisor.access).set('x-mm-client', 'web').send(part).expect(201);
+    const data = { operationId: randomUUID(), delta: 3, expectedStock: 4, reason: 'Delivery test' };
+    for (let i = 0; i < 2; i++) await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send(data).expect(201);
+    expect((await app.get(DbService).client.inventory.findUniqueOrThrow({ where: { part_id: part.part_id } })).stock).toBe(7);
+    await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID() }).expect(409);
+    await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID(), delta: -8, expectedStock: 7 }).expect(400);
   });
 });

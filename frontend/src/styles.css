@@ -75,6 +75,10 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .profile-form fieldset { display: grid; gap: 16px; border: 0; padding: 0; margin: 20px 0 0; min-width: 0; }
 .profile-form .field { min-width: 0; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.form-stack { display: grid; gap: 12px; border: 0; padding: 16px 0; min-width: 0; }
+.form-stack .field { min-width: 0; }
+.inventory-editor { margin: 16px 0; }
+.inventory-editor summary { cursor: pointer; font-weight: 600; }
 .btn.danger { background: #b42318; color: #fff; border-color: #b42318; }
 .btn.danger:hover:not(:disabled) { background: #912018; border-color: #912018; }
 .danger-zone { border-color: #f3b4ad; }
