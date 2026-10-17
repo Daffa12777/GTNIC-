@@ -15,7 +15,7 @@ Sensor (simulator ────────────────────�
 ```
 
 - `frontend/` React 18 + TypeScript + Vite, font Inter, tanpa library UI.
-- `backend/` NestJS 10 + TypeScript. Agent (`src/agent`), tool (`src/tools`), RAG (`src/rag`), simulator (`src/sim`), monitor (`src/monitor`).
+- `backend/` NestJS 12 + TypeScript. Agent (`src/agent`), tool (`src/tools`), RAG (`src/rag`), simulator (`src/sim`), monitor (`src/monitor`).
 - `ml/` Python: pemuat dan pelatih dataset UCI, layanan inferensi FastAPI.
 - Database: PostgreSQL + Prisma 7. `DATABASE_URL` wajib diisi; schema dan relasi ada di `backend/prisma/schema.prisma`, perubahan database lewat Prisma Migrate. PGlite hanya digunakan sebagai database terisolasi dalam tes.
 
@@ -84,6 +84,8 @@ Toolchain frontend memakai Node 22.12+ (seri 22) atau Node 24; versi Node 24 dir
 - `TRUST_PROXY` kosong berarti header forwarding tidak dipercaya. Untuk reverse proxy, isi hanya IP/CIDR proxy yang benar-benar tepercaya, batasi akses langsung ke backend, dan jangan memakai `true` atau jumlah hop. Nginx menimpa header forwarding dari klien. Jangan percaya seluruh subnet klien; klien di balik NAT yang sama berbagi kuota IP.
 - Agent otomatis dan semua mutasi simulator dibatasi supervisor pada UI dan backend. `SCENARIO_CONTROLS_ENABLED` default nonaktif pada production; aktifkan hanya untuk demo yang disengaja. Input mutasi memakai DTO/whitelist dan error 5xx tidak membeberkan stack/SQL/rahasia. Gunakan `X-Request-Id` untuk penelusuran error.
 - Compose membatasi port backend dan ML ke loopback host; akses pengguna melewati frontend/Nginx. Port database tidak dipublikasikan. Ini tidak menggantikan firewall atau TLS pada deployment publik.
+
+Pembaruan keamanan memakai Nest 12/Express 5, JWT 12, dan Jest 30. Compiler Nest CLI 11 tetap dipakai karena kompatibel dengan Node pengembangan saat ini. Audit dependency production (`npm audit --omit=dev`) tidak menemukan advisory pada pemeriksaan ini. Audit penuh masih menandai 20 paket tooling tes dari rantai `sprintf-js <=1.1.3` (moderate, belum ada rilis patch); dependency tersebut tidak ikut image runtime setelah `npm prune --omit=dev`. Hindari saran downgrade otomatis dari `npm audit fix --force` dan periksa advisory kembali sebelum deployment.
 
 ### Docker (empat layanan)
 

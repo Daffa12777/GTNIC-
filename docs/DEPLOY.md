@@ -24,7 +24,7 @@ Tier gratis Render tidur setelah beberapa menit tanpa trafik; akses sekali sebel
 4. Catat URL, misalnya `https://mm-ml.onrender.com`.
 
 ## 3. Backend (Render)
-1. New > Web Service, Root Directory `backend`, Build `npm install && npm run build`, Start `npm run start`.
+1. New > Web Service, Root Directory `backend`, Node 22.18+ atau 24, Build `npm ci && npm run build`, Start `npm run start`.
 2. Environment:
    - `DATABASE_URL` = connection string Supabase
    - `ML_URL` = URL layanan ML, `ML_API_KEY` = sama dengan di atas
@@ -35,13 +35,13 @@ Tier gratis Render tidur setelah beberapa menit tanpa trafik; akses sekali sebel
 
 ## 4. Frontend (Vercel)
 1. Import repo, Root Directory `frontend`, Framework Vite.
-2. Environment: `VITE_API_URL` = `https://<backend>/api`.
+2. Gunakan proxy/rewrite `/api/*` ke `https://<backend>/api/*` dan `VITE_API_URL=/api` agar cookie dan CSP tetap satu origin. Jangan rewrite request API ke fallback `index.html`.
 3. Deploy, lalu masukkan URL ke tabel tautan di proposal.
 
 ## 5. Keamanan sebelum repo dipublikasikan
 - Jangan commit `.env`. Semua `.env` sudah ada di `.gitignore`.
 - Jika API key pernah tertulis di berkas yang ter-commit, anggap bocor: cabut dan buat baru.
-- Untuk penggunaan tim aktifkan `AUTH_ENABLED=true`, isi `JWT_SECRET` acak minimal 32 karakter dan hash bootstrap akun sesuai `backend/.env.example`. Access JWT berlaku 15 menit; refresh token 7 hari disimpan sebagai hash di PostgreSQL, dirotasi dan dapat dicabut. Sajikan frontend/API pada origin yang sama, aktifkan `SESSION_COOKIE_SECURE=true` pada HTTPS, dan isi `FRONTEND_ORIGIN` secara eksplisit. Semua instance harus menggunakan JWT_SECRET dan database yang sama. Rate limit login saat ini per proses; untuk banyak replica tambahkan limiter bersama di gateway.
+- Untuk penggunaan tim aktifkan `AUTH_ENABLED=true`, isi `JWT_SECRET` acak minimal 32 karakter dan hash bootstrap akun sesuai `backend/.env.example`. Access JWT berlaku 15 menit; refresh token 7 hari disimpan sebagai hash di PostgreSQL, dirotasi dan dapat dicabut. Sajikan frontend/API pada origin yang sama, aktifkan `SESSION_COOKIE_SECURE=true` pada HTTPS, dan isi `FRONTEND_ORIGIN` secara eksplisit. Semua instance harus menggunakan JWT_SECRET dan database yang sama. Rate limiter kini memakai PostgreSQL bersama; terapkan migrasi sebelum startup. Isi `TRUST_PROXY` hanya dengan IP/CIDR reverse proxy yang benar-benar tepercaya. Kontrol simulator default nonaktif pada production.
 
 ## Menjalankan dengan Docker
 `docker compose up --build` menjalankan ML (8100), backend (8000), dan frontend (8080) dengan PostgreSQL lokal. Isi `GEMINI_API_KEY` di shell bila ingin mode LLM.

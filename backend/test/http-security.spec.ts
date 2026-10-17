@@ -57,4 +57,14 @@ describe('HTTP security boundary', () => {
     const response = await request(app.getHttpServer()).get('/api/check').set('X-Forwarded-For', '203.0.113.99').expect(200);
     expect(response.body.ip).not.toBe('203.0.113.99');
   });
+  it('rejects insecure production configurations and blanket proxy trust', () => {
+    const auth = process.env.AUTH_ENABLED;
+    try {
+      process.env.AUTH_ENABLED = 'true';
+      expect(() => configureHttpSecurity(app, { origins: 'http://public.example', production: true })).toThrow('HTTPS');
+      expect(() => configureHttpSecurity(app, { origins: 'https://public.example', trustProxy: 'true', production: false })).toThrow('TRUST_PROXY');
+      process.env.AUTH_ENABLED = 'false';
+      expect(() => configureHttpSecurity(app, { origins: 'https://public.example', production: true })).toThrow('autentikasi');
+    } finally { if (auth === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = auth; }
+  });
 });

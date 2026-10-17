@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { randomBytes, randomUUID, scryptSync } from 'crypto';
 import { DbService } from '../db/db.service';
+import { CONFIG } from '../config';
+import { RateLimitService } from '../security/rate-limit.service';
 
 /** Local HTTP smoke test using disposable fixtures; never prints passwords or cookies. */
 async function main() {
@@ -18,6 +20,17 @@ async function main() {
     return await response.json() as T;
   };
   try {
+    const origin = CONFIG.FRONTEND_ORIGIN.split(',')[0].trim();
+    const health = await fetch('http://127.0.0.1:8000/api/health', { headers: { Origin: origin }, signal: AbortSignal.timeout(10000) });
+    if (!health.ok || health.headers.get('x-content-type-options') !== 'nosniff' || !health.headers.has('ratelimit-limit') || health.headers.get('access-control-allow-origin') !== origin) throw new Error('HTTP security headers failed');
+    const foreign = await fetch('http://127.0.0.1:8000/api/health', { headers: { Origin: 'https://foreign.invalid' }, signal: AbortSignal.timeout(10000) });
+    if (foreign.status !== 403) throw new Error('CORS boundary failed');
+    const mime = await fetch('http://127.0.0.1:8000/api/auth/login', { method: 'POST', headers: { 'content-type': 'text/plain', 'x-mm-client': 'web' }, body: 'test', signal: AbortSignal.timeout(10000) });
+    if (mime.status !== 415) throw new Error('MIME boundary failed');
+    const limiter = new RateLimitService(db);
+    await Promise.all(Array.from({ length: 20 }, () => limiter.consume(marker, 60000, 100)));
+    const counter = await db.client.requestLimit.findUniqueOrThrow({ where: { key: marker } });
+    if (counter.hits !== 20) throw new Error('Shared limiter concurrency failed');
     for (const role of ['supervisor', 'teknisi']) {
       const username = `${marker}-${role}`;
       const user = await db.client.user.create({ data: { username, name: 'Web verification', passwordHash, role } }); accountIds.push(user.id);
@@ -29,6 +42,8 @@ async function main() {
     }
     const part = { part_id: marker, name: marker, stock: 2, min_stock: 1, location: 'Disposable test' };
     await http('/inventory', 'teknisi', part, 403);
+    await http('/auto', 'teknisi', { enabled: false }, 403);
+    await http('/scenario/start', 'teknisi', {}, 403);
     await http('/inventory', 'supervisor', part, 201);
     const adjustment = { operationId: randomUUID(), delta: 3, expectedStock: 2, reason: 'Disposable smoke test' };
     for (let count = 0; count < 2; count++) await http(`/inventory/${marker}/stock`, 'supervisor', adjustment, 201);
@@ -47,7 +62,7 @@ async function main() {
     const services = await http<{ database: { ok: boolean }; ml: { ok: boolean }; llm: { state: string } }>('/services', 'supervisor');
     if (!services.database.ok) throw new Error('Database health failed');
     await http('/profile', 'supervisor');
-    console.log(JSON.stringify({ inventory: 'ok', roleGuard: 'ok', stockIdempotency: 'ok', pagination: 'ok', inboxIsolation: 'ok', database: services.database.ok, ml: services.ml.ok, gemini: services.llm.state }));
+    console.log(JSON.stringify({ cors: 'ok', mime: 'ok', headers: 'ok', sharedLimiterConcurrency: 'ok', inventory: 'ok', roleGuard: 'ok', stockIdempotency: 'ok', pagination: 'ok', inboxIsolation: 'ok', database: services.database.ok, ml: services.ml.ok, gemini: services.llm.state }));
   } finally {
     await db.client.stockMovement.deleteMany({ where: { partId: marker } });
     await db.client.inventory.deleteMany({ where: { part_id: marker } });
@@ -55,6 +70,7 @@ async function main() {
     await db.client.maintenanceCase.deleteMany({ where: { id: marker } });
     if (notificationId) await db.client.notification.deleteMany({ where: { id: notificationId } });
     await db.client.user.deleteMany({ where: { id: { in: accountIds } } });
+    await db.client.requestLimit.deleteMany({ where: { key: marker } });
     await db.onModuleDestroy();
   }
 }
