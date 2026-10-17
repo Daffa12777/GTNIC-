@@ -172,4 +172,21 @@ describe('Server sessions and request validation', () => {
     await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID() }).expect(409);
     await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID(), delta: -8, expectedStock: 7 }).expect(400);
   });
+  it('tracks read notifications per account without hiding new messages', async () => {
+    const db = app.get(DbService); const server = app.getHttpServer();
+    const other = await db.client.user.create({ data: { username: 'inbox-other', passwordHash: process.env.AUTH_TECHNICIAN_PASSWORD_HASH!, role: 'teknisi' } });
+    const note = await db.client.notification.create({ data: { message: 'Inbox test', recipient: 'Team', status: 'disimulasikan' } });
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    await request(server).get('/api/inbox').expect(401);
+    const inbox = await request(server).get('/api/inbox').set('Cookie', session.access).expect(200);
+    expect(inbox.body.unread).toBeGreaterThan(0);
+    await request(server).post('/api/inbox/read').set('Cookie', session.access).set('x-mm-client', 'web').send({ through: Number(note.id) }).expect(201);
+    const read = await request(server).get('/api/inbox').set('Cookie', session.access).expect(200);
+    expect(read.body.unread).toBe(0);
+    expect((await db.client.user.findUniqueOrThrow({ where: { id: other.id } })).notificationsReadThrough).toBe(0n);
+    await db.client.notification.create({ data: { message: 'New message', recipient: 'Team' } });
+    expect((await request(server).get('/api/inbox').set('Cookie', session.access)).body.unread).toBe(1);
+    await db.client.user.delete({ where: { id: other.id } });
+  });
 });

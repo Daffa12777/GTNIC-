@@ -43,3 +43,4 @@ export interface InventoryItem { part_id: string; name: string; stock: number; l
 export interface Technician { id: string; name: string; skill: string; level: string; available: boolean }
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
 export interface Notification { id: number; ts: number; recipient: string; message: string; status: string }
+export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }

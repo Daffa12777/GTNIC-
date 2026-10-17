@@ -69,6 +69,7 @@ export class AuthService implements OnModuleInit {
     const user = await this.account(req);
     return { ...this.publicUser(user), name: user.name, email: user.email };
   }
+  async accountId(req: Request): Promise<string> { return (await this.account(req)).id; }
   async updateProfile(req: Request, data: UpdateProfileDto) {
     const user = await this.account(req);
     try {

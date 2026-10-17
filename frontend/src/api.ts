@@ -1,5 +1,6 @@
 import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
 import type { UserProfile } from './types';
+import type { Inbox } from './types';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -81,6 +82,8 @@ export const api = {
   technicians: (signal?: AbortSignal) => req<Technician[]>('/technicians', { signal }),
   purchases: (signal?: AbortSignal) => req<PurchaseRequest[]>('/purchase-requests', { signal }),
   notifications: (signal?: AbortSignal) => req<Notification[]>('/notifications', { signal }),
+  inbox: (signal?: AbortSignal) => req<Inbox>('/inbox', { signal }),
+  readInbox: (through: number) => post('/inbox/read', { through }),
   auto: (enabled: boolean) => post('/auto', { enabled }),
   scenarioStart: () => post('/scenario/start'),
   scenarioFault: (pump_id: string, fault: string, sudden: boolean) => post('/scenario/fault', { pump_id, fault, rate: sudden ? 0 : 0.06, severity: sudden ? 1 : 0 }),

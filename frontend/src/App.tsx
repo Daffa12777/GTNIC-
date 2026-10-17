@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import Profile from './components/Profile';
 import ProfileAvatar from './components/ProfileAvatar';
+import NotificationBell from './components/NotificationBell';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
@@ -82,7 +83,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
               <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={!ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" />
             </label>
           </div>
-          {user && <ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} />}
+          {user && <><NotificationBell onOpenCase={openCase} /><ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} /></>}
         </div>
       </header>
 

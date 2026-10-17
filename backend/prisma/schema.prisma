@@ -177,6 +177,7 @@ model User {
   username String @unique
   name String?
   email String? @unique
+  notificationsReadThrough BigInt @default(0)
   passwordHash String
   role String
   active Boolean @default(true)
