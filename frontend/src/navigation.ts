@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { canLeavePage } from './useUnsavedChanges';
 
 export type Tab = 'ringkasan' | 'kasus' | 'wo' | 'inventaris' | 'asisten' | 'profil';
 const paths: Record<Tab, string> = { ringkasan: '/', kasus: '/cases', wo: '/work-orders', inventaris: '/inventory', asisten: '/assistant', profil: '/profile' };
@@ -11,10 +12,29 @@ function readRoute() {
 }
 export function useNavigation() {
   const [route, setRoute] = useState(readRoute);
-  useEffect(() => { const update = () => setRoute(readRoute()); window.addEventListener('popstate', update); return () => window.removeEventListener('popstate', update); }, []);
+  const index = useRef<number>(Number(window.history.state?.mmNavIndex) || 0);
+  const currentPath = useRef(window.location.pathname);
+  const restoring = useRef(false);
+  useEffect(() => {
+    window.history.replaceState({ ...window.history.state, mmNavIndex: index.current }, '', window.location.href);
+    const update = (event: PopStateEvent) => {
+      if (restoring.current) { restoring.current = false; return; }
+      if (!canLeavePage()) {
+        const target: unknown = event.state?.mmNavIndex;
+        if (typeof target === 'number' && target !== index.current) { restoring.current = true; window.history.go(index.current - target); }
+        else window.history.pushState({ mmNavIndex: index.current }, '', currentPath.current);
+        return;
+      }
+      index.current = Number(event.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname; setRoute(readRoute());
+    };
+    window.addEventListener('popstate', update); return () => window.removeEventListener('popstate', update);
+  }, []);
   const navigate = (tab: Tab, id?: string, unit = false) => {
     const path = unit && id ? `/units/${encodeURIComponent(id)}` : `${paths[tab]}${id ? `/${encodeURIComponent(id)}` : ''}`;
-    if (window.location.pathname !== path) window.history.pushState(null, '', path);
+    if (window.location.pathname !== path) {
+      if (!canLeavePage()) return;
+      index.current++; window.history.pushState({ mmNavIndex: index.current }, '', path); currentPath.current = path;
+    }
     setRoute(readRoute());
   };
   return { ...route, navigate };

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from './api';
 import PasswordInput from './components/PasswordInput';
 import { clearChats } from './chatSession';
+import { canLeavePage } from './useUnsavedChanges';
 import type { AuthUser } from './types';
 import { errorMessage, RequestState, usePolling } from './usePolling';
 
@@ -17,6 +18,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
   useEffect(() => { const expired = () => { void session.refresh(); }; window.addEventListener('session-expired', expired); return () => window.removeEventListener('session-expired', expired); }, [session.refresh]);
   const logout = async (serverAlreadyClosed = false) => {
     if (submitting.current) return;
+    if (!serverAlreadyClosed && !canLeavePage()) return;
     submitting.current = true;
     setLoggingOut(true); setError('');
     try { if (!serverAlreadyClosed) await api.logout(); clearChats(); setLoggedOut(true); setPassword(''); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }
@@ -29,7 +31,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     try { await api.login(username.trim(), password); setLoggedOut(false); setPassword(''); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
   }}>
     <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola.</p>
-    <RequestState {...session} retry={session.refresh} />
+    <RequestState {...session} retry={session.refresh} showUpdated={false} />
     <label className="field">Username<input className="input" autoComplete="username" required maxLength={100} disabled={busy} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
     <div className="field"><label htmlFor="login-password">Kata sandi</label><PasswordInput id="login-password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
     {error && <div className="notice bad" role="alert">{error}</div>}

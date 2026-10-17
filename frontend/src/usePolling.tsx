@@ -40,10 +40,11 @@ export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interva
   return { data: same ? snapshot.data : null, error: same ? snapshot.error : '', updated: same ? snapshot.updated : null, loading: enabled && (!same || loading), refresh };
 }
 
-export function RequestState({ error, loading, updated, retry }: { error: string; loading: boolean; updated: number | null; retry: () => void }) {
+export function RequestState({ error, loading, updated, retry, showUpdated = true }: { error: string; loading: boolean; updated: number | null; retry: () => void; showUpdated?: boolean }) {
+  if (!error && updated && !showUpdated) return null;
   return <div className="request-state" aria-live="polite">
-    {error ? <div className="notice bad" role="alert">Koneksi atau pemuatan gagal: {error}. {updated ? 'Data yang ditampilkan belum diperbarui.' : ''} <button className="btn sm" disabled={loading} onClick={retry}>Coba lagi</button></div>
+    {error ? <div className="notice bad" role="alert">Koneksi atau pemuatan gagal: {error}. {updated && showUpdated ? 'Data yang ditampilkan belum diperbarui.' : ''} <button type="button" className="btn sm" disabled={loading} onClick={retry}>Coba lagi</button></div>
       : !updated ? <div className="notice">Memuat data…</div> : null}
-    {updated && <div className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time>{loading ? ' · Memperbarui…' : ''}</div>}
+    {showUpdated && updated && <div className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time>{loading ? ' · Memperbarui…' : ''}</div>}
   </div>;
 }
