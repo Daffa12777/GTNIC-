@@ -1,13 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nestjs",
-  "buildCommand": "npm run build",
+  "framework": null,
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "public",
   "functions": {
-    "src/main.ts": {
+    "api/index.mjs": {
       "includeFiles": "{assets/**,knowledge/**,certs/**,package.json}",
       "maxDuration": 60
     }
   },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "env": {
     "SIM_ENABLED": "false",
     "AUTO_AGENT": "false",

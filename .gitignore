@@ -13,3 +13,5 @@ backend/src/generated/
 .auth-bootstrap.json
 backend/.test-cache/
 .vercel/
+backend/.vercel-esm/
+backend/api/index.mjs
