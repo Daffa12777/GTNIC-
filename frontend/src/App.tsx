@@ -18,10 +18,10 @@ const store = {
 };
 
 export default function App() {
-  return <SessionGate>{(user, logout) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} />}</SessionGate>;
+  return <SessionGate>{(user, logout, loggingOut) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate>;
 }
 
-function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Promise<void> }) {
+function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: () => Promise<void>; loggingOut: boolean }) {
   const { tab, caseId, pumpId, navigate } = useNavigation();
   const overview = usePolling(api.overview, 3000);
   const ov = overview.data;
@@ -67,7 +67,7 @@ function Workspace({ user, logout }: { user: AuthUser | null; logout: () => Prom
             ))}
           </nav>
           <div className="controls">
-            {user ? <div className="ctl"><span>{user.username} · {user.role}</span><button className="btn sm" onClick={() => void logout()}>Keluar</button></div> : <label className="ctl">Peran demo
+            {user ? <div className="ctl"><span>{user.username} · {user.role}</span><button type="button" className="btn sm" disabled={loggingOut} aria-busy={loggingOut} onClick={() => void logout()}>{loggingOut ? 'Keluar…' : 'Logout'}</button></div> : <label className="ctl">Peran demo
               <select className="sel" value={role} onChange={(e) => setRoleState(e.target.value as Role)}>
                 <option value="teknisi">Teknisi</option><option value="supervisor">Supervisor</option>
               </select>
