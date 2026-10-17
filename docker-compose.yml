@@ -13,7 +13,7 @@ services:
       retries: 20
   ml:
     build: ./ml
-    ports: ["8100:8100"]
+    ports: ["127.0.0.1:8100:8100"]
     volumes: [ml_profiles:/shared]
     command: ["sh", "-c", "cp artifacts/profiles.json /shared/profiles.json && cp artifacts/metrics.json /shared/ml_metrics.json && exec uvicorn app:app --host 0.0.0.0 --port 8100"]
     healthcheck:
@@ -27,12 +27,19 @@ services:
     depends_on:
       db: { condition: service_healthy }
       ml: { condition: service_healthy }
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:mm@db:5432/mm}
+      NODE_ENV: ${NODE_ENV:-production}
       DIRECT_URL: ${DIRECT_URL:-}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
       DEMO_SCENARIO: ${DEMO_SCENARIO:-false}
+      SCENARIO_CONTROLS_ENABLED: ${SCENARIO_CONTROLS_ENABLED:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-600}
+      RATE_LOGIN_MAX: ${RATE_LOGIN_MAX:-20}
+      RATE_AI_MAX: ${RATE_AI_MAX:-20}
+      RATE_SENSITIVE_MAX: ${RATE_SENSITIVE_MAX:-5}
       JWT_SECRET: ${JWT_SECRET:-}
       ML_URL: http://ml:8100
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}

@@ -41,6 +41,7 @@ export const CONFIG = {
   AUTO_AGENT: ['1', 'true', 'yes'].includes(env('AUTO_AGENT', 'true').toLowerCase()),
   SIM_ENABLED: ['1', 'true', 'yes'].includes(env('SIM_ENABLED', 'true').toLowerCase()),
   DEMO_SCENARIO: ['1', 'true', 'yes'].includes(env('DEMO_SCENARIO', 'false').toLowerCase()),
+  SCENARIO_CONTROLS_ENABLED: ['1', 'true', 'yes'].includes(env('SCENARIO_CONTROLS_ENABLED', process.env.NODE_ENV === 'production' ? 'false' : 'true').toLowerCase()),
   KNOWLEDGE_DIR: path.join(ROOT, 'knowledge'),
   ASSETS_DIR: env('ASSETS_DIR', path.join(ROOT, 'assets')),
   WINDOW: 30,

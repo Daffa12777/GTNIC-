@@ -17,6 +17,7 @@ export interface Pump {
 }
 export interface Overview {
   pumps: Pump[]; auto: boolean; llm_available: boolean; llm_model: string | null; db: string; tick_seconds: number; simulator: boolean;
+  scenario_controls_enabled?: boolean;
   ml: { ok: boolean; source?: string; trained_at?: string; error?: string };
   fault_labels: Record<string, string>;
 }

@@ -37,6 +37,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
   const tt = useRef<number>();
 
   useEffect(() => { setRole(role); store.set('mm_role', role); }, [role]);
+  useEffect(() => { if (user) setRoleState(user.role); }, [user?.role]);
   useEffect(() => { store.set('mm_llm', useLlm ? '1' : '0'); }, [useLlm]);
 
   useEffect(() => () => window.clearTimeout(tt.current), []);
@@ -81,7 +82,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
               <button role="switch" aria-checked={useLlm && !!ov?.llm_available} className={`switch ${useLlm && ov?.llm_available ? 'on' : ''}`} disabled={!ov?.llm_available} onClick={() => setUseLlm(!useLlm)} aria-label="Mode LLM" />
             </label>
             <label className="ctl">Agent otomatis
-              <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={!ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" />
+              <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={role !== 'supervisor' || !ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" title={role !== 'supervisor' ? 'Hanya supervisor yang dapat mengubah agent otomatis.' : undefined} />
             </label>
           </div>
           {user && <><NotificationBell onOpenCase={openCase} /><ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} /></>}
@@ -92,7 +93,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       <div className="page service-container"><ServiceStatus /></div>
       {tab !== 'profil' && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
-      {ov && tab === 'ringkasan' && <Dashboard ov={ov} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
+      {ov && tab === 'ringkasan' && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}

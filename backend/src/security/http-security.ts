@@ -20,6 +20,7 @@ export function configureHttpSecurity(app: INestApplication, options: { origins?
   const trustProxy = (options.trustProxy ?? process.env.TRUST_PROXY ?? '').trim();
   if (/^(true|\d+)$/i.test(trustProxy)) throw new Error('TRUST_PROXY harus berupa IP/CIDR atau nama subnet tepercaya, bukan true atau jumlah hop.');
   if (production && process.env.AUTH_ENABLED === 'false') throw new Error('Mode tanpa autentikasi tidak diizinkan pada NODE_ENV=production.');
+  if (production && [...origins].some((origin) => { const url = new URL(origin); return url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname); })) throw new Error('Origin publik pada production wajib menggunakan HTTPS. Untuk demo HTTP gunakan lingkungan development.');
   const server: Express = app.getHttpAdapter().getInstance();
   server.disable('x-powered-by');
   server.set('trust proxy', trustProxy ? trustProxy.split(',').map((entry) => entry.trim()) : false);

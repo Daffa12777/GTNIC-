@@ -75,6 +75,16 @@ Untuk presentasi yang terus bergerak, isi `SIM_ENABLED=true`, `AUTO_AGENT=true`,
 
 Toolchain frontend memakai Node 22.12+ (seri 22) atau Node 24; versi Node 24 direkomendasikan untuk pengembangan. Jalankan `npm ci` setelah pull jika dependency berubah.
 
+### Keamanan HTTP dan otorisasi
+
+- API hanya menerima body `application/json`, maksimal 128 KB; form/multipart dan body terkompresi ditolak. Tidak ada endpoint upload file saat ini. MIME request diperiksa dan respons memakai `X-Content-Type-Options: nosniff`.
+- CORS memakai daftar origin persis dari `FRONTEND_ORIGIN`, tanpa wildcard/path. Mutasi memerlukan `x-mm-client: web`; Origin asing ditolak. Cookie tetap HttpOnly/SameSite Lax. Production publik wajib HTTPS dan cookie otomatis Secure pada origin HTTPS; mode tanpa autentikasi ditolak pada production. HTTP localhost tetap dapat digunakan untuk demo lokal.
+- Helmet dan Nginx menambahkan CSP, anti-framing, referrer/permissions policy. CSP frontend mengharuskan API melalui proxy `/api` pada origin yang sama. TLS/HSTS di proxy publik perlu disesuaikan dengan domain deployment.
+- Limiter fixed-window tersimpan bersama di PostgreSQL (`request_limits`, RLS aktif): default umum 600/menit/IP, login 20/15 menit/IP, AI 20/menit/IP, password/hapus akun 5/15 menit/IP, refresh 60/menit/IP, uji Gemini 3/menit/IP. `429` menyertakan `Retry-After`; store tidak tersedia menghasilkan `503`, bukan melewati limiter. Alamat IP disimpan sebagai HMAC; alamat IPv6 dikelompokkan per /64. Baris yang sudah kedaluwarsa lebih dari 24 jam dibersihkan berkala.
+- `TRUST_PROXY` kosong berarti header forwarding tidak dipercaya. Untuk reverse proxy, isi hanya IP/CIDR proxy yang benar-benar tepercaya, batasi akses langsung ke backend, dan jangan memakai `true` atau jumlah hop. Nginx menimpa header forwarding dari klien. Jangan percaya seluruh subnet klien; klien di balik NAT yang sama berbagi kuota IP.
+- Agent otomatis dan semua mutasi simulator dibatasi supervisor pada UI dan backend. `SCENARIO_CONTROLS_ENABLED` default nonaktif pada production; aktifkan hanya untuk demo yang disengaja. Input mutasi memakai DTO/whitelist dan error 5xx tidak membeberkan stack/SQL/rahasia. Gunakan `X-Request-Id` untuk penelusuran error.
+- Compose membatasi port backend dan ML ke loopback host; akses pengguna melewati frontend/Nginx. Port database tidak dipublikasikan. Ini tidak menggantikan firewall atau TLS pada deployment publik.
+
 ### Docker (empat layanan)
 
 ```powershell
