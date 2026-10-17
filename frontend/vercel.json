@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://manualmechanic-api.vercel.app/api/:path*" },
+    { "source": "/profile", "destination": "/index.html" },
     { "source": "/units/:id", "destination": "/index.html" },
     { "source": "/cases/:id", "destination": "/index.html" },
     { "source": "/cases", "destination": "/index.html" },
