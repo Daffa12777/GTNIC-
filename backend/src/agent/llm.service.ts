@@ -5,6 +5,12 @@ import { TOOL_SPECS, ToolsService } from '../tools/tools.service';
 import { CaseStore, Trace } from './case.store';
 
 const MAX_STEPS = 12;
+export interface LlmConnectionStatus {
+  state: 'unconfigured' | 'unchecked' | 'ready' | 'error';
+  checkedAt: number | null;
+  code: string | null;
+  message: string;
+}
 const SYSTEM = `Kamu adalah ManualMechanic, asisten ahli perawatan unit tenaga hidrolik (hydraulic power unit dengan pompa) untuk tim maintenance pabrik. Bayangkan dirimu teknisi senior yang sabar: paham mendalam, menjelaskan dengan bahasa sehari-hari, dan tidak membuat lawan bicara merasa bodoh.
 
 PENGETAHUAN DOMAIN
@@ -41,6 +47,34 @@ export class LlmService {
   constructor(private tools: ToolsService, private db: DbService, private cases: CaseStore) {}
 
   get enabled() { return !!CONFIG.GEMINI_API_KEY; }
+  private connection: LlmConnectionStatus = { state: 'unchecked', checkedAt: null, code: null, message: 'Key terisi; koneksi belum diuji.' };
+  private probePending: Promise<LlmConnectionStatus> | null = null;
+  status(): LlmConnectionStatus { return this.enabled ? { ...this.connection } : { state: 'unconfigured', checkedAt: null, code: null, message: 'Gemini belum dikonfigurasi. Mode policy tetap tersedia.' }; }
+  private connected() { this.connection = { state: 'ready', checkedAt: Date.now(), code: null, message: 'Permintaan Gemini terakhir berhasil.' }; }
+  private failed(status?: number) {
+    const messages: Record<number, string> = { 400: 'Konfigurasi atau format permintaan Gemini ditolak.', 401: 'Key Gemini ditolak. Periksa key di backend.', 403: 'Akses Gemini ditolak. Periksa izin proyek dan key.', 404: 'Model Gemini tidak ditemukan atau tidak tersedia untuk key ini.', 429: 'Batas penggunaan Gemini tercapai. Cek kuota atau billing proyek.', 500: 'Gemini mengalami gangguan sementara.', 503: 'Gemini sedang sibuk atau tidak tersedia sementara.' };
+    this.connection = { state: 'error', checkedAt: Date.now(), code: status ? `HTTP_${status}` : 'NETWORK', message: status ? messages[status] ?? `Gemini gagal merespons (HTTP ${status}).` : 'Koneksi Gemini terputus atau melewati batas waktu.' };
+  }
+  async probe(): Promise<LlmConnectionStatus> {
+    if (!this.enabled) return this.status();
+    if (this.probePending) return this.probePending;
+    if (this.connection.checkedAt && Date.now() - this.connection.checkedAt < 10000) return this.status();
+    this.probePending = (async () => {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.GEMINI_MODEL}:generateContent`, {
+          method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Balas OK.' }] }], generationConfig: { maxOutputTokens: 64 } }), signal: AbortSignal.timeout(15000),
+        });
+        if (response.ok) {
+          const data = await response.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+          if (data.candidates?.some((candidate) => candidate.content?.parts?.some((part) => part.text))) this.connected();
+          else this.connection = { state: 'error', checkedAt: Date.now(), code: 'EMPTY_RESPONSE', message: 'Gemini terhubung tetapi tidak mengembalikan jawaban teks.' };
+        } else this.failed(response.status);
+      } catch { this.failed(); }
+      return this.status();
+    })().finally(() => { this.probePending = null; });
+    return this.probePending;
+  }
 
   private async call(contents: any[]) {
     const body = {
@@ -56,12 +90,14 @@ export class LlmService {
           method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
           body: JSON.stringify(body), signal: AbortSignal.timeout(120000),
         });
-        if (r.ok) return (await r.json()) as any;
+        if (r.ok) { this.connected(); return (await r.json()) as any; }
+        this.failed(r.status);
         const txt = (await r.text()).slice(0, 200);
         lastErr = new Error(`Gemini HTTP ${r.status}: ${txt}`);
         if (![429, 500, 502, 503, 504].includes(r.status)) throw lastErr; // error permanen: jangan diulang
       } catch (e: any) {
         if (e === lastErr) throw e;
+        this.failed();
         lastErr = new Error(e?.name === 'TimeoutError' ? 'Gemini tidak merespons dalam 120 detik' : String(e?.message ?? e));
       }
       await new Promise((res) => setTimeout(res, 1500));

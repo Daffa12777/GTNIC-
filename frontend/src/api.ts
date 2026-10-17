@@ -1,5 +1,8 @@
 import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
 import type { UserProfile } from './types';
+import type { Inbox } from './types';
+import type { RecordsPage, WorkOrdersPage } from './types';
+import type { ServicesStatus, LlmConnectionStatus } from './types';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -7,6 +10,9 @@ let role: Role = 'teknisi';
 export const setRole = (r: Role) => { role = r; };
 let refreshPending: Promise<boolean> | null = null;
 const authHeaders = { 'content-type': 'application/json', 'x-mm-client': 'web' };
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) { super(message); this.name = 'ApiError'; }
+}
 
 async function renewAccess(): Promise<boolean> {
   if (!refreshPending) {
@@ -39,7 +45,7 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
     if (r.status === 401 && !path.startsWith('/auth/') && retry && await renewAccess()) return req<T>(path, init, false);
     if (r.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('session-expired'));
     const body = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-    throw new Error(String(body.detail || body.message || `Permintaan gagal (${r.status})`));
+    throw new ApiError(r.status, String(body.detail || body.message || `Permintaan gagal (${r.status})`));
   }
   if (data === null) throw new Error('Respons server tidak valid');
   return data as T;
@@ -63,11 +69,15 @@ export const api = {
   changePassword: (body: { currentPassword: string; newPassword: string }) => post('/profile/password', body),
   deleteAccount: (currentPassword: string) => post('/profile/delete', { currentPassword }),
   overview: (signal?: AbortSignal) => req<Overview>('/overview', { signal }),
+  services: (signal?: AbortSignal) => req<ServicesStatus>('/services', { signal }),
+  checkLlm: () => post<LlmConnectionStatus>('/services/llm/check'),
   readings: (id: string, limit = 60, signal?: AbortSignal) => req<ReadingsResp>(`/pumps/${encodeURIComponent(id)}/readings?limit=${limit}`, { signal }),
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),
+  casesPage: (query: URLSearchParams, signal?: AbortSignal) => req<RecordsPage<Case>>(`/records/cases?${query}`, { signal }),
+  workOrdersPage: (query: URLSearchParams, signal?: AbortSignal) => req<WorkOrdersPage>(`/records/work-orders?${query}`, { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),
-  chat: (message: string, case_id: string | null, use_llm: boolean) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm }),
+  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = []) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm, history }),
   answer: (id: string, text: string) => post<Case>(`/cases/${id}/answer`, { text }),
   approve: (id: string) => post<Case>(`/cases/${id}/approve`),
   reject: (id: string, note: string) => post<Case>(`/cases/${id}/reject`, { note }),
@@ -75,9 +85,14 @@ export const api = {
   workOrders: (signal?: AbortSignal) => req<WorkOrder[]>('/work-orders', { signal }),
   complete: (id: string, root_cause: string, action: string) => post(`/work-orders/${id}/complete`, { root_cause, action }),
   inventory: (signal?: AbortSignal) => req<InventoryItem[]>('/inventory', { signal }),
+  createPart: (data: InventoryItem) => post<InventoryItem>('/inventory', data),
+  adjustStock: (id: string, data: { operationId: string; delta: number; expectedStock: number; reason: string }) => post(`/inventory/${encodeURIComponent(id)}/stock`, data),
+  stockMovements: (id: string, signal?: AbortSignal) => req<{ id: string; delta: number; balance: number; reason: string; actor: string; createdAt: string }[]>(`/inventory/${encodeURIComponent(id)}/movements`, { signal }),
   technicians: (signal?: AbortSignal) => req<Technician[]>('/technicians', { signal }),
   purchases: (signal?: AbortSignal) => req<PurchaseRequest[]>('/purchase-requests', { signal }),
   notifications: (signal?: AbortSignal) => req<Notification[]>('/notifications', { signal }),
+  inbox: (signal?: AbortSignal) => req<Inbox>('/inbox', { signal }),
+  readInbox: (through: number) => post('/inbox/read', { through }),
   auto: (enabled: boolean) => post('/auto', { enabled }),
   scenarioStart: () => post('/scenario/start'),
   scenarioFault: (pump_id: string, fault: string, sudden: boolean) => post('/scenario/fault', { pump_id, fault, rate: sudden ? 0 : 0.06, severity: sudden ? 1 : 0 }),

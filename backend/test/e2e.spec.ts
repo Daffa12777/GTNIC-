@@ -21,7 +21,7 @@ const realFetch = global.fetch;
 const SUP = { 'x-role': 'supervisor' };
 
 const api = () => request(app.getHttpServer());
-const tick = async (n = 1) => { for (let i = 0; i < n; i++) await api().post('/api/scenario/tick'); };
+const tick = async (n = 1) => { for (let i = 0; i < n; i++) await api().post('/api/scenario/tick').set(SUP); };
 
 beforeAll(async () => {
   try { mlUp = (await realFetch(`${CONFIG.ML_URL}/health`)).ok; } catch { mlUp = false; }
@@ -37,6 +37,17 @@ afterAll(async () => { global.fetch = realFetch; if (app) await app.close(); });
 const run = (name: string, fn: () => Promise<void>) => it(name, fn);
 
 describe('ManualMechanic end-to-end', () => {
+  run('kontrol operasional hanya supervisor dan input mutasi divalidasi ketat', async () => {
+    await api().post('/api/auto').send({ enabled: false }).expect(403);
+    await api().post('/api/scenario/start').expect(403);
+    await api().post('/api/auto').set(SUP).send({ enabled: 'false' }).expect(400);
+    await api().post('/api/diagnose').send({ pump_id: 'Pump-01', use_llm: 'false' }).expect(400);
+    await api().post('/api/diagnose').send({ pump_id: 'Pump-01', approved: true }).expect(400);
+    await api().post('/api/scenario/fault').set(SUP).send({ pump_id: 'Pump-01', fault: 'pump', severity: -1 }).expect(400);
+    const previous = CONFIG.SCENARIO_CONTROLS_ENABLED; CONFIG.SCENARIO_CONTROLS_ENABLED = false;
+    try { await api().post('/api/scenario/reset').set(SUP).expect(403); } finally { CONFIG.SCENARIO_CONTROLS_ENABLED = previous; }
+    await api().post('/api/auto').set(SUP).send({ enabled: false }).expect(201);
+  });
   run('health dan overview', async () => {
     expect((await api().get('/api/health')).body.ok).toBe(true);
     const o = (await api().get('/api/overview')).body;
@@ -56,7 +67,7 @@ describe('ManualMechanic end-to-end', () => {
   });
 
   run('tingkat menengah: agent bertindak otomatis (WO, jadwal, notifikasi)', async () => {
-    await api().post('/api/scenario/fault').send({ pump_id: 'Pump-02', fault: 'cooler', rate: 0.5 });
+    await api().post('/api/scenario/fault').set(SUP).send({ pump_id: 'Pump-02', fault: 'cooler', rate: 0.5 });
     await tick(1);
     // Policy assertions use a fixed diagnosis; random UCI cycles can contain multiple faults.
     const spy = jest.spyOn(app.get(ToolsService), 'analyze').mockResolvedValue(fake({ cooler: 0.95, normal: 0.05 }));
@@ -71,7 +82,7 @@ describe('ManualMechanic end-to-end', () => {
   });
 
   run('tingkat parah: menunggu persetujuan supervisor, lalu dieksekusi', async () => {
-    await api().post('/api/scenario/fault').send({ pump_id: 'Pump-03', fault: 'pump', rate: 1 });
+    await api().post('/api/scenario/fault').set(SUP).send({ pump_id: 'Pump-03', fault: 'pump', rate: 1 });
     await tick(1);
     const diagnosis = fake({ pump: 0.95, normal: 0.05 });
     diagnosis.components.pump.severity = 1;
@@ -99,7 +110,7 @@ describe('ManualMechanic end-to-end', () => {
   });
 
   run('sensor mati: agent tidak menuduh mesin, membuat tiket sensor', async () => {
-    await api().post('/api/scenario/dropout').send({ pump_id: 'Pump-04', sensor: 'VS1' });
+    await api().post('/api/scenario/dropout').set(SUP).send({ pump_id: 'Pump-04', sensor: 'VS1' });
     await tick(5);
     const c = (await api().post('/api/diagnose').send({ pump_id: 'Pump-04' })).body;
     expect(c.status).toBe('sensor_bermasalah');
@@ -126,7 +137,7 @@ describe('ManualMechanic end-to-end', () => {
   };
 
   run('keyakinan menengah: agent bertanya balik, jawaban teknisi memperbarui hipotesis', async () => {
-    await api().post('/api/scenario/reset');
+    await api().post('/api/scenario/reset').set(SUP);
     await tick(5);
     const tools = app.get(ToolsService);
     const spy = jest.spyOn(tools, 'analyze').mockResolvedValue(fake({ pump: 0.62, valve: 0.33, normal: 0.05 }) as any);

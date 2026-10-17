@@ -1,16 +1,22 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useCallback, useRef, useState } from 'react';
+import Pagination from './Pagination';
+import { useDebounced } from '../useDebounced';
 import { api } from '../api';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 import { Badge, Empty, WO_TONE, fmtTime } from './ui';
 
 export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
-  const result = usePolling(api.workOrders, 4000);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [unit, setUnit] = useState('');
   const [technician, setTechnician] = useState('');
-  const rows = (result.data ?? []).filter((w) => (!status || w.status === status) && (!priority || w.priority === priority) && (!unit || w.pump_id === unit) && (!technician || (w.technician ?? 'Belum ditugaskan') === technician) && `${w.id} ${w.title} ${w.pump_id} ${w.technician ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const search = useDebounced(query);
+  const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, technician }), signal), [page, pageSize, search, status, priority, unit, technician]);
+  const result = usePolling(load, 4000);
+  const rows = result.data?.items ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [cause, setCause] = useState('');
   const [action, setAction] = useState('');
@@ -36,15 +42,15 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
       <div className="page-head"><div><h1>Work order</h1><p>Dibuat oleh agent melalui tool, lengkap dengan jadwal teknisi. Menutup work order menambah riwayat yang dipakai RAG.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
       <div className="filters">
-        <label>Cari pekerjaan<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ID, judul, unit, teknisi" /></label>
-        <label>Status<select className="sel" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Semua status</option>{Array.from(new Set((result.data ?? []).map((w) => w.status))).map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Prioritas<select className="sel" value={priority} onChange={(e) => setPriority(e.target.value)}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Unit<select className="sel" value={unit} onChange={(e) => setUnit(e.target.value)}><option value="">Semua unit</option>{Array.from(new Set((result.data ?? []).map((w) => w.pump_id))).map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Teknisi<select className="sel" value={technician} onChange={(e) => setTechnician(e.target.value)}><option value="">Semua teknisi</option>{Array.from(new Set((result.data ?? []).map((w) => w.technician ?? 'Belum ditugaskan'))).map((s) => <option key={s}>{s}</option>)}</select></label>
-        <span className="sub">Maksimal 60 pekerjaan terbaru</span>
+        <label>Cari pekerjaan<input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="ID, judul, unit, teknisi" /></label>
+        <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.keys(WO_TONE).map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); setPage(1); }}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); setPage(1); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); setPage(1); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
+      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
       <div className="card">
-        {rows.length === 0 ? result.data && <Empty>{result.data.length ? 'Tidak ada pekerjaan yang cocok dengan filter.' : 'Belum ada work order.'}</Empty> : (
+        {rows.length === 0 ? result.data && <Empty>Tidak ada pekerjaan pada halaman ini atau sesuai filter.</Empty> : (
           <table>
             <thead><tr><th>ID</th><th>Unit</th><th>Pekerjaan</th><th>Prioritas</th><th>Status</th><th>Teknisi</th><th></th></tr></thead>
             <tbody>

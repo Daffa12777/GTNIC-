@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { api } from '../api';
 import { Badge, Empty, fmtTime } from './ui';
 import { RequestState, usePolling } from '../usePolling';
+import InventoryEditor from './InventoryEditor';
+import type { Role } from '../types';
 
 const loadInventory = async (signal: AbortSignal) => {
   const [inv, tech, pr, nt] = await Promise.all([api.inventory(signal), api.technicians(signal), api.purchases(signal), api.notifications(signal)]);
   return { inv, tech, pr, nt };
 };
 
-export default function Inventory() {
+export default function Inventory({ role }: { role: Role }) {
   const result = usePolling(loadInventory, 5000);
   const [query, setQuery] = useState('');
   const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
@@ -17,6 +19,7 @@ export default function Inventory() {
     <div className="page">
       <div className="page-head"><div><h1>Inventaris dan tim</h1><p>Data yang dibaca dan diubah agent lewat tool: stok, teknisi, permintaan pembelian, notifikasi.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
+      {role === 'supervisor' && result.data && <InventoryEditor parts={inv} refresh={result.refresh} />}
       <div className="filters"><label>Cari spare part<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama atau lokasi" /></label></div>
       {result.data && <div className="grid inventory-grid">
         <div className="card">

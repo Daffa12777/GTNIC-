@@ -408,9 +408,9 @@ export class AgentService {
     return { ranking, cases };
   }
 
-  async chat(message: string, caseId?: string | null, useLlm = false): Promise<any> {
+  async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = []): Promise<any> {
     if (useLlm && this.llm.enabled && (message || '').trim()) {
-      try { return await this.llm.chat(message.trim()); }
+      try { return await this.llm.chat(message.trim(), history); }
       catch (e: any) {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);

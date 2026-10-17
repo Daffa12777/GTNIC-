@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'cr
 import { promisify } from 'util';
 import type { Request, Response } from 'express';
 import { DbService } from '../db/db.service';
+import { CONFIG } from '../config';
 import type { ChangePasswordDto, UpdateProfileDto } from './profile.dto';
 
 export type Role = 'teknisi' | 'supervisor';
@@ -69,6 +70,7 @@ export class AuthService implements OnModuleInit {
     const user = await this.account(req);
     return { ...this.publicUser(user), name: user.name, email: user.email };
   }
+  async accountId(req: Request): Promise<string> { return (await this.account(req)).id; }
   async updateProfile(req: Request, data: UpdateProfileDto) {
     const user = await this.account(req);
     try {
@@ -117,7 +119,7 @@ export class AuthService implements OnModuleInit {
     });
   }
   private clear(res: Response) { res.clearCookie(ACCESS, this.options('/api')); res.clearCookie(REFRESH, this.options('/api/auth')); res.clearCookie('mm_session', this.options('/api')); }
-  private options(path: string) { return { httpOnly: true, sameSite: 'lax' as const, secure: process.env.SESSION_COOKIE_SECURE === 'true', path }; }
+  private options(path: string) { return { httpOnly: true, sameSite: 'lax' as const, secure: process.env.SESSION_COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && CONFIG.FRONTEND_ORIGIN.split(',').every((origin) => origin.trim().startsWith('https://'))), path }; }
   private async issue(userId: string, sessionId: string, refresh: string, expiresAt: Date, res: Response) {
     const token = await this.jwt.signAsync({ sid: sessionId, typ: 'access' }, { secret: process.env.JWT_SECRET, algorithm: 'HS256', subject: userId, issuer: 'manualmechanic', audience: 'manualmechanic-web', expiresIn: ACCESS_SECONDS });
     res.cookie(ACCESS, token, { ...this.options('/api'), maxAge: ACCESS_SECONDS * 1000 });

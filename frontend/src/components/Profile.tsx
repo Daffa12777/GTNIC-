@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { errorMessage, RequestState, usePolling } from '../usePolling';
 import PasswordInput from './PasswordInput';
+import { useUnsavedChanges } from '../useUnsavedChanges';
 
 export default function Profile({ logout, loggingOut }: { logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
   const profile = usePolling(api.profile, 60000);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [savedProfile, setSavedProfile] = useState<{ name: string; email: string; username: string } | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -23,9 +25,12 @@ export default function Profile({ logout, loggingOut }: { logout: (serverAlready
   useEffect(() => {
     if (profile.data && !initialized.current) {
       setName(profile.data.name ?? ''); setEmail(profile.data.email ?? ''); setUsername(profile.data.username);
+      setSavedProfile({ name: profile.data.name ?? '', email: profile.data.email ?? '', username: profile.data.username });
       initialized.current = true;
     }
   }, [profile.data]);
+  const dirty = !!savedProfile && (name !== savedProfile.name || email !== savedProfile.email || username !== savedProfile.username || !!currentPassword || !!newPassword || !!confirmation || !!deletePassword || !!deleteConfirmation);
+  useUnsavedChanges(dirty);
   const run = async (action: () => Promise<void>) => {
     if (pending.current || loggingOut) return;
     pending.current = true; setBusy(true); setError(''); setMessage('');
@@ -35,7 +40,9 @@ export default function Profile({ logout, loggingOut }: { logout: (serverAlready
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void run(async () => {
-      await api.updateProfile({ name: name.trim(), email: email.trim().toLowerCase(), username: username.trim() });
+      const saved = await api.updateProfile({ name: name.trim(), email: email.trim().toLowerCase(), username: username.trim() });
+      const fields = { name: saved.name ?? '', email: saved.email ?? '', username: saved.username };
+      setSavedProfile(fields); setName(fields.name); setEmail(fields.email); setUsername(fields.username);
       setMessage('Profil berhasil disimpan.'); await profile.refresh();
       window.dispatchEvent(new Event('session-expired'));
     });
@@ -53,7 +60,8 @@ export default function Profile({ logout, loggingOut }: { logout: (serverAlready
   const disabled = busy || loggingOut;
   return <div className="page profile-page">
     <h1>Profil saya</h1><p className="sub">Kelola identitas, keamanan, dan sesi akun.</p>
-    <RequestState {...profile} retry={profile.refresh} />
+    <RequestState {...profile} retry={profile.refresh} showUpdated={false} />
+    {dirty && <div className="notice warn" role="status">Ada perubahan yang belum disimpan.</div>}
     {error && <div className="notice bad" role="alert">{error}</div>}
     {message && <div className="notice" role="status">{message}</div>}
     {profile.data && <div className="profile-grid">
@@ -65,6 +73,7 @@ export default function Profile({ logout, loggingOut }: { logout: (serverAlready
             <label className="field">Username<input className="input" autoComplete="username" required minLength={3} maxLength={100} pattern="[a-zA-Z0-9_.\-]+" value={username} onChange={(e) => setUsername(e.target.value)} /></label>
             <label className="field">Role<input className="input" value={profile.data.role} readOnly /></label>
             <button className="btn primary" disabled={!name.trim() || !email.trim() || !username.trim()}>Simpan profil</button>
+            <button className="btn" type="button" disabled={!dirty} onClick={() => { if (savedProfile) { setName(savedProfile.name); setEmail(savedProfile.email); setUsername(savedProfile.username); } setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setDeletePassword(''); setDeleteConfirmation(''); setError(''); setMessage(''); }}>Batalkan perubahan</button>
           </fieldset>
         </form>
       </section>

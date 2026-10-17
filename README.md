@@ -15,7 +15,7 @@ Sensor (simulator ────────────────────�
 ```
 
 - `frontend/` React 18 + TypeScript + Vite, font Inter, tanpa library UI.
-- `backend/` NestJS 10 + TypeScript. Agent (`src/agent`), tool (`src/tools`), RAG (`src/rag`), simulator (`src/sim`), monitor (`src/monitor`).
+- `backend/` NestJS 12 + TypeScript. Agent (`src/agent`), tool (`src/tools`), RAG (`src/rag`), simulator (`src/sim`), monitor (`src/monitor`).
 - `ml/` Python: pemuat dan pelatih dataset UCI, layanan inferensi FastAPI.
 - Database: PostgreSQL + Prisma 7. `DATABASE_URL` wajib diisi; schema dan relasi ada di `backend/prisma/schema.prisma`, perubahan database lewat Prisma Migrate. PGlite hanya digunakan sebagai database terisolasi dalam tes.
 
@@ -58,6 +58,34 @@ npm run dev                       # http://localhost:5173
 Atau jalankan ketiganya sekaligus: `.\scripts\dev.ps1`. Dengan Docker: `docker compose up --build` lalu buka http://localhost:8080.
 
 Periksa sumber model melalui `http://localhost:8100/meta`. File model bergantung pada versi scikit-learn; bila layanan ML menjawab "model tidak dapat dimuat", latih ulang dengan `python train.py --download`. `--demo` hanya untuk mencoba data sintetis dan akan menimpa artefak aktif. UI menampilkan peringatan selama model memakai data sintetis.
+
+Untuk mengisi instalasi kosong dengan data presentasi, pastikan layanan ML aktif dan hentikan backend sementara, lalu jalankan `npm run demo:seed` dari folder `backend`. Perintah ini mengisi 4 unit, 7 spare part, 6 teknisi, 4 riwayat perawatan, serta pembacaan sensor dari bank profil model. Kasus dan work order dihasilkan oleh diagnosis ML/policy yang sebenarnya; status dan jumlah tindakan mengikuti hasil prediksi, bukan dipaksakan. Akun pengguna tidak diubah dan notifikasi eksternal tidak dikirim selama seed. Menjalankan ulang tidak menggandakan data master atau diagnosis untuk unit yang sudah memiliki kasus berhasil.
+
+Untuk presentasi yang terus bergerak, isi `SIM_ENABLED=true`, `AUTO_AGENT=true`, dan `DEMO_SCENARIO=true` di `backend/.env`, lalu jalankan ulang backend. Pump-01 tetap normal, Pump-02 mengalami penurunan pendingin bertahap, dan Pump-03 mengalami kebocoran pompa berat; prediksi dapat mencerminkan beberapa gangguan dalam satu siklus UCI. Flag skenario hanya memulai simulasi gangguan dan tidak menyetujui kasus berisiko tinggi. Tetap gunakan `SEED_DEMO_DATA=false` setelah pengisian awal. Kembalikan `DEMO_SCENARIO=false` untuk startup tanpa skenario otomatis; kontrol simulator juga tersedia di dashboard.
+
+### Fitur operasional web
+
+- Brand ManualMechanic membuka dashboard; avatar inisial di kanan atas membuka Profil.
+- Supervisor dapat menambah spare part serta stok masuk/koreksi lewat **Inventaris → Kelola inventaris**. Alasan dan pelaku dicatat dalam riwayat; stok negatif, stok yang berubah sejak form dibuka, dan pengiriman ulang transaksi dicegah di backend. Teknisi hanya dapat membaca inventaris.
+- Lonceng header menampilkan notifikasi operasional dan kasus menunggu persetujuan. Tombol tandai dibaca hanya memengaruhi akun yang sedang login. Informasi ini bersifat operasional untuk tim, bukan kotak pesan pribadi teknisi.
+- Kasus dan Work order mendukung pencarian/filter di server, 10/20/50 data per halaman, serta akses ke data lama. Indeks tanggal/ID dan status mendukung pengurutan; pencarian teks masih memakai substring (evaluasi pg_trgm bila volume membesar).
+- Percakapan dan draft Asisten disimpan di sesi browser per username, maksimal 100 pesan, serta dibersihkan saat logout. Riwayat ini belum tersinkron antarperangkat. Markdown dirender tanpa mengeksekusi HTML; delapan pesan terakhir dikirim sebagai konteks Gemini.
+- **Status layanan** memeriksa backend/database/ML. Gemini ditandai belum diuji sampai permintaan berhasil; tombol **Uji Gemini** mengirim permintaan singkat dan memakai kuota. Polling tidak otomatis memanggil Gemini. Hasil uji hanya menyatakan kondisi pada waktu terakhir diperiksa.
+- Profil memberi peringatan sebelum meninggalkan perubahan yang belum disimpan, termasuk navigasi, browser Back, logout, dan penutupan tab. Login dan Profil tidak menampilkan timestamp polling.
+
+Toolchain frontend memakai Node 22.12+ (seri 22) atau Node 24; versi Node 24 direkomendasikan untuk pengembangan. Jalankan `npm ci` setelah pull jika dependency berubah.
+
+### Keamanan HTTP dan otorisasi
+
+- API hanya menerima body `application/json`, maksimal 128 KB; form/multipart dan body terkompresi ditolak. Tidak ada endpoint upload file saat ini. MIME request diperiksa dan respons memakai `X-Content-Type-Options: nosniff`.
+- CORS memakai daftar origin persis dari `FRONTEND_ORIGIN`, tanpa wildcard/path. Mutasi memerlukan `x-mm-client: web`; Origin asing ditolak. Cookie tetap HttpOnly/SameSite Lax. Production publik wajib HTTPS dan cookie otomatis Secure pada origin HTTPS; mode tanpa autentikasi ditolak pada production. HTTP localhost tetap dapat digunakan untuk demo lokal.
+- Helmet dan Nginx menambahkan CSP, anti-framing, referrer/permissions policy. CSP frontend mengharuskan API melalui proxy `/api` pada origin yang sama. TLS/HSTS di proxy publik perlu disesuaikan dengan domain deployment.
+- Limiter fixed-window tersimpan bersama di PostgreSQL (`request_limits`, RLS aktif): default umum 600/menit/IP, login 20/15 menit/IP, AI 20/menit/IP, password/hapus akun 5/15 menit/IP, refresh 60/menit/IP, uji Gemini 3/menit/IP. `429` menyertakan `Retry-After`; store tidak tersedia menghasilkan `503`, bukan melewati limiter. Alamat IP disimpan sebagai HMAC; alamat IPv6 dikelompokkan per /64. Baris yang sudah kedaluwarsa lebih dari 24 jam dibersihkan berkala.
+- `TRUST_PROXY` kosong berarti header forwarding tidak dipercaya. Untuk reverse proxy, isi hanya IP/CIDR proxy yang benar-benar tepercaya, batasi akses langsung ke backend, dan jangan memakai `true` atau jumlah hop. Nginx menimpa header forwarding dari klien. Jangan percaya seluruh subnet klien; klien di balik NAT yang sama berbagi kuota IP.
+- Agent otomatis dan semua mutasi simulator dibatasi supervisor pada UI dan backend. `SCENARIO_CONTROLS_ENABLED` default nonaktif pada production; aktifkan hanya untuk demo yang disengaja. Input mutasi memakai DTO/whitelist dan error 5xx tidak membeberkan stack/SQL/rahasia. Gunakan `X-Request-Id` untuk penelusuran error.
+- Compose membatasi port backend dan ML ke loopback host; akses pengguna melewati frontend/Nginx. Port database tidak dipublikasikan. Ini tidak menggantikan firewall atau TLS pada deployment publik.
+
+Pembaruan keamanan memakai Nest 12/Express 5, JWT 12, dan Jest 30. Compiler Nest CLI 11 tetap dipakai karena kompatibel dengan Node pengembangan saat ini. Audit dependency production (`npm audit --omit=dev`) tidak menemukan advisory pada pemeriksaan ini. Audit penuh masih menandai 20 paket tooling tes dari rantai `sprintf-js <=1.1.3` (moderate, belum ada rilis patch); dependency tersebut tidak ikut image runtime setelah `npm prune --omit=dev`. Hindari saran downgrade otomatis dari `npm audit fix --force` dan periksa advisory kembali sebelum deployment.
 
 ### Docker (empat layanan)
 

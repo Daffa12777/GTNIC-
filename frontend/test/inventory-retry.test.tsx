@@ -1,0 +1,24 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import InventoryEditor from '../src/components/InventoryEditor';
+import { api } from '../src/api';
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+it('reuses the same stock operation after a lost response even if polling changes the balance', async () => {
+  vi.spyOn(api, 'stockMovements').mockResolvedValue([]);
+  const adjust = vi.spyOn(api, 'adjustStock').mockRejectedValueOnce(new Error('timeout')).mockResolvedValue({ ok: true });
+  const part = { part_id: 'SP-test', name: 'Test part', location: 'Test', stock: 2, min_stock: 1 };
+  const refresh = vi.fn().mockResolvedValue(undefined);
+  const view = render(<InventoryEditor parts={[part]} refresh={refresh} />);
+  fireEvent.click(screen.getByText('Kelola inventaris'));
+  fireEvent.change(screen.getByLabelText('Spare part'), { target: { value: part.part_id } });
+  fireEvent.change(screen.getByLabelText('Perubahan jumlah (+ masuk, − keluar)'), { target: { value: '3' } });
+  fireEvent.change(screen.getByLabelText('Alasan perubahan'), { target: { value: 'Stok masuk gudang' } });
+  fireEvent.click(screen.getByText('Simpan perubahan stok'));
+  await screen.findByRole('alert');
+  await waitFor(() => expect((screen.getByText('Simpan perubahan stok') as HTMLButtonElement).disabled).toBe(false));
+  view.rerender(<InventoryEditor parts={[{ ...part, stock: 5 }]} refresh={refresh} />);
+  fireEvent.click(screen.getByText('Simpan perubahan stok'));
+  await waitFor(() => expect(adjust).toHaveBeenCalledTimes(2));
+  expect(adjust.mock.calls[1][1]).toEqual(adjust.mock.calls[0][1]);
+  expect(adjust.mock.calls[1][1].expectedStock).toBe(2);
+});

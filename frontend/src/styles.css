@@ -75,6 +75,32 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .profile-form fieldset { display: grid; gap: 16px; border: 0; padding: 0; margin: 20px 0 0; min-width: 0; }
 .profile-form .field { min-width: 0; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.form-stack { display: grid; gap: 12px; border: 0; padding: 16px 0; min-width: 0; }
+.form-stack .field { min-width: 0; }
+.inventory-editor { margin: 16px 0; }
+.inventory-editor summary { cursor: pointer; font-weight: 600; }
+.notification-bell { position: relative; flex-shrink: 0; }
+.notification-bell > summary { position: relative; display: grid; place-items: center; width: 36px; height: 40px; cursor: pointer; list-style: none; border-radius: 8px; }
+.notification-bell > summary::-webkit-details-marker { display: none; }
+.notification-count { position: absolute; top: 0; right: -5px; border-radius: 12px; color: #fff; background: var(--bad); padding: 0 5px; font-size: 10px; }
+.notification-panel { position: absolute; right: 0; top: 46px; width: min(380px, calc(100vw - 24px)); max-height: 75dvh; overflow-y: auto; box-shadow: 0 8px 24px #10182822; }
+.notification-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.notification-list li { padding: 12px 8px; border-bottom: 1px solid var(--border); }
+.notification-list li.unread { background: var(--accent-soft); }
+.notification-list p { margin: 4px 0; overflow-wrap: anywhere; }
+.notification-panel .link-button { display: block; }
+[hidden] { display: none !important; }
+.markdown { white-space: normal; overflow-wrap: anywhere; }
+.markdown p { margin: 0 0 10px; }
+.markdown p:last-child { margin-bottom: 0; }
+.markdown ul, .markdown ol { padding-left: 22px; }
+.markdown pre { overflow-x: auto; padding: 12px; background: var(--bg); border-radius: 6px; }
+.pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.pagination > span { margin-right: auto; }
+.service-container { padding-top: 12px; padding-bottom: 0; }
+.service-status > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--muted); font-size: 12px; }
+.service-status > .card { margin-top: 8px; }
+@media (max-width: 600px) { .notification-panel { position: fixed; top: 66px; right: 12px; } }
 .btn.danger { background: #b42318; color: #fff; border-color: #b42318; }
 .btn.danger:hover:not(:disabled) { background: #912018; border-color: #912018; }
 .danger-zone { border-color: #f3b4ad; }

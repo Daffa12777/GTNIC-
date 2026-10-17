@@ -17,6 +17,7 @@ export interface Pump {
 }
 export interface Overview {
   pumps: Pump[]; auto: boolean; llm_available: boolean; llm_model: string | null; db: string; tick_seconds: number; simulator: boolean;
+  scenario_controls_enabled?: boolean;
   ml: { ok: boolean; source?: string; trained_at?: string; error?: string };
   fault_labels: Record<string, string>;
 }
@@ -38,8 +39,13 @@ export interface WorkOrder {
   id: string; pump_id: string; case_id: string; title: string; description: string; priority: string; status: string;
   technician: string | null; scheduled_at: string | null; part: string; created_at: number;
 }
-export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null }
+export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string }
 export interface InventoryItem { part_id: string; name: string; stock: number; location: string; min_stock: number }
 export interface Technician { id: string; name: string; skill: string; level: string; available: boolean }
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
 export interface Notification { id: number; ts: number; recipient: string; message: string; status: string }
+export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }
+export interface RecordsPage<T> { items: T[]; total: number; page: number; pageSize: number }
+export interface WorkOrdersPage extends RecordsPage<WorkOrder> { technicians: { id: string; name: string }[]; units: string[] }
+export interface LlmConnectionStatus { state: 'unconfigured' | 'unchecked' | 'ready' | 'error'; checkedAt: number | null; code: string | null; message: string }
+export interface ServicesStatus { checkedAt: number; database: { ok: boolean }; ml: { ok: boolean }; llm: LlmConnectionStatus }

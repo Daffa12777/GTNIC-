@@ -9,6 +9,14 @@ datasource db {
   provider = "postgresql"
 }
 
+model RequestLimit {
+  key String @id
+  hits Int
+  reset_at Float
+  @@index([reset_at])
+  @@map("request_limits")
+}
+
 model Pump {
   id String @id
   name String?
@@ -38,7 +46,21 @@ model Inventory {
   stock Int?
   location String?
   min_stock Int?
+  movements StockMovement[]
   @@map("inventory")
+}
+
+model StockMovement {
+  id String @id
+  partId String
+  delta Int
+  balance Int
+  reason String
+  actor String
+  createdAt DateTime @default(now())
+  part Inventory @relation(fields: [partId], references: [part_id], onDelete: Restrict)
+  @@index([partId, createdAt(sort: Desc)])
+  @@map("stock_movements")
 }
 
 model Technician {
@@ -70,6 +92,8 @@ model MaintenanceCase {
   orders WorkOrder[]
   logs AgentLog[]
   @@index([pump_id, created_at(sort: Desc)], map: "idx_cases_pump")
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_status_page")
   @@map("cases")
 }
 
@@ -94,6 +118,8 @@ model WorkOrder {
   @@index([pump_id, status])
   @@index([case_id])
   @@index([technician_id])
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_status_page")
   @@map("work_orders")
 }
 
@@ -163,6 +189,7 @@ model User {
   username String @unique
   name String?
   email String? @unique
+  notificationsReadThrough BigInt @default(0)
   passwordHash String
   role String
   active Boolean @default(true)

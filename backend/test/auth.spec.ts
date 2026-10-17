@@ -11,6 +11,9 @@ import { AuthService } from '../src/auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { CompleteWorkOrderDto } from '../src/api/complete-work-order.dto';
+import { InventoryModule } from '../src/inventory/inventory.module';
+import { randomUUID } from 'crypto';
+import { RecordsController } from '../src/api/records.controller';
 
 @Controller('private')
 class ProtectedController {
@@ -42,7 +45,7 @@ describe('Server sessions and request validation', () => {
       process.env[`AUTH_${prefix}_USERNAME`] = prefix.toLowerCase();
       process.env[`AUTH_${prefix}_PASSWORD_HASH`] = `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
     }
-    const module = await Test.createTestingModule({ imports: [DbModule, AuthModule], controllers: [ProtectedController] }).compile();
+    const module = await Test.createTestingModule({ imports: [DbModule, AuthModule, InventoryModule], controllers: [ProtectedController, RecordsController] }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
@@ -156,5 +159,50 @@ describe('Server sessions and request validation', () => {
     await request(app.getHttpServer()).get('/api/profile').set('Cookie', changed.access).expect(401);
     await new AuthService(app.get(DbService)).onModuleInit();
     expect(await app.get(DbService).client.user.findUnique({ where: { username: 'technician' } })).toBeNull();
+  });
+  it('restricts inventory writes and applies a stock operation only once', async () => {
+    const server = app.getHttpServer();
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const supervisor = cookiesFrom(login.headers);
+    const part = { part_id: `test-${randomUUID().slice(0, 8)}`, name: 'Test stock', location: 'Test', stock: 4, min_stock: 1 };
+    await request(server).post('/api/inventory').set('x-mm-client', 'web').send(part).expect(401);
+    await request(server).post('/api/inventory').set('Cookie', supervisor.access).set('x-mm-client', 'web').send(part).expect(201);
+    const data = { operationId: randomUUID(), delta: 3, expectedStock: 4, reason: 'Delivery test' };
+    for (let i = 0; i < 2; i++) await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send(data).expect(201);
+    expect((await app.get(DbService).client.inventory.findUniqueOrThrow({ where: { part_id: part.part_id } })).stock).toBe(7);
+    await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID() }).expect(409);
+    await request(server).post(`/api/inventory/${part.part_id}/stock`).set('Cookie', supervisor.access).set('x-mm-client', 'web').send({ ...data, operationId: randomUUID(), delta: -8, expectedStock: 7 }).expect(400);
+  });
+  it('tracks read notifications per account without hiding new messages', async () => {
+    const db = app.get(DbService); const server = app.getHttpServer();
+    const other = await db.client.user.create({ data: { username: 'inbox-other', passwordHash: process.env.AUTH_TECHNICIAN_PASSWORD_HASH!, role: 'teknisi' } });
+    const note = await db.client.notification.create({ data: { message: 'Inbox test', recipient: 'Team', status: 'disimulasikan' } });
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    await request(server).get('/api/inbox').expect(401);
+    const inbox = await request(server).get('/api/inbox').set('Cookie', session.access).expect(200);
+    expect(inbox.body.unread).toBeGreaterThan(0);
+    await request(server).post('/api/inbox/read').set('Cookie', session.access).set('x-mm-client', 'web').send({ through: Number(note.id) }).expect(201);
+    const read = await request(server).get('/api/inbox').set('Cookie', session.access).expect(200);
+    expect(read.body.unread).toBe(0);
+    expect((await db.client.user.findUniqueOrThrow({ where: { id: other.id } })).notificationsReadThrough).toBe(0n);
+    await db.client.notification.create({ data: { message: 'New message', recipient: 'Team' } });
+    expect((await request(server).get('/api/inbox').set('Cookie', session.access)).body.unread).toBe(1);
+    await db.client.user.delete({ where: { id: other.id } });
+  });
+  it('paginates and searches records beyond the old latest-only limit', async () => {
+    const db = app.get(DbService); const server = app.getHttpServer(); const marker = randomUUID();
+    await db.client.maintenanceCase.createMany({ data: Array.from({ length: 45 }, (_, index) => ({ id: `${marker}-${index}`, summary: marker, status: 'selesai', created_at: index })) });
+    await db.client.workOrder.createMany({ data: Array.from({ length: 65 }, (_, index) => ({ id: `wo-${marker}-${index}`, title: marker, status: 'selesai', created_at: index })) });
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    const get = (url: string) => request(server).get(url).set('Cookie', session.access);
+    await get('/api/records/cases?page=0').expect(400);
+    const first = await get(`/api/records/cases?q=${marker}&pageSize=10`).expect(200);
+    const last = await get(`/api/records/cases?q=${marker}&pageSize=10&page=5`).expect(200);
+    expect(first.body.total).toBe(45); expect(last.body.items).toHaveLength(5);
+    expect(last.body.items.at(-1).id).toBe(`${marker}-0`);
+    const orders = await get(`/api/records/work-orders?q=${marker}&pageSize=10&page=7&status=selesai`).expect(200);
+    expect(orders.body.total).toBe(65); expect(orders.body.items).toHaveLength(5);
   });
 });

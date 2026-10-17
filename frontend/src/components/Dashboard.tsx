@@ -31,7 +31,7 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
   );
 }
 
-export default function Dashboard({ ov, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
+export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
   const readings = usePolling(loadReadings, Math.max(2000, ov.tick_seconds * 1000), !!sel);
@@ -140,7 +140,7 @@ export default function Dashboard({ ov, selected, onSelect, onOpenCase, flash, r
         </div>
       )}
 
-      {ov.simulator && <details className="card demo-panel" style={{ marginTop: 16 }}>
+      {ov.simulator && ov.scenario_controls_enabled && canManage && <details className="card demo-panel" style={{ marginTop: 16 }}>
         <summary>Mode demo · Kontrol simulasi sensor</summary>
         <div className="card-h">
           <div><h3>Simulasi data</h3><div className="sub">Data sensor diputar ulang dari siklus {ov.ml.source === 'uci_real' ? 'nyata dataset UCI' : 'data demo'}. Gunakan ini untuk demo.</div></div>
