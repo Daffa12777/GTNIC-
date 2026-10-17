@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from './api';
+import PasswordInput from './components/PasswordInput';
 import type { AuthUser } from './types';
 import { errorMessage, RequestState, usePolling } from './usePolling';
 
@@ -26,7 +27,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola.</p>
     <RequestState {...session} retry={session.refresh} />
     <label className="field">Username<input className="input" autoComplete="username" required maxLength={100} disabled={busy} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-    <label className="field">Kata sandi<input className="input" type="password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+    <div className="field"><label htmlFor="login-password">Kata sandi</label><PasswordInput id="login-password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
     {error && <div className="notice bad" role="alert">{error}</div>}
     <button className="btn primary" disabled={busy || !username.trim() || !password}>{busy ? 'Memeriksa…' : 'Masuk'}</button>
   </form></main>;

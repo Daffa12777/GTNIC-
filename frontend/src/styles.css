@@ -61,6 +61,11 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .btn.danger { color: var(--bad); border-color: #fda29b; }
 .btn.sm { padding: 4px 9px; font-size: 12.5px; }
 .input, .textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
+.password-field { position: relative; display: block; }
+.password-input { padding-right: 48px; }
+.password-toggle { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.password-toggle:hover:not(:disabled) { color: var(--accent); }
+.password-toggle:disabled { cursor: default; opacity: .5; }
 .input:focus, .textarea:focus, .sel:focus, .btn:focus-visible { outline: 2px solid #c7d7fe; outline-offset: 1px; border-color: var(--accent); }
 .textarea { resize: vertical; min-height: 64px; }
 .row { display: flex; align-items: center; gap: 10px; }
