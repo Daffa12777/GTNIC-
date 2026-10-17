@@ -1,76 +1,118 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
+import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import type { Request, Response } from 'express';
+import { DbService } from '../db/db.service';
 
-type Role = 'teknisi' | 'supervisor';
+export type Role = 'teknisi' | 'supervisor';
 export interface User { username: string; role: Role }
-interface Account extends User { hash: string }
-interface Session { user: User; expires: number }
+interface AccessClaims { sub: string; sid: string; typ: 'access' }
 const derive = promisify(scrypt);
-const COOKIE = 'mm_session';
-const TTL = 8 * 60 * 60 * 1000;
+const ACCESS = 'mm_access';
+const REFRESH = 'mm_refresh';
+const ACCESS_SECONDS = 15 * 60;
+const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
 @Injectable()
-export class AuthService {
-  readonly enabled = process.env.AUTH_ENABLED === 'true';
-  private readonly accounts: Account[] = [];
-  private readonly sessions = new Map<string, Session>();
+export class AuthService implements OnModuleInit {
+  readonly enabled = process.env.AUTH_ENABLED !== 'false';
   private readonly attempts = new Map<string, { count: number; expires: number }>();
-
-  constructor() {
+  private readonly jwt = new JwtService();
+  constructor(private readonly db: DbService) {
+    if (this.enabled && (process.env.JWT_SECRET?.length ?? 0) < 32) throw new Error('JWT_SECRET wajib acak dan minimal 32 karakter saat AUTH_ENABLED=true.');
+    if (this.enabled && process.env.AUTH_TECHNICIAN_USERNAME && process.env.AUTH_TECHNICIAN_USERNAME === process.env.AUTH_SUPERVISOR_USERNAME) throw new Error('Username teknisi dan supervisor harus berbeda.');
+  }
+  async onModuleInit() {
     if (!this.enabled) return;
-    for (const [prefix, role] of [['TECHNICIAN', 'teknisi'], ['SUPERVISOR', 'supervisor']] as const) {
-      const username = process.env[`AUTH_${prefix}_USERNAME`]?.trim();
-      const hash = process.env[`AUTH_${prefix}_PASSWORD_HASH`]?.trim();
-      if (!username || !hash || !/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(hash)) throw new Error(`Konfigurasi akun ${prefix} tidak lengkap. Buat hash dengan scripts/hash-password.ps1.`);
-      this.accounts.push({ username, hash, role });
-    }
-    if (this.accounts[0].username === this.accounts[1].username) throw new Error('Username teknisi dan supervisor harus berbeda.');
+    await this.db.transaction(async () => {
+      for (const [prefix, role] of [['TECHNICIAN', 'teknisi'], ['SUPERVISOR', 'supervisor']] as const) {
+        const username = process.env[`AUTH_${prefix}_USERNAME`]?.trim();
+        const passwordHash = process.env[`AUTH_${prefix}_PASSWORD_HASH`]?.trim();
+        if (!username || !passwordHash) continue;
+        if (!/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(passwordHash)) throw new Error(`Hash akun ${prefix} tidak valid.`);
+        const old = await this.db.client.user.findUnique({ where: { username } });
+        const user = await this.db.client.user.upsert({ where: { username }, create: { username, passwordHash, role }, update: { passwordHash, role } });
+        if (old && (old.passwordHash !== passwordHash || old.role !== role)) await this.db.client.refreshSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+      }
+      if (await this.db.client.user.count({ where: { active: true } }) === 0) throw new Error('Belum ada akun. Isi hash bootstrap AUTH_TECHNICIAN_PASSWORD_HASH dan AUTH_SUPERVISOR_PASSWORD_HASH.');
+    });
   }
-
-  current(req: Request): User | null {
-    const token = this.token(req);
-    const session = this.sessions.get(token);
-    if (!session) return null;
-    if (session.expires <= Date.now()) { this.sessions.delete(token); return null; }
-    return session.user;
+  async current(req: Request): Promise<User | null> {
+    const claims = await this.claims(req);
+    if (!claims) return null;
+    const session = await this.db.client.refreshSession.findFirst({ where: { id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { gt: new Date() }, user: { active: true } }, include: { user: true } });
+    return session ? this.publicUser(session.user) : null;
   }
-
-  private token(req: Request): string {
-    return req.headers.cookie?.split(';').map((v) => v.trim()).find((v) => v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? '';
+  private async claims(req: Request): Promise<AccessClaims | null> {
+    try {
+      const claims = await this.jwt.verifyAsync<AccessClaims>(this.cookie(req, ACCESS), { secret: process.env.JWT_SECRET, algorithms: ['HS256'], issuer: 'manualmechanic', audience: 'manualmechanic-web' });
+      return claims.typ === 'access' && typeof claims.sub === 'string' && typeof claims.sid === 'string' ? claims : null;
+    } catch { return null; }
   }
-
+  private cookie(req: Request, name: string): string { return req.headers.cookie?.split(';').map((v) => v.trim()).find((v) => v.startsWith(`${name}=`))?.slice(name.length + 1) ?? ''; }
+  private publicUser(user: { username: string; role: string }): User {
+    if (user.role !== 'teknisi' && user.role !== 'supervisor') throw new UnauthorizedException('Peran akun tidak valid.');
+    return { username: user.username, role: user.role };
+  }
+  private clear(res: Response) { res.clearCookie(ACCESS, this.options('/api')); res.clearCookie(REFRESH, this.options('/api/auth')); res.clearCookie('mm_session', this.options('/api')); }
+  private options(path: string) { return { httpOnly: true, sameSite: 'lax' as const, secure: process.env.SESSION_COOKIE_SECURE === 'true', path }; }
+  private async issue(userId: string, sessionId: string, refresh: string, expiresAt: Date, res: Response) {
+    const token = await this.jwt.signAsync({ sid: sessionId, typ: 'access' }, { secret: process.env.JWT_SECRET, algorithm: 'HS256', subject: userId, issuer: 'manualmechanic', audience: 'manualmechanic-web', expiresIn: ACCESS_SECONDS });
+    res.cookie(ACCESS, token, { ...this.options('/api'), maxAge: ACCESS_SECONDS * 1000 });
+    res.cookie(REFRESH, refresh, { ...this.options('/api/auth'), maxAge: Math.max(0, expiresAt.getTime() - Date.now()) });
+  }
   async login(username: string, password: string, req: Request, res: Response): Promise<User> {
+    if (!this.enabled) throw new UnauthorizedException('Login tidak diaktifkan.');
     const now = Date.now();
     for (const [key, value] of this.attempts) if (value.expires <= now) this.attempts.delete(key);
     const key = req.ip ?? 'local';
     const attempt = this.attempts.get(key) ?? { count: 0, expires: now + 15 * 60 * 1000 };
     if (attempt.count >= 20 || this.attempts.size > 10000) throw new UnauthorizedException('Terlalu banyak percobaan. Coba lagi dalam 15 menit.');
     attempt.count++; this.attempts.set(key, attempt);
-    const account = this.accounts.find((a) => a.username === username);
-    // Use the same expensive operation for unknown accounts to avoid username timing leaks.
-    const [salt, hash] = (account?.hash ?? this.accounts[0]?.hash ?? '').split(':');
-    if (!salt || !hash) throw new UnauthorizedException('Login tidak diaktifkan.');
+    const user = await this.db.client.user.findUnique({ where: { username } });
+    const [salt, hash] = (user?.passwordHash ?? `${'0'.repeat(32)}:${'0'.repeat(128)}`).split(':');
     const actual = await derive(password, salt, 64) as Buffer;
-    if (!account || !timingSafeEqual(actual, Buffer.from(hash, 'hex'))) throw new UnauthorizedException('Username atau kata sandi salah.');
+    if (!user || !user.active || hash.length !== 128 || !timingSafeEqual(actual, Buffer.from(hash, 'hex'))) throw new UnauthorizedException('Username atau kata sandi salah.');
     this.attempts.delete(key);
-    for (const [token, session] of this.sessions) if (session.expires <= now) this.sessions.delete(token);
-    if (this.sessions.size >= 1000) throw new UnauthorizedException('Sesi penuh. Coba lagi nanti.');
-    this.sessions.delete(this.token(req));
-    const token = randomBytes(32).toString('hex');
-    const user: User = { username: account.username, role: account.role };
-    this.sessions.set(token, { user, expires: now + TTL });
-    res.cookie(COOKIE, token, { ...this.cookieOptions(), maxAge: TTL });
-    return user;
+    await this.db.client.refreshSession.deleteMany({ where: { expiresAt: { lte: new Date() } } });
+    await this.logout(req, res);
+    const id = randomUUID();
+    const refresh = `${id}.${randomBytes(32).toString('hex')}`;
+    const expiresAt = new Date(now + REFRESH_MS);
+    await this.db.client.refreshSession.create({ data: { id, userId: user.id, tokenHash: digest(refresh), expiresAt } });
+    await this.issue(user.id, id, refresh, expiresAt, res);
+    return this.publicUser(user);
   }
-
-  logout(req: Request, res: Response) {
-    this.sessions.delete(this.token(req));
-    res.clearCookie(COOKIE, this.cookieOptions());
+  async refresh(req: Request, res: Response): Promise<User> {
+    const token = this.cookie(req, REFRESH);
+    const id = token.split('.')[0];
+    if (!this.enabled || !/^[a-f0-9-]{36}\.[a-f0-9]{64}$/.test(token)) { this.clear(res); throw new UnauthorizedException('Refresh token tidak valid.'); }
+    const rotated = await this.db.transaction(async () => {
+      await this.db.q('SELECT id FROM refresh_sessions WHERE id=$1 FOR UPDATE', [id]);
+      const session = await this.db.client.refreshSession.findUnique({ where: { id }, include: { user: true } });
+      if (!session || session.revokedAt || session.expiresAt <= new Date() || !session.user.active) return null;
+      const tokenHash = digest(token);
+      if (tokenHash !== session.tokenHash) {
+        const consumed = await this.db.client.consumedRefreshToken.findUnique({ where: { tokenHash } });
+        if (consumed?.sessionId === id) await this.db.client.refreshSession.update({ where: { id }, data: { revokedAt: new Date() } });
+        return null;
+      }
+      const next = `${id}.${randomBytes(32).toString('hex')}`;
+      await this.db.client.consumedRefreshToken.create({ data: { tokenHash, sessionId: id, expiresAt: session.expiresAt } });
+      await this.db.client.refreshSession.update({ where: { id }, data: { tokenHash: digest(next) } });
+      return { session, next };
+    });
+    if (!rotated) { this.clear(res); throw new UnauthorizedException('Sesi berakhir atau token sudah digunakan. Silakan masuk kembali.'); }
+    await this.issue(rotated.session.userId, id, rotated.next, rotated.session.expiresAt, res);
+    return this.publicUser(rotated.session.user);
   }
-
-  private cookieOptions() {
-    return { httpOnly: true, sameSite: 'lax' as const, secure: process.env.SESSION_COOKIE_SECURE === 'true', path: '/api' };
+  async logout(req: Request, res: Response) {
+    const claims = await this.claims(req);
+    const refresh = this.cookie(req, REFRESH);
+    if (claims) await this.db.client.refreshSession.updateMany({ where: { id: claims.sid, userId: claims.sub }, data: { revokedAt: new Date() } });
+    else if (refresh) await this.db.client.refreshSession.updateMany({ where: { tokenHash: digest(refresh) }, data: { revokedAt: new Date() } });
+    this.clear(res);
   }
 }

@@ -17,7 +17,7 @@ Sensor (simulator ────────────────────�
 - `frontend/` React 18 + TypeScript + Vite, font Inter, tanpa library UI.
 - `backend/` NestJS 10 + TypeScript. Agent (`src/agent`), tool (`src/tools`), RAG (`src/rag`), simulator (`src/sim`), monitor (`src/monitor`).
 - `ml/` Python: pemuat dan pelatih dataset UCI, layanan inferensi FastAPI.
-- Database: PostgreSQL. Dengan `DATABASE_URL` kosong backend memakai PGlite (Postgres WASM, tanpa instalasi); dengan URL Supabase memakai Postgres sungguhan. SQL-nya sama (`backend/schema.sql`).
+- Database: PostgreSQL + Prisma 7. `DATABASE_URL` wajib diisi; schema dan relasi ada di `backend/prisma/schema.prisma`, perubahan database lewat Prisma Migrate. PGlite hanya digunakan sebagai database terisolasi dalam tes.
 
 ## Logika keputusan
 
@@ -33,7 +33,7 @@ Dua jalur masuk menuju kasus yang sama: anomali dari sensor (otomatis) dan lapor
 
 ## Menjalankan di Windows (PowerShell)
 
-Prasyarat: Node.js 20+ (diuji 22), Python 3.10+.
+Prasyarat: Node.js 22.18+ (diuji 24), Python 3.10+, PostgreSQL atau koneksi Supabase.
 
 ```powershell
 # 1) Layanan ML
@@ -45,7 +45,8 @@ python -m uvicorn app:app --port 8100
 # 2) Backend (terminal baru)
 cd backend
 npm install
-copy .env.example .env            # isi bila perlu; semua opsional untuk lokal
+copy .env.example .env            # isi DATABASE_URL; DIRECT_URL opsional untuk migrasi
+npm run db:migrate                # terapkan schema sebelum menjalankan backend
 npm run start:dev
 
 # 3) Frontend (terminal baru)
@@ -79,24 +80,39 @@ URL `/units/Pump-02`, `/cases/<id>`, `/work-orders`, `/inventory`, dan `/assista
 
 ### Login opsional
 
-Default tetap mode demo. Untuk memakai login, jalankan `.\scripts\hash-password.ps1` dua kali dari root (kata sandi berbeda untuk setiap akun), lalu isi `AUTH_ENABLED=true`, username, dan hash di `backend/.env` sesuai `backend/.env.example`. Untuk Compose, letakkan variabel tersebut di `.env` root; Compose meneruskannya ke backend. Jangan commit kata sandi atau hash.
+Login aktif secara default. Jalankan `.\scripts\hash-password.ps1` dua kali dari root (kata sandi berbeda untuk setiap akun), lalu isi username dan hash di `backend/.env` sesuai `backend/.env.example`. Untuk Compose, letakkan variabel tersebut di `.env` root; Compose meneruskannya ke backend. `AUTH_ENABLED=false` hanya untuk demo lokal. Jangan commit kata sandi atau hash.
 
-Saat login aktif, backend memeriksa sesi HttpOnly dan mengambil peran dari akun server. Pemalsuan `x-role` tidak memberi hak supervisor. Semua endpoint aplikasi dilindungi, kecuali healthcheck dan endpoint autentikasi. `FRONTEND_ORIGIN` harus berisi origin eksplisit. Gunakan `SESSION_COOKIE_SECURE=true` untuk HTTPS dan frontend/API pada origin yang sama; default false untuk HTTP lokal. Sesi bertahan 8 jam dan disimpan dalam memori: restart backend mengharuskan login ulang. Implementasi akun tetap ini ditujukan untuk satu instance; pengelolaan pengguna dan session store bersama masih diperlukan untuk banyak instance.
+Alternatif setup lokal: dari folder `backend`, jalankan `npm run auth:setup`. Perintah ini mempertahankan konfigurasi database/API yang sudah ada, membuat JWT_SECRET serta kata sandi acak jika belum tersedia, dan mengaktifkan login. Kredensial awal disimpan di `.auth-bootstrap.json` yang diabaikan Git dan Docker; jangan dibagikan atau ditaruh di frontend. Restart backend untuk memasukkan hash akun ke PostgreSQL. Setelah mencatat kredensial dengan aman, file tersebut dapat dihapus. Perintah ini tidak merotasi hash atau secret yang sudah terisi.
 
-Data lokal PGlite tersimpan di `backend/.pgdata`; hapus folder itu untuk mengosongkan database.
+Saat login aktif, access JWT (15 menit) dan refresh token acak (7 hari) dikirim dalam cookie HttpOnly. Refresh token disimpan sebagai hash di PostgreSQL, dirotasi secara atomik, dan pemakaian ulang token lama mencabut sesi terkait. Logout langsung mencabut sesi; restart backend tidak menghapus login. Peran dan status aktif pengguna selalu dibaca dari database, sehingga header `x-role` tidak memberi hak supervisor. Frontend memperbarui token otomatis dan mengoordinasikan refresh lintas tab dengan Web Locks bila tersedia.
+
+Isi `JWT_SECRET` dengan nilai acak minimal 32 karakter (contoh: hasil `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`). Jangan mengganti secret pada setiap startup. Bootstrap username/hash membuat akun di tabel `app_users`; perubahan hash atau peran melalui konfigurasi bootstrap mencabut sesi lama. `FRONTEND_ORIGIN` harus eksplisit. Gunakan `SESSION_COOKIE_SECURE=true` pada HTTPS dan sajikan frontend/API pada origin yang sama. Mode demo (`AUTH_ENABLED=false`) tetap hanya untuk demo lokal; pengelolaan akun melalui UI belum tersedia.
+
+Folder PGlite lama `backend/.pgdata` tidak digunakan atau dihapus oleh migrasi ini. Data lama di sana tidak otomatis dipindahkan ke PostgreSQL.
+
+### Integritas dan migrasi database
+
+`npm run db:migrate` menjalankan Prisma Migrate menggunakan `DIRECT_URL` bila diisi, selain itu memakai `DATABASE_URL`. Supabase Session pooler port 5432 dapat dipakai; jangan memakai transaction pooler untuk migrasi. Pada database kosong, cukup jalankan perintah tersebut. Jika database sudah memiliki schema GTNIC lama dan belum memiliki riwayat Prisma, verifikasi kesesuaiannya lalu jalankan `npx prisma migrate resolve --applied 20261017000100_baseline` sebelum deploy migration berikutnya. Jangan menandai baseline pada schema yang belum sesuai.
+
+Migrasi menambah foreign key, check constraint, indeks foreign key dan riwayat, serta unique index parsial untuk kasus terbuka, WO aktif, penugasan teknisi, dan pembelian tertunda. Data duplikat atau referensi yatim lama menyebabkan migration gagal dan perlu ditinjau, bukan dihapus otomatis. `SEED_DEMO_DATA=true` mengisi contoh unit/teknisi hanya jika tabel unit kosong.
+
+Mutasi utama memakai Prisma model API dan interactive transaction. Query baca/analitik lama tetap memakai SQL berparameter melalui Prisma; aplikasi tidak lagi membuat `pg.Pool` sendiri. Penutupan WO, pelepasan teknisi, riwayat, dan status kasus berada dalam satu transaksi. Approval mengunci kasus; pembuatan WO/pembelian dan penugasan dapat diulang tanpa menghasilkan tindakan ganda. Telegram memakai outbox persisten setelah commit dengan maksimal tiga percobaan; pengiriman eksternal bersifat at-least-once, sehingga timeout/crash dapat menyebabkan notifikasi terkirim ulang.
 
 ## Konfigurasi (`backend/.env`)
 
 | Variabel | Fungsi |
 |---|---|
-| `DATABASE_URL` | Connection string Supabase (Session pooler). Kosong = PGlite lokal |
+| `DATABASE_URL` | Wajib: koneksi PostgreSQL runtime |
+| `DIRECT_URL` | Opsional: koneksi khusus Prisma Migrate; fallback ke DATABASE_URL |
+| `SEED_DEMO_DATA` | true untuk mengisi data demo pada database kosong |
+| `JWT_SECRET` | Secret acak minimal 32 karakter untuk access JWT |
 | `ML_URL`, `ML_API_KEY` | Alamat dan kunci layanan ML |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Mengaktifkan mode LLM (function calling). Kosong = mode policy |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Notifikasi sungguhan. Kosong = pesan hanya dicatat |
 | `FRONTEND_ORIGIN` | Origin yang diizinkan CORS |
 | `TICK_SECONDS`, `AUTO_AGENT`, `SIM_ENABLED` | Kecepatan simulator, pemicu agent otomatis, simulator |
 
-Frontend: `VITE_API_URL` (default `http://localhost:8000/api`).
+Frontend: `VITE_API_URL` (default `/api`, melalui proxy Vite/Nginx).
 
 ## Demo cepat
 1. Buka tab Ringkasan, klik **Mulai skenario demo**.
@@ -110,11 +126,11 @@ Skrip rekaman lengkap: `docs/DEMO_SCRIPT.md`.
 Set-Location C:\GTNIC-\ml
 python -m pytest -q                      # 5 tes ML, termasuk model hilang/rusak
 Set-Location C:\GTNIC-\backend
-npm.cmd test                            # 16 tes backend (ML wajib aktif di ML_URL)
+npm.cmd test                            # tes Prisma, JWT, rollback, idempotensi, dan agent; ML wajib aktif
 Set-Location C:\GTNIC-\frontend
-npm.cmd test                            # 5 tes regresi polling, URL, dan form work order
+npm.cmd test                            # tes regresi polling, URL, form, dan refresh token
 ```
-Tes backend mencakup jalur otomatis, tanya balik, eskalasi, persetujuan dan penolakan peran, guardrail risiko tinggi, sensor mati, pencegahan kasus ganda, RAG bersitasi, dan loop function calling (Gemini di-mock). Telah dijalankan pada PGlite dan PostgreSQL 16 sungguhan.
+Tes backend menjalankan Prisma melalui protokol PostgreSQL ke PGlite terisolasi; DATABASE_URL asli tidak dipakai oleh tes. Pool tes dibatasi satu koneksi karena PGlite memiliki satu engine koneksi. Tes ini memverifikasi rollback dan idempotensi, tetapi bukan pengganti uji beban multi-koneksi pada PostgreSQL produksi. Jalur agent, RAG, dan loop Gemini mock tetap diuji.
 
 ## Batasan yang jujur
 - Dataset UCI adalah satu test rig hidrolik; angka evaluasi tidak menjamin performa di pabrik lain. Lihat `docs/DATASET.md`.

@@ -15,7 +15,7 @@ export const ROOT = findRoot();
 // Baca .env sederhana (tanpa dependensi). Variabel yang sudah ada di environment tidak ditimpa.
 const envFile = path.join(ROOT, '.env');
 if (fs.existsSync(envFile)) {
-  for (const raw of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+  for (const raw of fs.readFileSync(envFile, 'utf8').split(/\r\n|\n|\r/)) {
     const line = raw.trim();
     if (!line || line.startsWith('#') || !line.includes('=')) continue;
     const i = line.indexOf('=');
@@ -30,7 +30,6 @@ const env = (k: string, d = '') => (process.env[k] ?? d).trim();
 export const CONFIG = {
   PORT: Number(env('PORT', '8000')),
   DATABASE_URL: env('DATABASE_URL'),
-  PGLITE_DIR: env('PGLITE_DIR', path.join(ROOT, '.pgdata')),
   ML_URL: env('ML_URL', 'http://127.0.0.1:8100'),
   ML_API_KEY: env('ML_API_KEY'),
   GEMINI_API_KEY: env('GEMINI_API_KEY'),

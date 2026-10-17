@@ -3,11 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export const errorMessage = (error: unknown): string => error instanceof Error ? error.message : 'Terjadi kesalahan. Coba lagi.';
 
 /** One request at a time; changing resource cancels requests and hides previous data immediately. */
-export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interval: number) {
+export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interval: number, enabled = true) {
   const [snapshot, setSnapshot] = useState<{ owner: typeof load; data: T | null; error: string; updated: number | null }>({ owner: load, data: null, error: '', updated: null });
   const [loading, setLoading] = useState(true);
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
+    if (!enabled) { setLoading(false); refreshRef.current = async () => {}; return; }
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     let controller: AbortController | undefined;
@@ -33,10 +34,10 @@ export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interva
     refreshRef.current = refresh;
     void refresh();
     return () => { active = false; clearTimeout(timer); controller?.abort(); };
-  }, [load, interval]);
+  }, [load, interval, enabled]);
   const refresh = useCallback(() => refreshRef.current(), []);
   const same = snapshot.owner === load;
-  return { data: same ? snapshot.data : null, error: same ? snapshot.error : '', updated: same ? snapshot.updated : null, loading: !same || loading, refresh };
+  return { data: same ? snapshot.data : null, error: same ? snapshot.error : '', updated: same ? snapshot.updated : null, loading: enabled && (!same || loading), refresh };
 }
 
 export function RequestState({ error, loading, updated, retry }: { error: string; loading: boolean; updated: number | null; retry: () => void }) {

@@ -94,10 +94,15 @@ export class LlmService {
   }
 
   async diagnose(pumpId: string, complaint = '') {
-    const id = await this.db.nextId('C', 'cases');
+    const reservation = await this.cases.reserve(pumpId, complaint);
+    if (reservation.existing) return this.cases.get(reservation.id);
+    const id = reservation.id;
     const trace = this.cases.trace(id);
     trace.add('reasoning', 'Mode LLM', `Model ${CONFIG.GEMINI_MODEL} menjalankan loop function calling.`);
-    const { final, needs } = await this.loop(`Diagnosis dan tindak lanjut untuk ${pumpId}.${complaint ? ` Keluhan teknisi: ${complaint}` : ''}`, trace);
+    let result: { final: string; needs: boolean };
+    try { result = await this.loop(`Diagnosis dan tindak lanjut untuk ${pumpId}.${complaint ? ` Keluhan teknisi: ${complaint}` : ''}`, trace); }
+    catch (error: unknown) { await this.cases.save(id, trace, 'gagal', { pump_id: pumpId }, { mode: 'llm', summary: 'Layanan LLM gagal. Diagnosis dapat diulang.' }); throw error; }
+    const { final, needs } = result;
     await this.cases.save(id, trace, needs ? 'menunggu_persetujuan' : 'selesai_llm', { pump_id: pumpId, probs: null }, { summary: final, mode: 'llm' });
     return this.cases.get(id);
   }
@@ -105,10 +110,11 @@ export class LlmService {
   async chat(message: string, history: { from: string; text: string }[] = []) {
     const id = await this.db.nextId('C', 'cases');
     const trace = this.cases.trace(id);
+    await this.cases.save(id, trace, 'diproses', { pump_id: null }, { mode: 'llm' });
     const { final, needs } = await this.loop(message, trace, history);
     let c = null;
+    await this.cases.save(id, trace, needs ? 'menunggu_persetujuan' : 'selesai_llm', { pump_id: null }, { summary: final, mode: 'llm' });
     if (trace.items.some((i) => i.kind === 'tool')) {
-      await this.cases.save(id, trace, needs ? 'menunggu_persetujuan' : 'selesai_llm', { pump_id: null }, { summary: final, mode: 'llm' });
       c = await this.cases.get(id);
     }
     return { reply: final, case: c };

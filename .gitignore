@@ -9,3 +9,5 @@ ml/data/
 *.tsbuildinfo
 ml/.venv/
 .npm-cache/
+backend/src/generated/
+.auth-bootstrap.json

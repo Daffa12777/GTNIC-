@@ -34,7 +34,7 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
 export default function Dashboard({ ov, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
-  const readings = usePolling(loadReadings, Math.max(2000, ov.tick_seconds * 1000));
+  const readings = usePolling(loadReadings, Math.max(2000, ov.tick_seconds * 1000), !!sel);
   const data = readings.data;
   const cases = usePolling(api.cases, 4000);
   const workOrders = usePolling(api.workOrders, 4000);
@@ -53,6 +53,8 @@ export default function Dashboard({ ov, selected, onSelect, onOpenCase, flash, r
     setBusy(true);
     try { await fn(); flash(ok); refresh(); void readings.refresh(); void cases.refresh(); void workOrders.refresh(); } catch (e: unknown) { flash(errorMessage(e)); } finally { setBusy(false); }
   };
+
+  if (!ov.pumps.length) return <div className="page"><h1>Ringkasan unit</h1><div className="card" style={{ marginTop: 16 }}><Empty>Belum ada unit terdaftar. Hubungi supervisor untuk menyiapkan daftar unit yang akan dipantau.</Empty></div></div>;
 
   return (
     <div className="page">

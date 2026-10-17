@@ -33,6 +33,7 @@ export class ToolsService {
   private cache = new Map<string, { ts: number; a: Analysis }>();
 
   constructor(private db: DbService, private ml: MlService, private sim: SimService, private rag: RagService) {}
+  async refreshKnowledge() { await this.rag.build(); }
 
   get names(): Record<string, string> {
     const o: Record<string, string> = {};
@@ -121,69 +122,66 @@ export class ToolsService {
 
   async create_purchase_request(a: { part_name: string; qty: number; reason: string; work_order_id?: string }) {
     const qty = Number(a.qty);
-    if (!(qty >= 1 && qty <= 50)) return { error: 'qty harus 1-50' };
-    const id = await this.db.nextId('PR', 'purchase_requests');
-    await this.db.x('INSERT INTO purchase_requests VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [id, a.part_name, qty, a.reason, a.work_order_id ?? '', 'menunggu persetujuan', now()]);
-    return { id, part_name: a.part_name, qty, status: 'menunggu persetujuan' };
+    if (!Number.isInteger(qty) || qty < 1 || qty > 50) return { error: 'qty harus bilangan bulat 1-50' };
+    return this.db.transaction(async () => {
+      if (a.work_order_id) {
+        const order = await this.db.one('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [a.work_order_id]);
+        if (!order) return { error: 'work order tidak ditemukan' };
+        const duplicate = await this.db.client.purchaseRequest.findFirst({ where: { work_order_id: a.work_order_id, part_name: a.part_name, status: 'menunggu persetujuan' } });
+        if (duplicate) return { id: duplicate.id, duplicate: true };
+      }
+      const id = await this.db.nextId('PR', 'purchase_requests');
+      await this.db.client.purchaseRequest.create({ data: { id, part_name: a.part_name, qty, reason: a.reason, work_order_id: a.work_order_id || null, status: 'menunggu persetujuan', created_at: now() } });
+      return { id, part_name: a.part_name, qty, status: 'menunggu persetujuan' };
+    });
   }
 
-  // ---------------------------------------------------------- work order
   async create_work_order(a: { pump_id: string; title: string; description: string; priority: string; part?: string; case_id?: string; risk?: string; approved?: boolean }) {
-    if (!(await this.getPump(a.pump_id))) return { error: `unit tidak ditemukan: ${a.pump_id}` };
     if (!['rendah', 'sedang', 'tinggi'].includes(a.priority)) return { error: 'priority harus rendah|sedang|tinggi' };
     if (!a.title || !a.description) return { error: 'title dan description wajib' };
-    if ((a.risk ?? 'sedang') === 'tinggi' && !a.approved) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
-    const dup = await this.db.one("SELECT id FROM work_orders WHERE pump_id=$1 AND status NOT IN ('selesai','dibatalkan') AND title=$2", [a.pump_id, a.title]);
-    if (dup) return { id: dup.id, duplicate: true, note: 'work order serupa masih terbuka' };
-    const id = await this.db.nextId('WO', 'work_orders');
-    await this.db.x('INSERT INTO work_orders VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
-      [id, a.pump_id, a.case_id ?? '', a.title, a.description, a.priority, 'terbuka', null, null, a.part ?? '', now(), null]);
-    return { id, pump_id: a.pump_id, priority: a.priority, status: 'terbuka' };
+    // Tool arguments cannot grant approval: verify the decision persisted by the supervisor endpoint.
+    const approvedCase = a.case_id ? await this.db.client.maintenanceCase.findUnique({ where: { id: a.case_id } }) : null;
+    const approval = approvedCase?.state && typeof approvedCase.state === 'object' && !Array.isArray(approvedCase.state) ? approvedCase.state['approved_by'] : null;
+    if ((a.risk ?? 'sedang') === 'tinggi' && !(a.approved && approval)) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+    return this.db.transaction(async () => {
+      if (!await this.db.one('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [a.pump_id])) return { error: 'unit tidak ditemukan' };
+      const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, title: a.title, status: { notIn: ['selesai', 'dibatalkan'] } } });
+      if (duplicate) return { id: duplicate.id, duplicate: true };
+      const id = await this.db.nextId('WO', 'work_orders');
+      await this.db.client.workOrder.create({ data: { id, pump_id: a.pump_id, case_id: a.case_id || null, title: a.title, description: a.description, priority: a.priority, status: 'terbuka', part: a.part ?? '', created_at: now() } });
+      return { id, pump_id: a.pump_id, priority: a.priority, status: 'terbuka' };
+    });
   }
 
   async schedule_technician(a: { work_order_id: string; skill: string; senior?: boolean }) {
-    const wo = await this.db.one('SELECT * FROM work_orders WHERE id=$1', [a.work_order_id]);
-    if (!wo) return { error: `work order tidak ditemukan: ${a.work_order_id}` };
-    let techs = await this.db.q('SELECT * FROM technicians WHERE available=true AND skill=$1', [a.skill]);
-    if (a.senior) {
-      const sr = techs.filter((t: any) => t.level === 'senior');
-      techs = sr.length ? sr : await this.db.q("SELECT * FROM technicians WHERE available=true AND level='senior' AND skill<>'supervisor'");
-    }
-    if (!techs.length) return { error: 'tidak ada teknisi tersedia', scheduled: false };
-    const t = techs[0];
-    const base = new Date();
-    let when: Date;
-    if (wo.priority === 'tinggi') when = new Date(base.getTime() + 2 * 3600e3);
-    else {
-      when = new Date(base.getTime() + (wo.priority === 'sedang' ? 1 : 2) * 86400e3);
-      when.setHours(8, 0, 0, 0);
-    }
-    const p = (n: number) => String(n).padStart(2, '0');
-    const when_s = `${when.getFullYear()}-${p(when.getMonth() + 1)}-${p(when.getDate())} ${p(when.getHours())}:${p(when.getMinutes())}`;
-    await this.db.x("UPDATE work_orders SET technician_id=$1, scheduled_at=$2, status='terjadwal' WHERE id=$3", [t.id, when_s, a.work_order_id]);
-    await this.db.x('UPDATE technicians SET available=false WHERE id=$1', [t.id]);
-    return { scheduled: true, technician: t.name, technician_id: t.id, contact: t.contact, scheduled_at: when_s };
+    return this.db.transaction(async () => {
+      await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [a.work_order_id]);
+      const wo = await this.db.client.workOrder.findUnique({ where: { id: a.work_order_id }, include: { technician: true } });
+      if (!wo || ['selesai', 'dibatalkan'].includes(wo.status ?? '')) return { error: 'work order tidak tersedia', scheduled: false };
+      if (wo.technician) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
+      const candidates = a.senior
+        ? await this.db.q("SELECT * FROM technicians WHERE available=true AND level='senior' AND skill<>'supervisor' ORDER BY (skill=$1) DESC,id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill])
+        : await this.db.q('SELECT * FROM technicians WHERE available=true AND skill=$1 ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED', [a.skill]);
+      const technician = candidates[0];
+      if (!technician) return { error: 'tidak ada teknisi tersedia', scheduled: false };
+      const when = new Date(Date.now() + (wo.priority === 'tinggi' ? 2 * 3600e3 : (wo.priority === 'sedang' ? 1 : 2) * 86400e3));
+      if (wo.priority !== 'tinggi') when.setHours(8, 0, 0, 0);
+      const pad = (v: number) => String(v).padStart(2, '0');
+      const scheduled_at = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+      await this.db.client.technician.update({ where: { id: technician.id }, data: { available: false } });
+      await this.db.client.workOrder.update({ where: { id: wo.id }, data: { technician_id: technician.id, scheduled_at, status: 'terjadwal' } });
+      return { scheduled: true, technician: technician.name, technician_id: technician.id, contact: technician.contact, scheduled_at };
+    });
   }
 
   // ---------------------------------------------------------- notifikasi
   async send_notification(a: { recipient: string; message: string; channel?: string }) {
     if (!a.message) return { error: 'pesan kosong' };
     const channel = a.channel ?? 'telegram';
-    let status = 'disimulasikan', detail = 'Telegram belum dikonfigurasi; pesan hanya dicatat.';
-    if (channel === 'telegram' && CONFIG.TELEGRAM_BOT_TOKEN && CONFIG.TELEGRAM_CHAT_ID) {
-      try {
-        const r = await fetch(`https://api.telegram.org/bot${CONFIG.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ chat_id: CONFIG.TELEGRAM_CHAT_ID, text: `[${a.recipient}] ${a.message}` }), signal: AbortSignal.timeout(8000),
-        });
-        if (r.ok) { status = 'terkirim'; detail = 'Terkirim melalui Telegram Bot API.'; }
-        else { status = 'gagal'; detail = `Telegram HTTP ${r.status}`; }
-      } catch (e: any) { status = 'gagal'; detail = String(e?.message ?? e); }
-    }
-    const r = await this.db.one('INSERT INTO notifications (ts, recipient, channel, message, status, detail) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [now(), a.recipient, channel, a.message, status, detail]);
-    return { id: Number(r!.id), recipient: a.recipient, status, detail };
+    const enabled = channel === 'telegram' && !!CONFIG.TELEGRAM_BOT_TOKEN && !!CONFIG.TELEGRAM_CHAT_ID;
+    const status = enabled ? 'diantrekan' : 'disimulasikan';
+    const row = await this.db.client.notification.create({ data: { ts: now(), recipient: a.recipient, channel, message: a.message, status, detail: enabled ? 'Menunggu pengiriman setelah transaksi commit.' : 'Telegram belum dikonfigurasi; pesan hanya dicatat.' } });
+    return { id: Number(row.id), recipient: a.recipient, status, detail: row.detail };
   }
 
   async escalate_to_senior(a: { pump_id: string; summary: string; case_id?: string }) {
@@ -196,7 +194,7 @@ export class ToolsService {
   // ---------------------------------------------------------- riwayat
   async save_case_history(a: { pump_id: string; symptoms: string; fault: string; root_cause: string; action: string; duration_min?: number }) {
     const id = await this.db.nextId('H', 'case_history');
-    await this.db.x('INSERT INTO case_history VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [id, a.pump_id, now(), a.symptoms, a.fault, a.root_cause, a.action, a.duration_min ?? 0]);
+    await this.db.x('INSERT INTO case_history (id,pump_id,ts,symptoms,fault,root_cause,action,duration_min) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [id, a.pump_id, now(), a.symptoms, a.fault, a.root_cause, a.action, a.duration_min ?? 0]);
     await this.rag.build();
     return { id, saved: true };
   }

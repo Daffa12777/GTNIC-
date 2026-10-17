@@ -9,6 +9,8 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { Analysis } from '../src/ml/ml.service';
+import { DbService } from '../src/db/db.service';
+import { AgentService } from '../src/agent/agent.service';
 const { AppModule } = require('../src/app.module');
 const { CONFIG } = require('../src/config');
 const { ToolsService } = require('../src/tools/tools.service');
@@ -105,8 +107,13 @@ describe('ManualMechanic end-to-end', () => {
   });
 
   run('chat: keluhan pada unit sehat memicu inspeksi fisik, bukan perbaikan', async () => {
+    const healthy = fake({ normal: 0.99, pump: 0.01 });
+    healthy.label = 'normal'; healthy.confidence = 0.99; healthy.is_anomaly = false;
+    const spy = jest.spyOn(app.get(ToolsService), 'analyze').mockResolvedValue(healthy);
+    try {
     const r = (await api().post('/api/chat').send({ message: 'Unit 1 terasa agak berisik' })).body;
     expect(r.case.status).toBe('tidak_ada_gangguan');
+    } finally { spy.mockRestore(); }
   });
 
   const fake = (probs: Record<string, number>): Analysis => {
@@ -159,5 +166,44 @@ describe('ManualMechanic end-to-end', () => {
     expect(r.reply).toBe('Pump-01 normal.');
     expect(r.case.mode).toBe('llm');
     expect(r.case.trace.some((t: any) => t.tool === 'get_sensor_data')).toBe(true);
+  });
+
+  run('Prisma transaction rolls back all writes and foreign keys reject orphan sensors', async () => {
+    const db = app.get(DbService);
+    await expect(db.transaction(async () => {
+      await db.client.inventory.create({ data: { part_id: 'ROLLBACK-TEST', stock: 1 } });
+      throw new Error('rollback fixture');
+    })).rejects.toThrow('rollback fixture');
+    expect(await db.client.inventory.findUnique({ where: { part_id: 'ROLLBACK-TEST' } })).toBeNull();
+    await expect(db.client.sensorReading.create({ data: { pump_id: 'missing-unit', ts: 1, features: {} } })).rejects.toMatchObject({ code: 'P2003' });
+  });
+
+  run('duplicate requests share one order, purchase, and technician assignment', async () => {
+    const db = app.get(DbService);
+    const tools = app.get(ToolsService) as import('../src/tools/tools.service').ToolsService;
+    await db.client.pump.create({ data: { id: 'Pump-Test', name: 'Concurrency fixture' } });
+    await db.client.technician.create({ data: { id: 'T-Test', name: 'Fixture', skill: 'fixture', available: true } });
+    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: 'Pump-Test', title: 'Idempotency fixture', description: 'fixture', priority: 'rendah' })));
+    const [first, second] = orders;
+    if (!('id' in first) || !('id' in second)) throw new Error('Fixture orders failed');
+    expect(first.id).toBe(second.id);
+    const id = first.id;
+    if (!id) throw new Error('Fixture order not created');
+    const purchases = await Promise.all([0, 1].map(() => tools.create_purchase_request({ work_order_id: id, part_name: 'Fixture seal', qty: 1, reason: 'fixture' })));
+    const [firstPurchase, secondPurchase] = purchases;
+    if (!('id' in firstPurchase) || !('id' in secondPurchase)) throw new Error('Fixture purchases failed');
+    expect(firstPurchase.id).toBe(secondPurchase.id);
+    const schedules = await Promise.all([0, 1].map(() => tools.schedule_technician({ work_order_id: id, skill: 'fixture' })));
+    expect(schedules.every((value) => value.scheduled && value.technician_id === 'T-Test')).toBe(true);
+    const nextId = db.nextId.bind(db);
+    const failHistory = jest.spyOn(db, 'nextId').mockImplementation((prefix, counter) => {
+      if (counter === 'case_history') throw new Error('history unavailable');
+      return nextId(prefix, counter);
+    });
+    try { await expect(app.get(AgentService).completeWorkOrder(id, 'seal', 'replace')).rejects.toThrow('history unavailable'); }
+    finally { failHistory.mockRestore(); }
+    expect((await db.client.workOrder.findUniqueOrThrow({ where: { id } })).status).toBe('terjadwal');
+    expect((await db.client.technician.findUniqueOrThrow({ where: { id: 'T-Test' } })).available).toBe(false);
+    expect(await db.client.caseHistory.count({ where: { work_order_id: id } })).toBe(0);
   });
 });

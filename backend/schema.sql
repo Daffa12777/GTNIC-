@@ -1,5 +1,5 @@
 -- Skema ManualMechanic (PostgreSQL / Supabase). Idempoten: aman dijalankan berulang.
--- Backend menjalankan file ini otomatis saat start. Untuk Supabase, boleh juga ditempel di SQL Editor.
+-- Snapshot lama untuk referensi. Jangan deploy file ini; gunakan npm run db:migrate.
 
 CREATE TABLE IF NOT EXISTS pumps (
   id text PRIMARY KEY, name text, location text, model text, criticality text

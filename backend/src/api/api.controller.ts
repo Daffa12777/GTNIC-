@@ -93,12 +93,14 @@ export class ApiController {
   }
 
   @Post('cases/:id/approve')
+  @SetMetadata('roles', ['supervisor'])
   async approve(@Param('id') id: string, @Headers('x-role') role?: string) {
     this.needSupervisor(role);
     return this.fail(await this.agent.approve(id));
   }
 
   @Post('cases/:id/reject')
+  @SetMetadata('roles', ['supervisor'])
   async reject(@Param('id') id: string, @Body() b: any, @Headers('x-role') role?: string) {
     this.needSupervisor(role);
     return this.fail(await this.agent.reject(id, b?.note ?? ''));
