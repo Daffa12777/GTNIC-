@@ -68,7 +68,7 @@ export const api = {
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),
-  chat: (message: string, case_id: string | null, use_llm: boolean) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm }),
+  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = []) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm, history }),
   answer: (id: string, text: string) => post<Case>(`/cases/${id}/answer`, { text }),
   approve: (id: string) => post<Case>(`/cases/${id}/approve`),
   reject: (id: string, note: string) => post<Case>(`/cases/${id}/reject`, { note }),

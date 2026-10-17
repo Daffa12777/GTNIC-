@@ -94,7 +94,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}
-      {ov && tab === 'asisten' && <Chat useLlm={useLlm && ov.llm_available} onOpenCase={openCase} onChanged={refresh} />}
+      {ov && <div hidden={tab !== 'asisten'}><Chat username={user?.username ?? 'demo'} useLlm={useLlm && ov.llm_available} onOpenCase={openCase} onChanged={refresh} /></div>}
       </main>
       {toast && <div className="toast" role="status">{toast}</div>}
     </>

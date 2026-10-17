@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
 import { CompleteWorkOrderDto } from './complete-work-order.dto';
+import { ChatDto } from './chat.dto';
 import { AgentService } from '../agent/agent.service';
 import { CaseStore } from '../agent/case.store';
 import { LlmService } from '../agent/llm.service';
@@ -71,7 +72,8 @@ export class ApiController {
   }
 
   @Post('chat')
-  chat(@Body() b: any) { return this.agent.chat(b?.message ?? '', b?.case_id ?? null, !!b?.use_llm); }
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history); }
 
   @Post('triage')
   triage() { return this.agent.triage('manual'); }

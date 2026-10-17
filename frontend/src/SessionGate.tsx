@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from './api';
 import PasswordInput from './components/PasswordInput';
+import { clearChats } from './chatSession';
 import type { AuthUser } from './types';
 import { errorMessage, RequestState, usePolling } from './usePolling';
 
@@ -18,7 +19,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     if (submitting.current) return;
     submitting.current = true;
     setLoggingOut(true); setError('');
-    try { if (!serverAlreadyClosed) await api.logout(); setLoggedOut(true); setPassword(''); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }
+    try { if (!serverAlreadyClosed) await api.logout(); clearChats(); setLoggedOut(true); setPassword(''); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }
   };
   if (!session.data) return <div className="page"><RequestState {...session} retry={session.refresh} /></div>;
   if (!session.data.enabled || (session.data.user && !loggedOut)) return <>{session.error && <div className="page"><RequestState {...session} retry={session.refresh} /></div>}{error && <div className="page"><div className="notice bad" role="alert">{error}</div></div>}{children(session.data.user, logout, loggingOut)}</>;
