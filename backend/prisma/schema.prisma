@@ -9,6 +9,14 @@ datasource db {
   provider = "postgresql"
 }
 
+model RequestLimit {
+  key String @id
+  hits Int
+  reset_at Float
+  @@index([reset_at])
+  @@map("request_limits")
+}
+
 model Pump {
   id String @id
   name String?

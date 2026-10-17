@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
 import { CompleteWorkOrderDto } from './complete-work-order.dto';
 import { ChatDto } from './chat.dto';
+import { RatePolicy } from '../security/rate-policy';
 import { AgentService } from '../agent/agent.service';
 import { CaseStore } from '../agent/case.store';
 import { LlmService } from '../agent/llm.service';
@@ -66,16 +67,19 @@ export class ApiController {
   }
 
   @Post('diagnose')
+  @RatePolicy('ai')
   async diagnose(@Body() b: any) {
     if (!b?.pump_id) throw bad('pump_id wajib');
     return this.fail(await this.agent.diagnose(b.pump_id, b.complaint ?? '', 'manual', !!b.use_llm));
   }
 
   @Post('chat')
+  @RatePolicy('ai')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history); }
 
   @Post('triage')
+  @RatePolicy('ai')
   triage() { return this.agent.triage('manual'); }
 
   @Get('cases')

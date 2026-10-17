@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Post, Req, Res, SetMetadata, UsePipes, V
 import { IsString, Length } from 'class-validator';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { RatePolicy } from '../security/rate-policy';
 
 class LoginDto {
   @IsString() @Length(1, 100) username!: string;
@@ -16,9 +17,11 @@ export class AuthController {
   @Header('Cache-Control', 'no-store')
   async session(@Req() req: Request) { return { enabled: this.auth.enabled, user: await this.auth.current(req) }; }
   @Post('refresh')
+  @RatePolicy('refresh')
   @Header('Cache-Control', 'no-store')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return { enabled: this.auth.enabled, user: await this.auth.refresh(req, res) }; }
   @Post('login')
+  @RatePolicy('login')
   @Header('Cache-Control', 'no-store')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {

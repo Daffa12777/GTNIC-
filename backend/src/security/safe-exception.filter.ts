@@ -11,7 +11,7 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const requestId = response.getHeader('X-Request-Id');
     if (status >= 500) {
       this.log.error(`${request.method} ${request.path} failed (${exception instanceof Error ? exception.name : 'UnknownError'}), requestId=${String(requestId ?? '')}`);
-      response.status(500).json({ statusCode: 500, message: 'Terjadi kesalahan internal. Hubungi pengelola dengan ID permintaan.', requestId }); return;
+      response.status(status).json({ statusCode: status, message: status === 503 ? 'Layanan sementara tidak tersedia. Coba lagi nanti.' : 'Terjadi kesalahan internal. Hubungi pengelola dengan ID permintaan.', requestId }); return;
     }
     const detail = exception instanceof HttpException ? exception.getResponse() : { message: status === 413 ? 'Body melebihi batas 128 KB.' : status === 415 ? 'Format body tidak didukung.' : 'JSON tidak valid.' };
     response.status(status).json({ statusCode: status, ...(typeof detail === 'string' ? { message: detail } : detail), requestId });

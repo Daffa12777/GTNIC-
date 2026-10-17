@@ -25,6 +25,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "helmet": "8.3.0",
+    "ipaddr.js": "2.5.0",
     "pg": "^8.13.0",
     "prisma": "7.10.1",
     "reflect-metadata": "^0.2.2",
