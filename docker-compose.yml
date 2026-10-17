@@ -32,6 +32,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:mm@db:5432/mm}
       DIRECT_URL: ${DIRECT_URL:-}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      DEMO_SCENARIO: ${DEMO_SCENARIO:-false}
       JWT_SECRET: ${JWT_SECRET:-}
       ML_URL: http://ml:8100
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}

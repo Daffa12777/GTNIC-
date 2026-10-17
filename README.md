@@ -59,6 +59,10 @@ Atau jalankan ketiganya sekaligus: `.\scripts\dev.ps1`. Dengan Docker: `docker c
 
 Periksa sumber model melalui `http://localhost:8100/meta`. File model bergantung pada versi scikit-learn; bila layanan ML menjawab "model tidak dapat dimuat", latih ulang dengan `python train.py --download`. `--demo` hanya untuk mencoba data sintetis dan akan menimpa artefak aktif. UI menampilkan peringatan selama model memakai data sintetis.
 
+Untuk mengisi instalasi kosong dengan data presentasi, pastikan layanan ML aktif dan hentikan backend sementara, lalu jalankan `npm run demo:seed` dari folder `backend`. Perintah ini mengisi 4 unit, 7 spare part, 6 teknisi, 4 riwayat perawatan, serta pembacaan sensor dari bank profil model. Kasus dan work order dihasilkan oleh diagnosis ML/policy yang sebenarnya; status dan jumlah tindakan mengikuti hasil prediksi, bukan dipaksakan. Akun pengguna tidak diubah dan notifikasi eksternal tidak dikirim selama seed. Menjalankan ulang tidak menggandakan data master atau diagnosis untuk unit yang sudah memiliki kasus berhasil.
+
+Untuk presentasi yang terus bergerak, isi `SIM_ENABLED=true`, `AUTO_AGENT=true`, dan `DEMO_SCENARIO=true` di `backend/.env`, lalu jalankan ulang backend. Pump-01 tetap normal, Pump-02 mengalami penurunan pendingin bertahap, dan Pump-03 mengalami kebocoran pompa berat; prediksi dapat mencerminkan beberapa gangguan dalam satu siklus UCI. Flag skenario hanya memulai simulasi gangguan dan tidak menyetujui kasus berisiko tinggi. Tetap gunakan `SEED_DEMO_DATA=false` setelah pengisian awal. Kembalikan `DEMO_SCENARIO=false` untuk startup tanpa skenario otomatis; kontrol simulator juga tersedia di dashboard.
+
 ### Docker (empat layanan)
 
 ```powershell

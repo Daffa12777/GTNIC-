@@ -40,6 +40,7 @@ export const CONFIG = {
   TICK_SECONDS: Number(env('TICK_SECONDS', '3')),
   AUTO_AGENT: ['1', 'true', 'yes'].includes(env('AUTO_AGENT', 'true').toLowerCase()),
   SIM_ENABLED: ['1', 'true', 'yes'].includes(env('SIM_ENABLED', 'true').toLowerCase()),
+  DEMO_SCENARIO: ['1', 'true', 'yes'].includes(env('DEMO_SCENARIO', 'false').toLowerCase()),
   KNOWLEDGE_DIR: path.join(ROOT, 'knowledge'),
   ASSETS_DIR: env('ASSETS_DIR', path.join(ROOT, 'assets')),
   WINDOW: 30,

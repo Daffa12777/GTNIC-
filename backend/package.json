@@ -7,6 +7,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "demo:seed": "npm run build && node dist/scripts/seed-demo.js",
     "auth:setup": "npm run build && node dist/scripts/setup-local-auth.js",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",

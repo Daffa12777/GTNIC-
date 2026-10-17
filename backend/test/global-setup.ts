@@ -17,6 +17,7 @@ export default async function setup() {
   process.env.DIRECT_URL = url;
   process.env.DB_POOL_MAX = '1';
   process.env.SEED_DEMO_DATA = 'true';
+  process.env.DEMO_SCENARIO = 'false';
   process.env.AUTH_ENABLED = 'false';
   process.env.TELEGRAM_BOT_TOKEN = '';
   process.env.TELEGRAM_CHAT_ID = '';
