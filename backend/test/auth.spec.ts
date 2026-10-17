@@ -113,4 +113,48 @@ describe('Server sessions and request validation', () => {
     expect(row.tokenHash).not.toContain(value);
     await request(app.getHttpServer()).post('/api/auth/refresh').set('Origin', 'https://untrusted.example').set('x-mm-client', 'web').set('Cookie', session.refresh).expect(403);
   });
+  it('protects profiles, validates updates and never exposes password hashes', async () => {
+    await request(app.getHttpServer()).get('/api/profile').expect(401);
+    const session = await loginUser();
+    const server = app.getHttpServer();
+    const get = await request(server).get('/api/profile').set('Cookie', session.access).expect(200);
+    expect(get.body.passwordHash).toBeUndefined();
+    await request(server).post('/api/profile').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ name: 'Farras', email: 'invalid', username: 'technician' }).expect(400);
+    await request(server).post('/api/profile').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ name: 'Farras', email: 'farras@example.test', username: 'technician', role: 'supervisor' }).expect(400);
+    const saved = await request(server).post('/api/profile').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ name: ' Farras ', email: ' FARRAS@example.test ', username: 'technician' }).expect(201);
+    expect(saved.body).toEqual({ name: 'Farras', email: 'farras@example.test', username: 'technician', role: 'teknisi' });
+    const restarted = new AuthService(app.get(DbService));
+    await restarted.onModuleInit();
+    expect((await app.get(DbService).client.user.findUniqueOrThrow({ where: { username: 'technician' } })).email).toBe('farras@example.test');
+  });
+  it('enforces unique emails and protects the final supervisor', async () => {
+    const login = await request(app.getHttpServer()).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    await request(app.getHttpServer()).post('/api/profile').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ name: 'Supervisor', email: 'farras@example.test', username: 'supervisor' }).expect(409);
+    await request(app.getHttpServer()).post('/api/profile/delete').set('Cookie', session.access).set('x-mm-client', 'web').send({ currentPassword: password }).expect(409);
+  });
+  it('changes password, revokes all sessions and does not restore bootstrap passwords on restart', async () => {
+    const session = await loginUser();
+    const second = await loginUser();
+    const next = randomBytes(24).toString('hex');
+    await request(app.getHttpServer()).post('/api/profile/password').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ currentPassword: 'wrong', newPassword: next }).expect(401);
+    await request(app.getHttpServer()).post('/api/profile/password').set('Cookie', session.access).set('x-mm-client', 'web')
+      .send({ currentPassword: password, newPassword: next }).expect(201);
+    await request(app.getHttpServer()).get('/api/profile').set('Cookie', second.access).expect(401);
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', second.refresh).set('x-mm-client', 'web').expect(401);
+    await new AuthService(app.get(DbService)).onModuleInit();
+    const login = await request(app.getHttpServer()).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'technician', password: next }).expect(201);
+    const changed = cookiesFrom(login.headers);
+    await request(app.getHttpServer()).post('/api/profile/delete').set('Cookie', changed.access).set('x-mm-client', 'web').send({ currentPassword: 'wrong' }).expect(401);
+    await request(app.getHttpServer()).post('/api/profile/delete').set('Cookie', changed.access).set('x-mm-client', 'web').send({ currentPassword: next }).expect(201);
+    expect(await app.get(DbService).client.user.findUnique({ where: { username: 'technician' } })).toBeNull();
+    await request(app.getHttpServer()).get('/api/profile').set('Cookie', changed.access).expect(401);
+    await new AuthService(app.get(DbService)).onModuleInit();
+    expect(await app.get(DbService).client.user.findUnique({ where: { username: 'technician' } })).toBeNull();
+  });
 });

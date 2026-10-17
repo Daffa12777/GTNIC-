@@ -1,5 +1,6 @@
 export type Role = 'teknisi' | 'supervisor';
 export interface AuthUser { username: string; role: Role }
+export interface UserProfile extends AuthUser { name: string | null; email: string | null }
 export interface SessionInfo { enabled: boolean; user: AuthUser | null }
 
 export interface Comp {

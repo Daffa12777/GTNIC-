@@ -66,6 +66,14 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .password-toggle { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .password-toggle:hover:not(:disabled) { color: var(--accent); }
 .password-toggle:disabled { cursor: default; opacity: .5; }
+.profile-page { max-width: 1000px; }
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px; margin-top: 20px; }
+.profile-form fieldset { display: grid; gap: 16px; border: 0; padding: 0; margin: 20px 0 0; min-width: 0; }
+.profile-form .field { min-width: 0; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn.danger { background: #b42318; color: #fff; border-color: #b42318; }
+.btn.danger:hover:not(:disabled) { background: #912018; border-color: #912018; }
+.danger-zone { border-color: #f3b4ad; }
 .input:focus, .textarea:focus, .sel:focus, .btn:focus-visible { outline: 2px solid #c7d7fe; outline-offset: 1px; border-color: var(--accent); }
 .textarea { resize: vertical; min-height: 64px; }
 .row { display: flex; align-items: center; gap: 10px; }

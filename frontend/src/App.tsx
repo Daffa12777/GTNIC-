@@ -4,6 +4,7 @@ import Cases from './components/Cases';
 import Chat from './components/Chat';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
+import Profile from './components/Profile';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
@@ -21,7 +22,7 @@ export default function App() {
   return <SessionGate>{(user, logout, loggingOut) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate>;
 }
 
-function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: () => Promise<void>; loggingOut: boolean }) {
+function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
   const { tab, caseId, pumpId, navigate } = useNavigation();
   const overview = usePolling(api.overview, 3000);
   const ov = overview.data;
@@ -67,7 +68,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             ))}
           </nav>
           <div className="controls">
-            {user ? <div className="ctl"><span>{user.username} · {user.role}</span><button type="button" className="btn sm" disabled={loggingOut} aria-busy={loggingOut} onClick={() => void logout()}>{loggingOut ? 'Keluar…' : 'Logout'}</button></div> : <label className="ctl">Peran demo
+            {user ? <button type="button" className={`btn sm ${tab === 'profil' ? 'primary' : ''}`} aria-current={tab === 'profil' ? 'page' : undefined} onClick={() => navigate('profil')}>Profil · {user.username}</button> : <label className="ctl">Peran demo
               <select className="sel" value={role} onChange={(e) => setRoleState(e.target.value as Role)}>
                 <option value="teknisi">Teknisi</option><option value="supervisor">Supervisor</option>
               </select>
@@ -85,6 +86,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
 
       <main id="main-content">
       <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>
+      {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && <Dashboard ov={ov} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
