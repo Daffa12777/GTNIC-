@@ -2,6 +2,7 @@ import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Tech
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
+import type { ServicesStatus, LlmConnectionStatus } from './types';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -65,6 +66,8 @@ export const api = {
   changePassword: (body: { currentPassword: string; newPassword: string }) => post('/profile/password', body),
   deleteAccount: (currentPassword: string) => post('/profile/delete', { currentPassword }),
   overview: (signal?: AbortSignal) => req<Overview>('/overview', { signal }),
+  services: (signal?: AbortSignal) => req<ServicesStatus>('/services', { signal }),
+  checkLlm: () => post<LlmConnectionStatus>('/services/llm/check'),
   readings: (id: string, limit = 60, signal?: AbortSignal) => req<ReadingsResp>(`/pumps/${encodeURIComponent(id)}/readings?limit=${limit}`, { signal }),
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),
   casesPage: (query: URLSearchParams, signal?: AbortSignal) => req<RecordsPage<Case>>(`/records/cases?${query}`, { signal }),

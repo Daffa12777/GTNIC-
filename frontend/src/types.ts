@@ -46,3 +46,5 @@ export interface Notification { id: number; ts: number; recipient: string; messa
 export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }
 export interface RecordsPage<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface WorkOrdersPage extends RecordsPage<WorkOrder> { technicians: { id: string; name: string }[]; units: string[] }
+export interface LlmConnectionStatus { state: 'unconfigured' | 'unchecked' | 'ready' | 'error'; checkedAt: number | null; code: string | null; message: string }
+export interface ServicesStatus { checkedAt: number; database: { ok: boolean }; ml: { ok: boolean }; llm: LlmConnectionStatus }

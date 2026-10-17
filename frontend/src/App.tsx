@@ -7,6 +7,7 @@ import Inventory from './components/Inventory';
 import Profile from './components/Profile';
 import ProfileAvatar from './components/ProfileAvatar';
 import NotificationBell from './components/NotificationBell';
+import ServiceStatus from './components/ServiceStatus';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
@@ -88,6 +89,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       </header>
 
       <main id="main-content">
+      <div className="page service-container"><ServiceStatus /></div>
       <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && <Dashboard ov={ov} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
