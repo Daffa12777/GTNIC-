@@ -5,13 +5,14 @@ import Chat from './components/Chat';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import Profile from './components/Profile';
+import ProfileAvatar from './components/ProfileAvatar';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
 import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 
-const TABS: [Tab, string][] = [['ringkasan', 'Ringkasan'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
+const TABS: [Tab, string][] = [['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
 
 const store = {
   get(k: string, d: string) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -54,10 +55,10 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       <a className="skip-link" href="#main-content">Lewati ke konten utama</a>
       <header className="topbar">
         <div className="topbar-in">
-          <div className="brand">
+          <a className="brand" href="/" aria-label="ManualMechanic — Dashboard" aria-current={tab === 'ringkasan' ? 'page' : undefined} onClick={(event) => { if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate('ringkasan'); } }}>
             <span className="brand-mark"><svg width="16" height="16" viewBox="0 0 32 32"><path d="M7 23V9l9 9 9-9v14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
             ManualMechanic
-          </div>
+          </a>
           <nav className="nav" aria-label="Navigasi utama">
             {TABS.map(([k, l]) => (
               <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => navigate(k)}>
@@ -68,7 +69,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             ))}
           </nav>
           <div className="controls">
-            {user ? <button type="button" className={`btn sm ${tab === 'profil' ? 'primary' : ''}`} aria-current={tab === 'profil' ? 'page' : undefined} onClick={() => navigate('profil')}>Profil · {user.username}</button> : <label className="ctl">Peran demo
+            {!user && <label className="ctl">Peran demo
               <select className="sel" value={role} onChange={(e) => setRoleState(e.target.value as Role)}>
                 <option value="teknisi">Teknisi</option><option value="supervisor">Supervisor</option>
               </select>
@@ -81,6 +82,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
               <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={!ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" />
             </label>
           </div>
+          {user && <ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} />}
         </div>
       </header>
 

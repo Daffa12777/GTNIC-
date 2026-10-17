@@ -7,7 +7,7 @@ import { DbService } from '../db/db.service';
 import type { ChangePasswordDto, UpdateProfileDto } from './profile.dto';
 
 export type Role = 'teknisi' | 'supervisor';
-export interface User { username: string; role: Role }
+export interface User { username: string; role: Role; name?: string | null }
 interface AccessClaims { sub: string; sid: string; typ: 'access' }
 const derive = promisify(scrypt);
 const ACCESS = 'mm_access';
@@ -54,9 +54,9 @@ export class AuthService implements OnModuleInit {
     } catch { return null; }
   }
   private cookie(req: Request, name: string): string { return req.headers.cookie?.split(';').map((v) => v.trim()).find((v) => v.startsWith(`${name}=`))?.slice(name.length + 1) ?? ''; }
-  private publicUser(user: { username: string; role: string }): User {
+  private publicUser(user: { username: string; role: string; name?: string | null }): User {
     if (user.role !== 'teknisi' && user.role !== 'supervisor') throw new UnauthorizedException('Peran akun tidak valid.');
-    return { username: user.username, role: user.role };
+    return { username: user.username, role: user.role, ...(user.name ? { name: user.name } : {}) };
   }
   private async account(req: Request) {
     const claims = await this.claims(req);
