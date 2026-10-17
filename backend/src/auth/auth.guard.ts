@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Unauthor
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
-import { CONFIG } from '../config';
+import { allowedOrigins } from '../security/http-security';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -11,7 +11,7 @@ export class AuthGuard implements CanActivate {
     if (!this.auth.enabled) return true;
     const req = context.switchToHttp().getRequest<Request>();
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers['x-mm-client'] !== 'web') throw new ForbiddenException('Header permintaan tidak valid.');
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin && !CONFIG.FRONTEND_ORIGIN.split(',').map((v) => v.trim()).includes(req.headers.origin)) throw new ForbiddenException('Origin tidak diizinkan.');
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin && !allowedOrigins().has(req.headers.origin)) throw new ForbiddenException('Origin tidak diizinkan.');
     if (this.reflector.getAllAndOverride<boolean>('public', [context.getHandler(), context.getClass()])) return true;
     const user = await this.auth.current(req);
     if (!user) throw new UnauthorizedException('Sesi berakhir. Silakan masuk kembali.');
