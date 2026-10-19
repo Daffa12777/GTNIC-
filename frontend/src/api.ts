@@ -3,6 +3,7 @@ import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
 import type { ServicesStatus, LlmConnectionStatus } from './types';
+import { invalidateAfterMutation } from './mutationCache';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -54,7 +55,11 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
     throw error;
   } finally { clearTimeout(timer); init?.signal?.removeEventListener('abort', abort); }
 }
-const post = <T,>(path: string, body: unknown = {}) => req<T>(path, { method: 'POST', body: JSON.stringify(body) });
+const post = async <T,>(path: string, body: unknown = {}): Promise<T> => {
+  const value = await req<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  invalidateAfterMutation(path);
+  return value;
+};
 
 export const api = {
   session: async (signal?: AbortSignal) => {
