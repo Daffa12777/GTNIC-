@@ -231,4 +231,18 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .chat { height: 65dvh; min-height: 380px; }
   .toast { width: calc(100% - 24px); bottom: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+.loading-skeleton { min-height: 180px; overflow: hidden; }
+.connection-banner { padding: 12px 20px; background: #fff4d5; color: #714b00; border-bottom: 1px solid #e8cb83; text-align: center; }
+.search-field { display: grid; gap: 6px; min-width: min(280px, 100%); }
+.search-input { display: flex; align-items: center; gap: 6px; }
+.search-input .input { min-width: 0; flex: 1; }
+.data-freshness { min-height: 34px; gap: 8px; padding: 6px 0; }
+.freshness-dot { width: 8px; height: 8px; border-radius: 50%; background: #15803d; flex-shrink: 0; }
+.freshness-dot.stale { background: #b45309; }
+.freshness-dot.updating { background: #2454de; }
+.skeleton-label { display: block; color: var(--muted, #64748b); font-size: 14px; margin-bottom: 16px; }
+.skeleton-line, .skeleton-row span { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #e8edf3 25%, #f4f6f9 50%, #e8edf3 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.6s ease-in-out infinite; }
+.skeleton-title { width: 45%; height: 22px; margin-bottom: 20px; }
+.skeleton-row { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; margin-top: 16px; }
+@keyframes skeleton-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

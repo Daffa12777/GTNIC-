@@ -5,7 +5,7 @@ import PasswordInput from './PasswordInput';
 import { useUnsavedChanges } from '../useUnsavedChanges';
 
 export default function Profile({ logout, loggingOut }: { logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
-  const profile = usePolling(api.profile, 60000);
+  const profile = usePolling(api.profile, 300000, true, ['profile'], 300000);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -44,7 +44,7 @@ export default function Profile({ logout, loggingOut }: { logout: (serverAlready
       const fields = { name: saved.name ?? '', email: saved.email ?? '', username: saved.username };
       setSavedProfile(fields); setName(fields.name); setEmail(fields.email); setUsername(fields.username);
       setMessage('Profil berhasil disimpan.'); await profile.refresh();
-      window.dispatchEvent(new Event('session-expired'));
+      window.dispatchEvent(new Event('session-updated'));
     });
   };
   const password = (event: FormEvent<HTMLFormElement>) => {

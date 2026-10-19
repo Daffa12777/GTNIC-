@@ -4,7 +4,7 @@ import { errorMessage, RequestState, usePolling } from '../usePolling';
 import { fmtTime } from './ui';
 
 export default function NotificationBell({ onOpenCase }: { onOpenCase: (id: string) => void }) {
-  const inbox = usePolling(api.inbox, 15000);
+  const inbox = usePolling(api.inbox, 30000, true, ['inbox']);
   const details = useRef<HTMLDetailsElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

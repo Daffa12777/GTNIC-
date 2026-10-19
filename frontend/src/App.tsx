@@ -11,6 +11,7 @@ import ServiceStatus from './components/ServiceStatus';
 import WorkOrders from './components/WorkOrders';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
+import ConnectionStatus from './components/ConnectionStatus';
 import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 
@@ -22,12 +23,12 @@ const store = {
 };
 
 export default function App() {
-  return <SessionGate>{(user, logout, loggingOut) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate>;
+  return <><ConnectionStatus /><SessionGate>{(user, logout, loggingOut) => <Workspace key={user ? `${user.username}:${user.role}` : 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate></>;
 }
 
 function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
   const { tab, caseId, pumpId, navigate } = useNavigation();
-  const overview = usePolling(api.overview, 3000);
+  const overview = usePolling(api.overview, 15000, true, ['overview'], 10000);
   const ov = overview.data;
   const refresh = overview.refresh;
   const [role, setRoleState] = useState<Role>(user?.role ?? (store.get('mm_role', 'teknisi') === 'supervisor' ? 'supervisor' : 'teknisi'));

@@ -4,7 +4,7 @@ import { errorMessage, usePolling } from '../usePolling';
 import { Badge } from './ui';
 import type { LlmConnectionStatus } from '../types';
 export default function ServiceStatus() {
-  const services = usePolling(api.services, 30000);
+  const services = usePolling(api.services, 60000, true, ['services']);
   const [probe, setProbe] = useState<LlmConnectionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);

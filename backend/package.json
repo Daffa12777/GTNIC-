@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "prisma generate && nest build",
+    "build:vercel": "prisma generate && tsc -p tsconfig.vercel.json && node scripts/build-vercel.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
@@ -41,6 +42,7 @@
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.6",
     "@types/supertest": "^6.0.2",
+    "esbuild": "0.28.2",
     "jest": "30.5.2",
     "supertest": "^7.0.0",
     "ts-jest": "29.4.15",

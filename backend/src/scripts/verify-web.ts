@@ -4,9 +4,11 @@ import { DbService } from '../db/db.service';
 import { CONFIG } from '../config';
 import { RateLimitService } from '../security/rate-limit.service';
 
-/** Local HTTP smoke test using disposable fixtures; never prints passwords or cookies. */
+/** HTTP smoke test using disposable fixtures; never prints passwords or cookies. */
 async function main() {
   const db = new DbService();
+  const base = (process.env.VERIFY_API_BASE ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '');
+  const origin = process.env.VERIFY_ORIGIN ?? CONFIG.FRONTEND_ORIGIN.split(',')[0].trim();
   const marker = `web-${randomUUID().slice(0, 8)}`;
   const password = randomBytes(24).toString('hex');
   const salt = randomBytes(16).toString('hex');
@@ -15,17 +17,16 @@ async function main() {
   const cookies = new Map<string, string>();
   let notificationId: bigint | undefined;
   const http = async <T>(path: string, role: string, body?: unknown, expected = 200): Promise<T> => {
-    const response = await fetch(`http://127.0.0.1:8000/api${path}`, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-mm-client': 'web', Cookie: cookies.get(role) ?? '' }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(15000) });
+    const response = await fetch(`${base}${path}`, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-mm-client': 'web', Origin: origin, Cookie: cookies.get(role) ?? '' }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(15000) });
     if (response.status !== expected) throw new Error(`${path}: expected ${expected}, got ${response.status}`);
     return await response.json() as T;
   };
   try {
-    const origin = CONFIG.FRONTEND_ORIGIN.split(',')[0].trim();
-    const health = await fetch('http://127.0.0.1:8000/api/health', { headers: { Origin: origin }, signal: AbortSignal.timeout(10000) });
+    const health = await fetch(`${base}/health`, { headers: { Origin: origin }, signal: AbortSignal.timeout(10000) });
     if (!health.ok || health.headers.get('x-content-type-options') !== 'nosniff' || !health.headers.has('ratelimit-limit') || health.headers.get('access-control-allow-origin') !== origin) throw new Error('HTTP security headers failed');
-    const foreign = await fetch('http://127.0.0.1:8000/api/health', { headers: { Origin: 'https://foreign.invalid' }, signal: AbortSignal.timeout(10000) });
+    const foreign = await fetch(`${base}/health`, { headers: { Origin: 'https://foreign.invalid' }, signal: AbortSignal.timeout(10000) });
     if (foreign.status !== 403) throw new Error('CORS boundary failed');
-    const mime = await fetch('http://127.0.0.1:8000/api/auth/login', { method: 'POST', headers: { 'content-type': 'text/plain', 'x-mm-client': 'web' }, body: 'test', signal: AbortSignal.timeout(10000) });
+    const mime = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'text/plain', 'x-mm-client': 'web' }, body: 'test', signal: AbortSignal.timeout(10000) });
     if (mime.status !== 415) throw new Error('MIME boundary failed');
     const limiter = new RateLimitService(db);
     await Promise.all(Array.from({ length: 20 }, () => limiter.consume(marker, 60000, 100)));
@@ -34,7 +35,7 @@ async function main() {
     for (const role of ['supervisor', 'teknisi']) {
       const username = `${marker}-${role}`;
       const user = await db.client.user.create({ data: { username, name: 'Web verification', passwordHash, role } }); accountIds.push(user.id);
-      const response = await fetch('http://127.0.0.1:8000/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mm-client': 'web' }, body: JSON.stringify({ username, password }), signal: AbortSignal.timeout(15000) });
+      const response = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mm-client': 'web', Origin: origin }, body: JSON.stringify({ username, password }), signal: AbortSignal.timeout(15000) });
       if (!response.ok) throw new Error(`Fixture login failed (${response.status})`);
       const values = new Map<string, string>();
       for (const value of response.headers.getSetCookie()) { const cookie = value.split(';')[0]; values.set(cookie.slice(0, cookie.indexOf('=')), cookie); }

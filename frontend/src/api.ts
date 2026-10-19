@@ -3,6 +3,7 @@ import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
 import type { ServicesStatus, LlmConnectionStatus } from './types';
+import { invalidateAfterMutation } from './mutationCache';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
@@ -51,10 +52,16 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
   return data as T;
   } catch (error: unknown) {
     if (timeout.signal.aborted && !init?.signal?.aborted) throw new Error('Server belum merespons. Periksa status sebelum mengulangi tindakan.');
+    if (error instanceof TypeError) throw new Error('Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.');
     throw error;
   } finally { clearTimeout(timer); init?.signal?.removeEventListener('abort', abort); }
 }
-const post = <T,>(path: string, body: unknown = {}) => req<T>(path, { method: 'POST', body: JSON.stringify(body) });
+const post = async <T,>(path: string, body: unknown = {}): Promise<T> => {
+  if (!navigator.onLine) throw new Error('Sedang offline. Tindakan belum dikirim. Sambungkan internet lalu coba lagi.');
+  const value = await req<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  invalidateAfterMutation(path);
+  return value;
+};
 
 export const api = {
   session: async (signal?: AbortSignal) => {

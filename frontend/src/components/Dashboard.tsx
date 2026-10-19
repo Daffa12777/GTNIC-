@@ -1,8 +1,11 @@
+import { useUrlFilters } from '../useUrlFilters';
 import { useCallback, useState } from 'react';
 import { api } from '../api';
 import type { Overview, Pump, ReadingsResp } from '../types';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 import SensorChart from './SensorChart';
+import { useDebounced } from '../useDebounced';
+import SearchField from './SearchField';
 import { Badge, Empty, StateBadge, pct } from './ui';
 
 const FAULTS: [string, string][] = [['pump', 'Kebocoran pompa'], ['valve', 'Katup lambat'], ['cooler', 'Pendingin'], ['accumulator', 'Akumulator']];
@@ -34,12 +37,16 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
 export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
-  const readings = usePolling(loadReadings, Math.max(2000, ov.tick_seconds * 1000), !!sel);
+  const readings = usePolling(loadReadings, Math.max(10000, ov.tick_seconds * 1000), !!sel, ['readings', sel, 60], 10000);
   const data = readings.data;
-  const cases = usePolling(api.cases, 4000);
-  const workOrders = usePolling(api.workOrders, 4000);
-  const [query, setQuery] = useState('');
-  const [state, setState] = useState('');
+  const cases = usePolling(api.cases, 30000, true, ['cases', 'all']);
+  const workOrders = usePolling(api.workOrders, 30000, true, ['work-orders', 'all']);
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '' });
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value }, true);
+  const search = useDebounced(query);
+  const state = filters.status;
+  const setState = (value: string) => updateFilters({ status: value });
   const [busy, setBusy] = useState(false);
   const [faultPump, setFaultPump] = useState('Pump-02');
   const [fault, setFault] = useState('cooler');
@@ -89,12 +96,12 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
           {cases.data && !cases.data.some((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)) && !ov.pumps.some((p) => ['kritis', 'sensor', 'ml_error'].includes(p.status.state)) && <Empty>Tidak ada tindakan mendesak.</Empty>}
         </div>
       </section>
-      <div className="filters"><label>Cari unit<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ID, nama, atau lokasi" /></label><label>Status<select className="sel" value={state} onChange={(e) => setState(e.target.value)}><option value="">Semua status</option>{['normal', 'waspada', 'kritis', 'sensor', 'ml_error', 'tidak ada data'].map((s) => <option key={s}>{s}</option>)}</select></label></div>
+      <div className="filters"><SearchField label="Cari unit" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, nama, atau lokasi" pending={query !== search} /><label>Status<select className="sel" value={state} onChange={(e) => setState(e.target.value)}><option value="">Semua status</option>{['normal', 'waspada', 'kritis', 'sensor', 'ml_error', 'tidak ada data'].map((s) => <option key={s}>{s}</option>)}</select></label></div>
       <div className="card" style={{ marginBottom: 16 }}>
         <table>
           <thead><tr><th>Unit</th><th>Nama</th><th>Kritikalitas</th><th>Status</th><th>Dugaan model</th><th>Keyakinan</th><th>WO terbuka</th></tr></thead>
           <tbody>
-            {ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(query.toLowerCase())).map((p) => (
+            {ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase())).map((p) => (
               <tr key={p.id} className={p.id === sel ? 'sel' : ''}>
                 <td className="id"><button className="link-button" aria-pressed={p.id === sel} onClick={() => onSelect(p.id)}>{p.id}</button></td>
                 <td>{p.name}<div className="sub">{p.location}</div></td>

@@ -1,21 +1,32 @@
+import { useUrlFilters } from '../useUrlFilters';
 import { Fragment, useCallback, useRef, useState } from 'react';
 import Pagination from './Pagination';
+import SearchField from './SearchField';
 import { useDebounced } from '../useDebounced';
 import { api } from '../api';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 import { Badge, Empty, WO_TONE, fmtTime } from './ui';
+import { useUnsavedChanges } from '../useUnsavedChanges';
 
 export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('');
-  const [priority, setPriority] = useState('');
-  const [unit, setUnit] = useState('');
-  const [technician, setTechnician] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 }, () => discardCompletion());
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
+  const status = filters.status;
+  const setStatus = (value: string) => updateFilters({ status: value, page: 1 });
+  const priority = filters.priority;
+  const setPriority = (value: string) => updateFilters({ priority: value, page: 1 });
+  const unit = filters.unit;
+  const setUnit = (value: string) => updateFilters({ unit: value, page: 1 });
+  const technician = filters.technician;
+  const setTechnician = (value: string) => updateFilters({ technician: value, page: 1 });
+  const page = filters.page;
+  const setPage = (value: number) => updateFilters({ page: value });
+  const pageSize = filters.pageSize;
+  const setPageSize = (value: number) => updateFilters({ pageSize: value, page: 1 });
   const search = useDebounced(query);
   const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, technician }), signal), [page, pageSize, search, status, priority, unit, technician]);
-  const result = usePolling(load, 4000);
+  const result = usePolling(load, 30000, true, ['work-orders', page, pageSize, search, status, priority, unit, technician]);
   const rows = result.data?.items ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [cause, setCause] = useState('');
@@ -24,6 +35,14 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState('');
+  const dirty = !!cause || !!action;
+  useUnsavedChanges(dirty || busy);
+  const discardCompletion = () => {
+    if (busy) return false;
+    if (dirty && !window.confirm('Buang laporan penyelesaian yang belum disimpan?')) return false;
+    setCause(''); setAction(''); setError(''); setOpen(null);
+    return true;
+  };
 
   const complete = async (id: string) => {
     if (saving.current) return;
@@ -41,14 +60,15 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
     <div className="page">
       <div className="page-head"><div><h1>Work order</h1><p>Dibuat oleh agent melalui tool, lengkap dengan jadwal teknisi. Menutup work order menambah riwayat yang dipakai RAG.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
+      {dirty && <div className="notice warn" role="status">Ada laporan penyelesaian yang belum disimpan.</div>}
       <div className="filters">
-        <label>Cari pekerjaan<input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="ID, judul, unit, teknisi" /></label>
-        <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.keys(WO_TONE).map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); setPage(1); }}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); setPage(1); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); setPage(1); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <SearchField label="Cari pekerjaan" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, judul, unit, teknisi" pending={query !== search} />
+        <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.keys(WO_TONE).map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); }}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
-      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
+      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
       <div className="card">
         {rows.length === 0 ? result.data && <Empty>Tidak ada pekerjaan pada halaman ini atau sesuai filter.</Empty> : (
           <table>
@@ -63,7 +83,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
                     <td>{w.priority}</td>
                     <td><Badge tone={WO_TONE[w.status] ?? 'info'}>{w.status}</Badge></td>
                     <td>{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
-                    <td style={{ textAlign: 'right' }}>{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { setOpen(open === w.id ? null : w.id); setCause(''); setAction(''); setError(''); }}>Selesaikan</button>}</td>
+                    <td style={{ textAlign: 'right' }}>{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { if (discardCompletion()) setOpen(open === w.id ? null : w.id); }}>Selesaikan</button>}</td>
                   </tr>
                   {open === w.id && (
                     <tr><td colSpan={7} style={{ background: '#fafbfc' }}>

@@ -22,16 +22,18 @@ function PollingView({ load }: { load: (signal: AbortSignal) => Promise<string> 
 describe('Web workflow regressions', () => {
   it('hides previous unit data immediately and aborts its pending request', async () => {
     let oldSignal: AbortSignal | undefined;
-    const old = (signal: AbortSignal) => { oldSignal = signal; return Promise.resolve('Pump-01 data'); };
+    let oldCalls = 0;
+    const old = (signal: AbortSignal) => { oldSignal = signal; return ++oldCalls === 1 ? Promise.resolve('Pump-01 data') : new Promise<string>(() => {}); };
     const next = deferred<string>();
     const loadNext = () => next.promise;
     const view = render(<PollingView load={old} />);
     await screen.findByText('Pump-01 data');
+    fireEvent.click(screen.getByText('Refresh'));
     view.rerender(<PollingView load={loadNext} />);
     expect(screen.queryByText('Pump-01 data')).toBeNull();
     expect(oldSignal?.aborted).toBe(true);
     await act(async () => next.resolve('Pump-02 data'));
-    expect(screen.getByText('Pump-02 data')).toBeTruthy();
+    expect(await screen.findByText('Pump-02 data')).toBeTruthy();
   });
 
   it('preserves previous data with an explicit stale warning after refresh fails', async () => {
