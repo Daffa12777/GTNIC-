@@ -14,7 +14,7 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const load = useCallback((signal: AbortSignal) => api.stockMovements(selected, signal), [selected]);
-  const history = usePolling(load, 10000, !!selected);
+  const history = usePolling(load, 60000, !!selected, ['stock-movements', selected]);
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return; pending.current = true; setBusy(true); setError(''); setMessage('');
     try { await action(); await refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); if (failure instanceof ApiError && failure.status === 409) { operation.current = undefined; await refresh(); } }

@@ -34,10 +34,10 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
 export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
-  const readings = usePolling(loadReadings, Math.max(2000, ov.tick_seconds * 1000), !!sel);
+  const readings = usePolling(loadReadings, Math.max(10000, ov.tick_seconds * 1000), !!sel, ['readings', sel, 60], 10000);
   const data = readings.data;
-  const cases = usePolling(api.cases, 4000);
-  const workOrders = usePolling(api.workOrders, 4000);
+  const cases = usePolling(api.cases, 30000, true, ['cases', 'all']);
+  const workOrders = usePolling(api.workOrders, 30000, true, ['work-orders', 'all']);
   const [query, setQuery] = useState('');
   const [state, setState] = useState('');
   const [busy, setBusy] = useState(false);

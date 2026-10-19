@@ -11,7 +11,7 @@ const loadInventory = async (signal: AbortSignal) => {
 };
 
 export default function Inventory({ role }: { role: Role }) {
-  const result = usePolling(loadInventory, 5000);
+  const result = usePolling(loadInventory, 60000, true, ['inventory']);
   const [query, setQuery] = useState('');
   const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
 

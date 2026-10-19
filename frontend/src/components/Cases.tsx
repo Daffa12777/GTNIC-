@@ -10,7 +10,7 @@ const KIND: Record<string, string> = { reasoning: 'Penalaran', tool: 'Tool', dec
 
 export function CaseDetail({ id, role, labels, flash, onChanged, authenticated = false }: { id: string; role: Role; labels: Record<string, string>; flash: (m: string) => void; onChanged: () => void; authenticated?: boolean }) {
   const load = useCallback((signal: AbortSignal) => api.getCase(id, signal), [id]);
-  const detail = usePolling(load, 4000);
+  const detail = usePolling(load, 30000, true, ['case', id]);
   const c = detail.data;
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
@@ -108,7 +108,7 @@ export default function Cases({ role, labels, flash, selected, onSelect, onChang
   const [pageSize, setPageSize] = useState(20);
   const search = useDebounced(query);
   const load = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status }), signal), [page, pageSize, search, status]);
-  const result = usePolling(load, 4000);
+  const result = usePolling(load, 30000, true, ['cases', page, pageSize, search, status]);
   const list = result.data?.items ?? [];
 
   return (

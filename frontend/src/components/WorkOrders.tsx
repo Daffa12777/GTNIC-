@@ -15,7 +15,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
   const [pageSize, setPageSize] = useState(20);
   const search = useDebounced(query);
   const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, technician }), signal), [page, pageSize, search, status, priority, unit, technician]);
-  const result = usePolling(load, 4000);
+  const result = usePolling(load, 30000, true, ['work-orders', page, pageSize, search, status, priority, unit, technician]);
   const rows = result.data?.items ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [cause, setCause] = useState('');

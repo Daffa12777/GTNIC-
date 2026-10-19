@@ -27,7 +27,7 @@ export default function App() {
 
 function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
   const { tab, caseId, pumpId, navigate } = useNavigation();
-  const overview = usePolling(api.overview, 3000);
+  const overview = usePolling(api.overview, 15000, true, ['overview'], 10000);
   const ov = overview.data;
   const refresh = overview.refresh;
   const [role, setRoleState] = useState<Role>(user?.role ?? (store.get('mm_role', 'teknisi') === 'supervisor' ? 'supervisor' : 'teknisi'));
