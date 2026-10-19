@@ -232,6 +232,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .toast { width: calc(100% - 24px); bottom: 12px; }
 }
 .loading-skeleton { min-height: 180px; overflow: hidden; }
+.data-freshness { min-height: 34px; gap: 8px; padding: 6px 0; }
+.freshness-dot { width: 8px; height: 8px; border-radius: 50%; background: #15803d; flex-shrink: 0; }
+.freshness-dot.stale { background: #b45309; }
+.freshness-dot.updating { background: #2454de; }
 .skeleton-label { display: block; color: var(--muted, #64748b); font-size: 14px; margin-bottom: 16px; }
 .skeleton-line, .skeleton-row span { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #e8edf3 25%, #f4f6f9 50%, #e8edf3 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.6s ease-in-out infinite; }
 .skeleton-title { width: 45%; height: 22px; margin-bottom: 20px; }

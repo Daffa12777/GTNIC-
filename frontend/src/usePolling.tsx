@@ -16,14 +16,18 @@ function loaderKey(load: object): QueryKey {
 export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interval: number, enabled = true, key?: QueryKey, staleTime = 30000) {
   const query = useQuery({ queryKey: key ?? loaderKey(load), queryFn: ({ signal }) => load(signal), enabled, staleTime, refetchInterval: interval, refetchIntervalInBackground: false }, queryClient);
   const refresh = useCallback(async () => { await query.refetch({ cancelRefetch: false }); }, [query.refetch]);
-  return { data: enabled ? query.data ?? null : null, error: query.error ? errorMessage(query.error) : '', updated: query.dataUpdatedAt || null, loading: enabled && (query.isFetching || query.isPending), refresh };
+  return { data: enabled ? query.data ?? null : null, error: query.error ? errorMessage(query.error) : '', updated: query.dataUpdatedAt || null, loading: enabled && (query.isFetching || query.isPending), stale: query.isStale, refresh };
 }
 
-export function RequestState({ error, loading, updated, retry, showUpdated = true }: { error: string; loading: boolean; updated: number | null; retry: () => void; showUpdated?: boolean }) {
-  if (!error && updated && !showUpdated) return null;
+export function RequestState({ error, loading, updated, retry, showUpdated = true, stale = false }: { error: string; loading: boolean; updated: number | null; retry: () => void; showUpdated?: boolean; stale?: boolean }) {
+  if (!error && updated && !showUpdated && !loading) return null;
   return <div className="request-state" aria-live="polite">
     {error ? <div className="notice bad" role="alert">Koneksi atau pemuatan gagal: {error}. {updated && showUpdated ? 'Data yang ditampilkan belum diperbarui.' : ''} <button type="button" className="btn sm" disabled={loading} onClick={retry}>Coba lagi</button></div>
       : !updated ? <LoadingSkeleton /> : null}
-    {showUpdated && updated && <div className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time>{loading ? ' · Memperbarui…' : ''}</div>}
+    {updated && <div className="data-freshness row wrap">
+      <span className={`freshness-dot ${loading ? 'updating' : error || stale ? 'stale' : ''}`} aria-hidden="true" />
+      <span className="sub">{loading ? 'Memperbarui…' : error || stale ? 'Menampilkan data terakhir' : 'Data terbaru'}{showUpdated && <> · Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time></>}</span>
+      {showUpdated && !error && <button type="button" className="btn sm" disabled={loading} onClick={retry}>Perbarui data</button>}
+    </div>}
   </div>;
 }
