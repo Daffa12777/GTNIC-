@@ -232,6 +232,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .toast { width: calc(100% - 24px); bottom: 12px; }
 }
 .loading-skeleton { min-height: 180px; overflow: hidden; }
+.connection-banner { padding: 12px 20px; background: #fff4d5; color: #714b00; border-bottom: 1px solid #e8cb83; text-align: center; }
 .search-field { display: grid; gap: 6px; min-width: min(280px, 100%); }
 .search-input { display: flex; align-items: center; gap: 6px; }
 .search-input .input { min-width: 0; flex: 1; }
