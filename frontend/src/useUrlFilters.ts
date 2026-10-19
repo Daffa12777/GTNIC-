@@ -17,7 +17,7 @@ export function readFilters<T extends Filters>(defaults: T): T {
 }
 
 /** URL is the source of truth for Back/Forward, refresh, and shareable filters. */
-export function useUrlFilters<T extends Filters>(defaults: T): [T, (patch: Partial<T>, replace?: boolean) => void] {
+export function useUrlFilters<T extends Filters>(defaults: T, beforeChange?: () => boolean): [T, (patch: Partial<T>, replace?: boolean) => void] {
   const [filters, setFilters] = useState(() => readFilters(defaults));
   const signature = JSON.stringify(defaults);
   useEffect(() => {
@@ -32,7 +32,10 @@ export function useUrlFilters<T extends Filters>(defaults: T): [T, (patch: Parti
       if (values[key] === defaults[key] || values[key] === '') url.searchParams.delete(key);
       else url.searchParams.set(key, String(values[key]));
     }
-    writeLocation(url.pathname + url.search + url.hash, replace);
+    const target = url.pathname + url.search + url.hash;
+    if (target === window.location.pathname + window.location.search + window.location.hash) return;
+    if (beforeChange && !beforeChange()) return;
+    writeLocation(target, replace);
   };
   return [filters, change];
 }

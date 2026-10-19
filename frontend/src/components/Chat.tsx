@@ -5,6 +5,7 @@ import { CaseBadge, RiskBadge } from './ui';
 import { errorMessage } from '../usePolling';
 import Markdown from 'react-markdown';
 import { readChat, writeChat } from '../chatSession';
+import { useUnsavedChanges } from '../useUnsavedChanges';
 
 const SUGGEST = ['Unit 3 oli cepat panas dan tekanan sulit naik', 'Unit 2 gerak aktuator tersendat', 'Urutan prioritas penanganan', 'Stok seal kit pompa'];
 
@@ -17,6 +18,8 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
   const [busy, setBusy] = useState(false);
   const [openCase, setOpenCase] = useState<string | null>(saved.openCase);
   const [storageFailed, setStorageFailed] = useState(false);
+  // Chat stays mounted across tabs; warn on refresh only when its draft cannot be saved.
+  useUnsavedChanges(busy || (storageFailed && !!text), false);
   const sending = useRef(false);
   useEffect(() => { setStorageFailed(!writeChat(username, { messages: msgs, draft: text, openCase })); }, [username, msgs, text, openCase]);
   const end = useRef<HTMLDivElement>(null);

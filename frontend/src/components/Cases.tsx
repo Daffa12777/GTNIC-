@@ -7,6 +7,7 @@ import Pagination from './Pagination';
 import SearchField from './SearchField';
 import { useDebounced } from '../useDebounced';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
+import { useUnsavedChanges } from '../useUnsavedChanges';
 
 const KIND: Record<string, string> = { reasoning: 'Penalaran', tool: 'Tool', decision: 'Keputusan', action: 'Tindakan' };
 
@@ -17,12 +18,13 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  useUnsavedChanges(!!text || !!note || busy);
 
   if (!c) return <div className="card card-b"><RequestState {...detail} retry={detail.refresh} /></div>;
 
   const act = async (fn: () => Promise<Case>, msg: string) => {
     setBusy(true);
-    try { await fn(); await detail.refresh(); flash(msg); onChanged(); return true; } catch (e: unknown) { flash(errorMessage(e)); return false; } finally { setBusy(false); }
+    try { await fn(); setText(''); setNote(''); await detail.refresh(); flash(msg); onChanged(); return true; } catch (e: unknown) { flash(errorMessage(e)); return false; } finally { setBusy(false); }
   };
   const probs = c.probs ? Object.entries(c.probs).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
   const isSup = role === 'supervisor';
@@ -30,6 +32,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
   return (
     <div className="grid">
       <RequestState {...detail} retry={detail.refresh} />
+      {(text || note) && <div className="notice warn" role="status">Ada jawaban atau catatan yang belum dikirim.</div>}
       <div className="card">
         <div className="card-h">
           <div className="row wrap"><h3>{c.id}</h3><span className="sub">{c.pump_id ?? 'Beberapa unit'} · {fmtTime(c.created_at)}</span></div>
@@ -122,8 +125,8 @@ export default function Cases({ role, labels, flash, selected, onSelect, onChang
     <div className="page">
       <div className="page-head"><div><h1>Kasus</h1><p>Setiap analisis agent tersimpan sebagai kasus lengkap dengan jejak langkahnya.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
-      <div className="filters"><SearchField label="Cari kasus" value={query} onChange={(value) => { setQuery(value); setPage(1); }} placeholder="ID, unit, atau ringkasan" pending={query !== search} /><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
-      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
+      <div className="filters"><SearchField label="Cari kasus" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, unit, atau ringkasan" pending={query !== search} /><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
       <div className="split">
         <div className="card">
           {result.data && list.length === 0 && <Empty>{query || status ? 'Tidak ada kasus yang cocok dengan filter.' : 'Belum ada kasus pada halaman ini.'}</Empty>}
