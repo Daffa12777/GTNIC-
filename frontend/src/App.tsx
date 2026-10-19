@@ -23,7 +23,7 @@ const store = {
 };
 
 export default function App() {
-  return <><ConnectionStatus /><SessionGate>{(user, logout, loggingOut) => <Workspace key={user?.username ?? 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate></>;
+  return <><ConnectionStatus /><SessionGate>{(user, logout, loggingOut) => <Workspace key={user ? `${user.username}:${user.role}` : 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate></>;
 }
 
 function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {

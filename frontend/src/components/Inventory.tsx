@@ -7,18 +7,19 @@ import type { Role } from '../types';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
 
-const loadInventory = async (signal: AbortSignal) => {
-  const [inv, tech, pr, nt] = await Promise.all([api.inventory(signal), api.technicians(signal), api.purchases(signal), api.notifications(signal)]);
-  return { inv, tech, pr, nt };
-};
-
 export default function Inventory({ role }: { role: Role }) {
-  const result = usePolling(loadInventory, 60000, true, ['inventory']);
+  const result = usePolling(api.inventory, 60000, true, ['inventory']);
+  const technicians = usePolling(api.technicians, 300000, true, ['technicians'], 300000);
+  const purchases = usePolling(api.purchases, 60000, true, ['purchases']);
+  const notifications = usePolling(api.notifications, 60000, true, ['notifications']);
   const [filters, updateFilters] = useUrlFilters({ q: '' });
   const query = filters.q;
   const setQuery = (value: string) => updateFilters({ q: value }, true);
   const search = useDebounced(query);
-  const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
+  const inv = result.data ?? [];
+  const tech = technicians.data ?? [];
+  const pr = purchases.data ?? [];
+  const nt = notifications.data ?? [];
 
   return (
     <div className="page">
@@ -36,13 +37,15 @@ export default function Inventory({ role }: { role: Role }) {
         </div>
         <div className="card">
           <div className="card-h"><h3>Teknisi</h3></div>
+          <RequestState {...technicians} retry={technicians.refresh} showUpdated={false} />
           <table><thead><tr><th>Nama</th><th>Keahlian</th><th>Level</th><th>Status</th></tr></thead><tbody>
             {tech.map((t) => <tr key={t.id}><td>{t.name}</td><td>{t.skill}</td><td>{t.level}</td><td>{t.available ? <Badge tone="ok">Tersedia</Badge> : <Badge tone="warn">Bertugas</Badge>}</td></tr>)}
           </tbody></table>
         </div>
         <div className="card">
           <div className="card-h"><h3>Permintaan pembelian</h3></div>
-          {pr.length === 0 ? <Empty>Belum ada. Agent membuatnya bila stok part kosong.</Empty> : (
+          <RequestState {...purchases} retry={purchases.refresh} showUpdated={false} />
+          {pr.length === 0 ? purchases.data && <Empty>Belum ada. Agent membuatnya bila stok part kosong.</Empty> : (
             <table><thead><tr><th>ID</th><th>Part</th><th>Qty</th><th>Status</th></tr></thead><tbody>
               {pr.map((p) => <tr key={p.id}><td className="id">{p.id}</td><td>{p.part_name}<div className="sub">{p.reason}</div></td><td className="num">{p.qty}</td><td><Badge tone="warn">{p.status}</Badge></td></tr>)}
             </tbody></table>
@@ -50,7 +53,8 @@ export default function Inventory({ role }: { role: Role }) {
         </div>
         <div className="card">
           <div className="card-h"><h3>Notifikasi</h3></div>
-          {nt.length === 0 ? <Empty>Belum ada notifikasi.</Empty> : (
+          <RequestState {...notifications} retry={notifications.refresh} showUpdated={false} />
+          {nt.length === 0 ? notifications.data && <Empty>Belum ada notifikasi.</Empty> : (
             <table><thead><tr><th>Penerima</th><th>Pesan</th><th>Status</th></tr></thead><tbody>
               {nt.slice(0, 12).map((n) => <tr key={n.id}><td>{n.recipient}<div className="sub">{fmtTime(n.ts)}</div></td><td style={{ maxWidth: 320 }}>{n.message}</td><td><Badge tone={n.status === 'terkirim' ? 'ok' : n.status === 'gagal' ? 'bad' : 'info'}>{n.status}</Badge></td></tr>)}
             </tbody></table>

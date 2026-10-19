@@ -6,6 +6,7 @@ import { canLeavePage } from './useUnsavedChanges';
 import type { AuthUser } from './types';
 import { errorMessage, RequestState, usePolling } from './usePolling';
 import { clearPrivateCache, queryClient } from './queryClient';
+import { publishSessionChange, subscribeSessionChange } from './sessionSync';
 
 export default function SessionGate({ children }: { children: (user: AuthUser | null, logout: (serverAlreadyClosed?: boolean) => Promise<void>, loggingOut: boolean) => ReactNode }) {
   const identity = useRef<string | null>(null);
@@ -29,19 +30,26 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     window.addEventListener('session-expired', expired); window.addEventListener('session-updated', updated);
     return () => { window.removeEventListener('session-expired', expired); window.removeEventListener('session-updated', updated); };
   }, [session.refresh]);
+  useEffect(() => subscribeSessionChange(() => {
+    clearPrivateCache(); clearChats(); setLoggedOut(true);
+    void queryClient.cancelQueries({ queryKey: ['session'] }).then(async () => {
+      queryClient.setQueryData(['session'], { enabled: true, user: null });
+      await session.refresh(); setLoggedOut(false);
+    });
+  }), [session.refresh]);
   const logout = async (serverAlreadyClosed = false) => {
     if (submitting.current) return;
     if (!serverAlreadyClosed && !canLeavePage()) return;
     submitting.current = true;
     setLoggingOut(true); setError('');
-    try { if (!serverAlreadyClosed) await api.logout(); clearPrivateCache(); clearChats(); setLoggedOut(true); setPassword(''); queryClient.setQueryData(['session'], { enabled: true, user: null }); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }
+    try { await queryClient.cancelQueries({ queryKey: ['session'] }); if (!serverAlreadyClosed) await api.logout(); clearPrivateCache(); clearChats(); setLoggedOut(true); setPassword(''); queryClient.setQueryData(['session'], { enabled: true, user: null }); publishSessionChange(); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }
   };
   if (!session.data) return <div className="page"><RequestState {...session} retry={session.refresh} /></div>;
   if (!session.data.enabled || (session.data.user && !loggedOut)) return <>{session.error && <div className="page"><RequestState {...session} retry={session.refresh} /></div>}{error && <div className="page"><div className="notice bad" role="alert">{error}</div></div>}{children(session.data.user, logout, loggingOut)}</>;
   return <main className="login-page"><form className="card card-b login-form" onSubmit={async (e) => {
     e.preventDefault(); if (submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
-    try { const value = await api.login(username.trim(), password); clearPrivateCache(); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
+    try { await queryClient.cancelQueries({ queryKey: ['session'] }); const value = await api.login(username.trim(), password); clearPrivateCache(); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); publishSessionChange(); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
   }}>
     <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola.</p>
     <RequestState {...session} retry={session.refresh} showUpdated={false} />
