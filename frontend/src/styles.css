@@ -231,4 +231,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .chat { height: 65dvh; min-height: 380px; }
   .toast { width: calc(100% - 24px); bottom: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+.loading-skeleton { min-height: 180px; overflow: hidden; }
+.skeleton-label { display: block; color: var(--muted, #64748b); font-size: 14px; margin-bottom: 16px; }
+.skeleton-line, .skeleton-row span { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #e8edf3 25%, #f4f6f9 50%, #e8edf3 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.6s ease-in-out infinite; }
+.skeleton-title { width: 45%; height: 22px; margin-bottom: 20px; }
+.skeleton-row { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; margin-top: 16px; }
+@keyframes skeleton-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

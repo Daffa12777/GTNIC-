@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useQuery, type QueryKey } from '@tanstack/react-query';
 import { queryClient } from './queryClient';
+import LoadingSkeleton from './components/LoadingSkeleton';
 
 export const errorMessage = (error: unknown): string => error instanceof Error ? error.message : 'Terjadi kesalahan. Coba lagi.';
 
@@ -22,7 +23,7 @@ export function RequestState({ error, loading, updated, retry, showUpdated = tru
   if (!error && updated && !showUpdated) return null;
   return <div className="request-state" aria-live="polite">
     {error ? <div className="notice bad" role="alert">Koneksi atau pemuatan gagal: {error}. {updated && showUpdated ? 'Data yang ditampilkan belum diperbarui.' : ''} <button type="button" className="btn sm" disabled={loading} onClick={retry}>Coba lagi</button></div>
-      : !updated ? <div className="notice">Memuat data…</div> : null}
+      : !updated ? <LoadingSkeleton /> : null}
     {showUpdated && updated && <div className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time>{loading ? ' · Memperbarui…' : ''}</div>}
   </div>;
 }
