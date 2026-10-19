@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { canLeavePage } from './useUnsavedChanges';
+import { LOCATION_CHANGED, writeLocation } from './location';
 
 export type Tab = 'ringkasan' | 'kasus' | 'wo' | 'inventaris' | 'asisten' | 'profil';
 const paths: Record<Tab, string> = { ringkasan: '/', kasus: '/cases', wo: '/work-orders', inventaris: '/inventory', asisten: '/assistant', profil: '/profile' };
@@ -13,7 +14,8 @@ function readRoute() {
 export function useNavigation() {
   const [route, setRoute] = useState(readRoute);
   const index = useRef<number>(Number(window.history.state?.mmNavIndex) || 0);
-  const currentPath = useRef(window.location.pathname);
+  const currentPath = useRef(window.location.pathname + window.location.search);
+  const searches = useRef(new Map<Tab, string>());
   const restoring = useRef(false);
   useEffect(() => {
     window.history.replaceState({ ...window.history.state, mmNavIndex: index.current }, '', window.location.href);
@@ -25,15 +27,19 @@ export function useNavigation() {
         else window.history.pushState({ mmNavIndex: index.current }, '', currentPath.current);
         return;
       }
-      index.current = Number(event.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname; setRoute(readRoute());
+      index.current = Number(event.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname + window.location.search; setRoute(readRoute());
     };
-    window.addEventListener('popstate', update); return () => window.removeEventListener('popstate', update);
+    const changed = () => { index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname + window.location.search; setRoute(readRoute()); };
+    window.addEventListener('popstate', update); window.addEventListener(LOCATION_CHANGED, changed);
+    return () => { window.removeEventListener('popstate', update); window.removeEventListener(LOCATION_CHANGED, changed); };
   }, []);
   const navigate = (tab: Tab, id?: string, unit = false) => {
-    const path = unit && id ? `/units/${encodeURIComponent(id)}` : `${paths[tab]}${id ? `/${encodeURIComponent(id)}` : ''}`;
-    if (window.location.pathname !== path) {
+    searches.current.set(readRoute().tab, window.location.search);
+    const search = tab === readRoute().tab ? window.location.search : searches.current.get(tab) ?? '';
+    const path = (unit && id ? `/units/${encodeURIComponent(id)}` : `${paths[tab]}${id ? `/${encodeURIComponent(id)}` : ''}`) + search;
+    if (window.location.pathname + window.location.search !== path) {
       if (!canLeavePage()) return;
-      index.current++; window.history.pushState({ mmNavIndex: index.current }, '', path); currentPath.current = path;
+      writeLocation(path); index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = path;
     }
     setRoute(readRoute());
   };

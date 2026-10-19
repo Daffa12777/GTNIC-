@@ -1,3 +1,4 @@
+import { useUrlFilters } from '../useUrlFilters';
 import { Fragment, useCallback, useRef, useState } from 'react';
 import Pagination from './Pagination';
 import SearchField from './SearchField';
@@ -7,13 +8,21 @@ import { RequestState, usePolling, errorMessage } from '../usePolling';
 import { Badge, Empty, WO_TONE, fmtTime } from './ui';
 
 export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('');
-  const [priority, setPriority] = useState('');
-  const [unit, setUnit] = useState('');
-  const [technician, setTechnician] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 });
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
+  const status = filters.status;
+  const setStatus = (value: string) => updateFilters({ status: value, page: 1 });
+  const priority = filters.priority;
+  const setPriority = (value: string) => updateFilters({ priority: value, page: 1 });
+  const unit = filters.unit;
+  const setUnit = (value: string) => updateFilters({ unit: value, page: 1 });
+  const technician = filters.technician;
+  const setTechnician = (value: string) => updateFilters({ technician: value, page: 1 });
+  const page = filters.page;
+  const setPage = (value: number) => updateFilters({ page: value });
+  const pageSize = filters.pageSize;
+  const setPageSize = (value: number) => updateFilters({ pageSize: value, page: 1 });
   const search = useDebounced(query);
   const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, technician }), signal), [page, pageSize, search, status, priority, unit, technician]);
   const result = usePolling(load, 30000, true, ['work-orders', page, pageSize, search, status, priority, unit, technician]);

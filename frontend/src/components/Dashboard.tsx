@@ -1,3 +1,4 @@
+import { useUrlFilters } from '../useUrlFilters';
 import { useCallback, useState } from 'react';
 import { api } from '../api';
 import type { Overview, Pump, ReadingsResp } from '../types';
@@ -40,9 +41,12 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
   const data = readings.data;
   const cases = usePolling(api.cases, 30000, true, ['cases', 'all']);
   const workOrders = usePolling(api.workOrders, 30000, true, ['work-orders', 'all']);
-  const [query, setQuery] = useState('');
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '' });
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value }, true);
   const search = useDebounced(query);
-  const [state, setState] = useState('');
+  const state = filters.status;
+  const setState = (value: string) => updateFilters({ status: value });
   const [busy, setBusy] = useState(false);
   const [faultPump, setFaultPump] = useState('Pump-02');
   const [fault, setFault] = useState('cooler');

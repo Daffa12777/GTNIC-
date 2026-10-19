@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useUrlFilters } from '../useUrlFilters';
 import { api } from '../api';
 import { Badge, Empty, fmtTime } from './ui';
 import { RequestState, usePolling } from '../usePolling';
@@ -14,7 +14,9 @@ const loadInventory = async (signal: AbortSignal) => {
 
 export default function Inventory({ role }: { role: Role }) {
   const result = usePolling(loadInventory, 60000, true, ['inventory']);
-  const [query, setQuery] = useState('');
+  const [filters, updateFilters] = useUrlFilters({ q: '' });
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value }, true);
   const search = useDebounced(query);
   const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
 

@@ -1,3 +1,4 @@
+import { useUrlFilters } from '../useUrlFilters';
 import { useCallback, useState } from 'react';
 import { api } from '../api';
 import type { Case, Role } from '../types';
@@ -103,10 +104,15 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
 }
 
 export default function Cases({ role, labels, flash, selected, onSelect, onChanged, authenticated = false }: { role: Role; labels: Record<string, string>; flash: (m: string) => void; selected: string | null; onSelect: (id: string) => void; onChanged: () => void; authenticated?: boolean }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '', page: 1, pageSize: 20 });
+  const query = filters.q;
+  const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
+  const status = filters.status;
+  const setStatus = (value: string) => updateFilters({ status: value, page: 1 });
+  const page = filters.page;
+  const setPage = (value: number) => updateFilters({ page: value });
+  const pageSize = filters.pageSize;
+  const setPageSize = (value: number) => updateFilters({ pageSize: value, page: 1 });
   const search = useDebounced(query);
   const load = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status }), signal), [page, pageSize, search, status]);
   const result = usePolling(load, 30000, true, ['cases', page, pageSize, search, status]);
