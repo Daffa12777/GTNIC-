@@ -4,6 +4,8 @@ import { Badge, Empty, fmtTime } from './ui';
 import { RequestState, usePolling } from '../usePolling';
 import InventoryEditor from './InventoryEditor';
 import type { Role } from '../types';
+import { useDebounced } from '../useDebounced';
+import SearchField from './SearchField';
 
 const loadInventory = async (signal: AbortSignal) => {
   const [inv, tech, pr, nt] = await Promise.all([api.inventory(signal), api.technicians(signal), api.purchases(signal), api.notifications(signal)]);
@@ -13,6 +15,7 @@ const loadInventory = async (signal: AbortSignal) => {
 export default function Inventory({ role }: { role: Role }) {
   const result = usePolling(loadInventory, 60000, true, ['inventory']);
   const [query, setQuery] = useState('');
+  const search = useDebounced(query);
   const { inv = [], tech = [], pr = [], nt = [] } = result.data ?? {};
 
   return (
@@ -20,14 +23,14 @@ export default function Inventory({ role }: { role: Role }) {
       <div className="page-head"><div><h1>Inventaris dan tim</h1><p>Data yang dibaca dan diubah agent lewat tool: stok, teknisi, permintaan pembelian, notifikasi.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
       {role === 'supervisor' && result.data && <InventoryEditor parts={inv} refresh={result.refresh} />}
-      <div className="filters"><label>Cari spare part<input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama atau lokasi" /></label></div>
+      <div className="filters"><SearchField label="Cari spare part" value={query} onChange={(value) => { setQuery(value); }} placeholder="Nama atau lokasi" pending={query !== search} /></div>
       {result.data && <div className="grid inventory-grid">
         <div className="card">
           <div className="card-h"><h3>Stok spare part</h3></div>
           <table><thead><tr><th>Part</th><th>Lokasi</th><th>Stok</th></tr></thead><tbody>
-            {inv.filter((i) => `${i.name} ${i.location}`.toLowerCase().includes(query.toLowerCase())).map((i) => <tr key={i.part_id}><td>{i.name}</td><td className="sub">{i.location}</td><td>{Number(i.stock) === 0 ? <Badge tone="bad">Kosong</Badge> : <span className="num">{i.stock}</span>}</td></tr>)}
+            {inv.filter((i) => `${i.name} ${i.location}`.toLowerCase().includes(search.toLowerCase())).map((i) => <tr key={i.part_id}><td>{i.name}</td><td className="sub">{i.location}</td><td>{Number(i.stock) === 0 ? <Badge tone="bad">Kosong</Badge> : <span className="num">{i.stock}</span>}</td></tr>)}
           </tbody></table>
-          {!inv.some((i) => `${i.name} ${i.location}`.toLowerCase().includes(query.toLowerCase())) && <Empty>Tidak ada spare part yang cocok.</Empty>}
+          {!inv.some((i) => `${i.name} ${i.location}`.toLowerCase().includes(search.toLowerCase())) && <Empty>Tidak ada spare part yang cocok.</Empty>}
         </div>
         <div className="card">
           <div className="card-h"><h3>Teknisi</h3></div>

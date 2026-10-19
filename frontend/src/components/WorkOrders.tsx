@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useRef, useState } from 'react';
 import Pagination from './Pagination';
+import SearchField from './SearchField';
 import { useDebounced } from '../useDebounced';
 import { api } from '../api';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
@@ -42,7 +43,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
       <div className="page-head"><div><h1>Work order</h1><p>Dibuat oleh agent melalui tool, lengkap dengan jadwal teknisi. Menutup work order menambah riwayat yang dipakai RAG.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
       <div className="filters">
-        <label>Cari pekerjaan<input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="ID, judul, unit, teknisi" /></label>
+        <SearchField label="Cari pekerjaan" value={query} onChange={(value) => { setQuery(value); setPage(1); }} placeholder="ID, judul, unit, teknisi" pending={query !== search} />
         <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.keys(WO_TONE).map((s) => <option key={s}>{s}</option>)}</select></label>
         <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); setPage(1); }}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
         <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); setPage(1); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>

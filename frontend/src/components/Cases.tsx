@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { Case, Role } from '../types';
 import { CASE, CaseBadge, Empty, RiskBadge, fmtTime, pct } from './ui';
 import Pagination from './Pagination';
+import SearchField from './SearchField';
 import { useDebounced } from '../useDebounced';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 
@@ -115,7 +116,7 @@ export default function Cases({ role, labels, flash, selected, onSelect, onChang
     <div className="page">
       <div className="page-head"><div><h1>Kasus</h1><p>Setiap analisis agent tersimpan sebagai kasus lengkap dengan jejak langkahnya.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
-      <div className="filters"><label>Cari kasus<input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="ID, unit, atau ringkasan" /></label><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+      <div className="filters"><SearchField label="Cari kasus" value={query} onChange={(value) => { setQuery(value); setPage(1); }} placeholder="ID, unit, atau ringkasan" pending={query !== search} /><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
       <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
       <div className="split">
         <div className="card">

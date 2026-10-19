@@ -232,6 +232,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .toast { width: calc(100% - 24px); bottom: 12px; }
 }
 .loading-skeleton { min-height: 180px; overflow: hidden; }
+.search-field { display: grid; gap: 6px; min-width: min(280px, 100%); }
+.search-input { display: flex; align-items: center; gap: 6px; }
+.search-input .input { min-width: 0; flex: 1; }
 .data-freshness { min-height: 34px; gap: 8px; padding: 6px 0; }
 .freshness-dot { width: 8px; height: 8px; border-radius: 50%; background: #15803d; flex-shrink: 0; }
 .freshness-dot.stale { background: #b45309; }
