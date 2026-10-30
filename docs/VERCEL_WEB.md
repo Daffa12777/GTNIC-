@@ -53,3 +53,20 @@ node dist/scripts/verify-web.js
 Smoke test membuat akun dan data uji sementara, menguji login/cookie serta izin
 operasional, lalu menghapus fixture dalam `finally`. Akun pengguna asli dipertahankan.
 Perubahan skema tetap harus melalui Prisma Migrate, bukan startup Function.
+
+## Gangguan koneksi database pada startup
+
+Jika semua route termasuk `/api/health` gagal, periksa log runtime project API
+di Vercel. Error shared pooler `tenant/user ... not found` berarti host/username
+tidak dapat dipetakan ke project; cek status project dan salin ulang connection
+string dari dialog Connect Supabase. Jangan menebak indeks host pooler atau
+mereset password sebelum memastikan penyebabnya.
+
+Jika status project Paused, pemilik project perlu menjalankan Restore/Resume
+dan menunggu status Active. Jika connection string berubah, perbarui
+`DATABASE_URL` production Vercel secara privat lalu redeploy API.
+Tidak perlu mengubah schema, menghapus data, atau menjalankan seeding.
+
+Adapter serverless menutup aplikasi yang gagal startup dan mengembalikan HTTP
+503, `Retry-After`, serta ID permintaan tanpa detail database. Aplikasi akan
+mencoba inisialisasi kembali pada request berikutnya setelah koneksi pulih.
