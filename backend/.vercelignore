@@ -1,0 +1,10 @@
+.env
+.env.*
+.auth-bootstrap.json
+.pgdata
+.test-cache
+node_modules
+dist
+.vercel-esm
+test
+*.log

@@ -2,3 +2,5 @@ node_modules
 dist
 .pgdata
 .env
+.env.*
+.auth-bootstrap.json

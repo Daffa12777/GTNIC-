@@ -34,7 +34,12 @@ def model():
         if not p.exists():
             raise HTTPException(503, "model belum dilatih: jalankan python train.py")
         try:
-            _m = joblib.load(p)
+            loaded = joblib.load(p)
+            sample = pd.DataFrame([[0.0] * len(loaded["features"])], columns=loaded["features"])
+            loaded["iso"].score_samples(sample)
+            for rf in loaded["rfs"].values():
+                rf.predict_proba(sample)
+            _m = loaded
         except Exception as e:  # versi scikit-learn berbeda dari saat training
             raise HTTPException(503, f"model tidak dapat dimuat ({type(e).__name__}); latih ulang di mesin ini: python train.py --demo atau --download")
     return _m
@@ -51,7 +56,8 @@ class Req(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": (ART / "model.joblib").exists()}
+    m = model()
+    return {"ok": True, "source": m["source"]}
 
 
 @app.get("/meta", dependencies=[Depends(auth)])

@@ -1,0 +1,4 @@
+export default function Pagination({ page, pageSize, total, loading, onPage, onPageSize }: { page: number; pageSize: number; total: number; loading: boolean; onPage: (page: number) => void; onPageSize: (size: number) => void }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  return <nav className="pagination" aria-label="Halaman data"><span className="sub">{total} hasil · Halaman {page} dari {pages}</span><label>Per halaman <select className="sel" value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))}>{[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select></label><button type="button" className="btn sm" disabled={loading || page <= 1} onClick={() => onPage(page - 1)}>Sebelumnya</button><button type="button" className="btn sm" disabled={loading || page >= pages} onClick={() => onPage(page + 1)}>Berikutnya</button></nav>;
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "{assets/**,knowledge/**,certs/**,package.json}",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "env": {
+    "SIM_ENABLED": "false",
+    "AUTO_AGENT": "false",
+    "DEMO_SCENARIO": "false",
+    "SCENARIO_CONTROLS_ENABLED": "false",
+    "SEED_DEMO_DATA": "false",
+    "DB_POOL_MAX": "2"
+  }
+}

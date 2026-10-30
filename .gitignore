@@ -7,3 +7,11 @@ __pycache__/
 ml/data/
 *.log
 *.tsbuildinfo
+ml/.venv/
+.npm-cache/
+backend/src/generated/
+.auth-bootstrap.json
+backend/.test-cache/
+.vercel/
+backend/.vercel-esm/
+backend/api/index.mjs

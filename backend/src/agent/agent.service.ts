@@ -54,6 +54,7 @@ export class AgentService {
 
   // ------------------------------------------------------------ eksekusi rencana
   private async execute(caseId: string, trace: Trace, state: any, approved = false) {
+    return this.db.transaction(async () => {
     const plan = state.plan;
     const pumpId = state.pump_id, label = plan.fault, risk = plan.risk;
     const part = FAULT_PART[label] ?? '';
@@ -85,6 +86,7 @@ export class AgentService {
     const msg = `${wo.id} ${pumpId}: ${FAULT_LABEL[label]} (risiko ${risk}). Jadwal ${sched.scheduled_at}. Part ${part || '-'}: ${inStock ? 'tersedia' : 'KOSONG, pembelian diajukan'}. Dasar: ${plan.citation}.`;
     result.notified = (await trace.tool('send_notification', { recipient: sched.technician, message: msg })).status;
     return { result, ok: true };
+    });
   }
 
   private summaryAfter(state: any, r: any) {
@@ -187,7 +189,19 @@ export class AgentService {
   }
 
   // ------------------------------------------------------------ diagnosis
-  async diagnose(pumpId: string, complaint = '', trigger = 'manual', useLlm = false): Promise<any> {
+  async diagnose(pumpId: string, complaint = '', trigger = 'manual', useLlm = false) {
+    try { return await this.diagnoseInternal(pumpId, complaint, trigger, useLlm); }
+    catch (error: unknown) {
+      const open = await this.cases.openFor(pumpId);
+      if (open) {
+        const current = await this.cases.get(open.id);
+        if (current?.status === 'diproses') await this.cases.save(current.id, this.cases.trace(current.id, current.trace), 'gagal', current.state, { summary: 'Analisis gagal; transaksi dibatalkan. Periksa layanan dan coba lagi.' });
+      }
+      throw error;
+    }
+  }
+
+  private async diagnoseInternal(pumpId: string, complaint = '', trigger = 'manual', useLlm = false): Promise<any> {
     if (!(await this.tools.getPump(pumpId))) return { error: `unit tidak ditemukan: ${pumpId}` };
     const existing = await this.cases.openFor(pumpId);
     if (existing) return this.cases.get(existing.id);
@@ -198,7 +212,9 @@ export class AgentService {
       catch (e: any) { note = `Mode LLM gagal (${String(e?.message ?? e).slice(0, 160)}); beralih ke mode policy.`; this.log.warn(note); }
     }
 
-    const caseId = await this.db.nextId('C', 'cases');
+    const reservation = await this.cases.reserve(pumpId, complaint);
+    if (reservation.existing) return this.cases.get(reservation.id);
+    const caseId = reservation.id;
     const trace = this.cases.trace(caseId);
     if (note) trace.add('reasoning', 'Peralihan mode', note);
     trace.add('reasoning', 'Pemicu analisis', `${trigger === 'auto' ? 'Otomatis oleh monitor' : 'Diminta pengguna'} untuk ${pumpId}.${complaint ? ` Keluhan: "${complaint}".` : ''}`);
@@ -313,9 +329,13 @@ export class AgentService {
   }
 
   async approve(caseId: string, by = 'supervisor') {
+    return this.db.transaction(async () => {
+    await this.db.q('SELECT id FROM cases WHERE id=$1 FOR UPDATE', [caseId]);
     const c = await this.cases.get(caseId);
     if (!c || c.status !== 'menunggu_persetujuan') return { error: 'kasus tidak menunggu persetujuan' };
     if (!c.state?.plan) return { error: 'kasus ini tidak memiliki rencana tindakan untuk disetujui' };
+    c.state.approved_by = by;
+    await this.cases.save(caseId, this.cases.trace(caseId, c.trace), c.status, c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: c.summary });
     const trace = this.cases.trace(caseId, c.trace);
     trace.add('decision', 'Disetujui supervisor', `Tindakan dijalankan setelah persetujuan manusia (${by}).`);
     const { result, ok } = await this.execute(caseId, trace, c.state, true);
@@ -324,35 +344,49 @@ export class AgentService {
       summary: ok ? this.summaryAfter(c.state, result) : 'Persetujuan diberikan tetapi tindakan gagal dijalankan.',
     });
     return this.cases.get(caseId);
+    });
   }
 
   async reject(caseId: string, note = '') {
+    return this.db.transaction(async () => {
+    await this.db.q('SELECT id FROM cases WHERE id=$1 FOR UPDATE', [caseId]);
     const c = await this.cases.get(caseId);
-    if (!c || !OPEN_STATUSES.includes(c.status)) return { error: 'kasus tidak dapat ditolak' };
+    if (!c || !['menunggu_klarifikasi', 'menunggu_persetujuan'].includes(c.status)) return { error: 'kasus tidak dapat ditolak' };
     const trace = this.cases.trace(caseId, c.trace);
     trace.add('decision', 'Ditolak supervisor', note || 'Tidak ada tindakan dijalankan.');
     await this.cases.save(caseId, trace, 'ditolak', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: 'Rekomendasi ditolak oleh supervisor. Tidak ada tindakan dijalankan.' });
     return this.cases.get(caseId);
+    });
   }
 
   async completeWorkOrder(woId: string, rootCause = '', action = '', durationMin = 60) {
+    const result = await this.db.transaction(async () => {
+    await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [woId]);
     const wo = await this.db.one('SELECT * FROM work_orders WHERE id=$1', [woId]);
     if (!wo) return { error: 'work order tidak ditemukan' };
     if (wo.status === 'selesai') return { error: 'work order sudah selesai' };
-    await this.db.x("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2", [now(), woId]);
+    const closed = await this.db.one<{ id: string }>("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2 AND status NOT IN ('selesai','dibatalkan') RETURNING id", [now(), woId]);
+    if (!closed) return { error: 'work order sudah selesai atau dibatalkan' };
     if (wo.technician_id) await this.db.x('UPDATE technicians SET available=true WHERE id=$1', [wo.technician_id]);
     const c = wo.case_id ? await this.cases.get(wo.case_id) : null;
-    await this.tools.save_case_history({
+    await this.db.client.caseHistory.create({ data: {
+      id: await this.db.nextId('H', 'case_history'), work_order_id: woId, ts: now(),
       pump_id: wo.pump_id, symptoms: (c?.summary || wo.title).slice(0, 200), fault: c?.fault || 'normal',
       root_cause: rootCause || 'Sesuai diagnosis agent', action: action || String(wo.description).slice(0, 200), duration_min: durationMin,
-    });
-    this.sim.resetPump(wo.pump_id);
+    } });
     if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi'].includes(c.status)) {
       const trace = this.cases.trace(c.id, c.trace);
       trace.add('action', 'Pekerjaan selesai', `${woId} ditutup. Hasil disimpan ke riwayat kasus dan indeks pengetahuan diperbarui.`);
       await this.cases.save(c.id, trace, 'selesai', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: c.summary });
     }
     return { ok: true, work_order: woId };
+    });
+    if ('ok' in result && result.ok) {
+      const order = await this.db.client.workOrder.findUnique({ where: { id: woId } });
+      if (order?.pump_id) this.sim.resetPump(order.pump_id);
+      await this.tools.refreshKnowledge();
+    }
+    return result;
   }
 
   // ------------------------------------------------------------ triage & chat
@@ -374,9 +408,9 @@ export class AgentService {
     return { ranking, cases };
   }
 
-  async chat(message: string, caseId?: string | null, useLlm = false): Promise<any> {
+  async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = []): Promise<any> {
     if (useLlm && this.llm.enabled && (message || '').trim()) {
-      try { return await this.llm.chat(message.trim()); }
+      try { return await this.llm.chat(message.trim(), history); }
       catch (e: any) {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);

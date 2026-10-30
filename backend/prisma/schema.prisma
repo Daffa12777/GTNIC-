@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model RequestLimit {
+  key String @id
+  hits Int
+  reset_at Float
+  @@index([reset_at])
+  @@map("request_limits")
+}
+
+model Pump {
+  id String @id
+  name String?
+  location String?
+  model String?
+  criticality String?
+  readings SensorReading[]
+  cases MaintenanceCase[]
+  orders WorkOrder[]
+  history CaseHistory[]
+  @@map("pumps")
+}
+
+model SensorReading {
+  id BigInt @id @default(autoincrement())
+  pump_id String
+  ts Float
+  features Json
+  pump Pump @relation(fields: [pump_id], references: [id], onDelete: Restrict)
+  @@index([pump_id, id(sort: Desc)], map: "idx_readings_pump")
+  @@map("sensor_readings")
+}
+
+model Inventory {
+  part_id String @id
+  name String?
+  stock Int?
+  location String?
+  min_stock Int?
+  movements StockMovement[]
+  @@map("inventory")
+}
+
+model StockMovement {
+  id String @id
+  partId String
+  delta Int
+  balance Int
+  reason String
+  actor String
+  createdAt DateTime @default(now())
+  part Inventory @relation(fields: [partId], references: [part_id], onDelete: Restrict)
+  @@index([partId, createdAt(sort: Desc)])
+  @@map("stock_movements")
+}
+
+model Technician {
+  id String @id
+  name String?
+  skill String?
+  level String?
+  available Boolean? @default(true)
+  contact String?
+  orders WorkOrder[]
+  @@index([available, skill, level])
+  @@map("technicians")
+}
+
+model MaintenanceCase {
+  id String @id
+  pump_id String?
+  status String?
+  fault String?
+  confidence Float?
+  risk String?
+  summary String?
+  trace Json?
+  state Json?
+  created_at Float?
+  updated_at Float?
+  mode String?
+  pump Pump? @relation(fields: [pump_id], references: [id], onDelete: Restrict)
+  orders WorkOrder[]
+  logs AgentLog[]
+  @@index([pump_id, created_at(sort: Desc)], map: "idx_cases_pump")
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_cases_status_page")
+  @@map("cases")
+}
+
+model WorkOrder {
+  id String @id
+  pump_id String?
+  case_id String?
+  title String?
+  description String?
+  priority String?
+  status String?
+  technician_id String?
+  scheduled_at String?
+  part String?
+  created_at Float?
+  closed_at Float?
+  pump Pump? @relation(fields: [pump_id], references: [id], onDelete: Restrict)
+  case MaintenanceCase? @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  technician Technician? @relation(fields: [technician_id], references: [id], onDelete: Restrict)
+  purchases PurchaseRequest[]
+  history CaseHistory?
+  @@index([pump_id, status])
+  @@index([case_id])
+  @@index([technician_id])
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_page")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "idx_orders_status_page")
+  @@map("work_orders")
+}
+
+model PurchaseRequest {
+  id String @id
+  part_name String?
+  qty Int?
+  reason String?
+  work_order_id String?
+  status String?
+  created_at Float?
+  workOrder WorkOrder? @relation(fields: [work_order_id], references: [id], onDelete: Restrict)
+  @@index([work_order_id])
+  @@map("purchase_requests")
+}
+
+model Notification {
+  id BigInt @id @default(autoincrement())
+  ts Float?
+  recipient String?
+  channel String?
+  message String?
+  status String?
+  detail String?
+  attempts Int @default(0)
+  claimedAt DateTime?
+  @@map("notifications")
+}
+
+model CaseHistory {
+  id String @id
+  pump_id String?
+  ts Float?
+  symptoms String?
+  fault String?
+  root_cause String?
+  action String?
+  duration_min Float?
+  work_order_id String? @unique
+  pump Pump? @relation(fields: [pump_id], references: [id], onDelete: Restrict)
+  workOrder WorkOrder? @relation(fields: [work_order_id], references: [id], onDelete: Restrict)
+  @@index([pump_id, ts(sort: Desc)])
+  @@map("case_history")
+}
+
+model AgentLog {
+  id BigInt @id @default(autoincrement())
+  ts Float?
+  case_id String?
+  step String?
+  tool String?
+  input String?
+  output String?
+  case MaintenanceCase? @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  @@index([case_id])
+  @@map("agent_logs")
+}
+
+model Counter {
+  name String @id
+  n Int @default(0)
+  @@map("counters")
+}
+
+model User {
+  id String @id @default(uuid())
+  username String @unique
+  name String?
+  email String? @unique
+  notificationsReadThrough BigInt @default(0)
+  passwordHash String
+  role String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  sessions RefreshSession[]
+  @@map("app_users")
+}
+
+model RefreshSession {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consumed ConsumedRefreshToken[]
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+model ConsumedRefreshToken {
+  tokenHash String @id
+  sessionId String
+  expiresAt DateTime
+  session RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("consumed_refresh_tokens")
+}

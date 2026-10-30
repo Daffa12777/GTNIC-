@@ -23,6 +23,10 @@ export class MonitorService implements OnApplicationBootstrap, OnModuleDestroy {
     this.status.auto.enabled = CONFIG.AUTO_AGENT;
     const pumps = await this.db.q('SELECT id FROM pumps ORDER BY id');
     await this.sim.init(pumps.map((p: any) => p.id));
+    if (CONFIG.SIM_ENABLED && CONFIG.DEMO_SCENARIO) {
+      this.sim.startScenario();
+      this.log.log('Skenario demo aktif: pendingin Pump-02 dan kebocoran Pump-03.');
+    }
     await this.rag.build();
     await this.refreshStatus();
     if (CONFIG.SIM_ENABLED) {

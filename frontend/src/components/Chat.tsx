@@ -2,87 +2,61 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { ChatMsg } from '../types';
 import { CaseBadge, RiskBadge } from './ui';
+import { errorMessage } from '../usePolling';
+import Markdown from 'react-markdown';
+import { readChat, writeChat } from '../chatSession';
+import { useUnsavedChanges } from '../useUnsavedChanges';
 
 const SUGGEST = ['Unit 3 oli cepat panas dan tekanan sulit naik', 'Unit 2 gerak aktuator tersendat', 'Urutan prioritas penanganan', 'Stok seal kit pompa'];
 
-/** Penyaji teks jawaban: markdown ringan (judul, tebal, miring, kode, daftar, garis) tanpa pustaka tambahan. */
-function inline(t: string, k = 0): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g;
-  let last = 0, m: RegExpExecArray | null, i = 0;
-  while ((m = re.exec(t))) {
-    if (m.index > last) out.push(t.slice(last, m.index));
-    const x = m[0], key = `${k}-${i++}`;
-    if (x.startsWith('**')) out.push(<strong key={key}>{inline(x.slice(2, -2), i)}</strong>);
-    else if (x.startsWith('`')) out.push(<code key={key}>{x.slice(1, -1)}</code>);
-    else out.push(<em key={key}>{inline(x.slice(1, -1), i)}</em>);
-    last = m.index + x.length;
-  }
-  if (last < t.length) out.push(t.slice(last));
-  return out;
-}
-
-function Md({ text }: { text: string }) {
-  const clean = text.replace(/\$\\(?:ge|geq)\$/g, '≥').replace(/\$\\(?:le|leq)\$/g, '≤').replace(/\$([^$\n]*)\$/g, '$1');
-  const blocks: React.ReactNode[] = [];
-  let para: string[] = [];
-  const flush = () => { if (para.length) { blocks.push(<p key={blocks.length}>{inline(para.join(' '))}</p>); para = []; } };
-  for (const raw of clean.split('\n')) {
-    const line = raw.replace(/\s+$/, '');
-    const li = line.match(/^(\s*)([*-]|\d+\.)\s+(.*)$/);
-    const h = line.match(/^\s*#{1,6}\s+(.*)$/);
-    if (!line.trim()) flush();
-    else if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { flush(); blocks.push(<hr key={blocks.length} />); }
-    else if (h) { flush(); blocks.push(<h4 key={blocks.length}>{inline(h[1].replace(/^\*\*(.*)\*\*$/, '$1'))}</h4>); }
-    else if (li) {
-      flush();
-      const lvl = Math.min(2, Math.floor(li[1].length / 2));
-      const num = /\d/.test(li[2]);
-      blocks.push(<div key={blocks.length} className="li" style={{ paddingLeft: 4 + lvl * 18 }}><span className="mk">{num ? li[2] : lvl ? '–' : '•'}</span><span>{inline(li[3])}</span></div>);
-    } else para.push(line.trim());
-  }
-  flush();
-  return <div className="md">{blocks}</div>;
-}
-
-export default function Chat({ useLlm, onOpenCase, onChanged }: { useLlm: boolean; onOpenCase: (id: string) => void; onChanged: () => void }) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>([
+export default function Chat({ username, useLlm, onOpenCase, onChanged }: { username: string; useLlm: boolean; onOpenCase: (id: string) => void; onChanged: () => void }) {
+  const [saved] = useState(() => readChat(username));
+  const [msgs, setMsgs] = useState<ChatMsg[]>(saved.messages.length ? saved.messages : [
     { from: 'agent', text: 'Laporkan keluhan dari lapangan, misalnya "Unit 3 oli cepat panas". Saya akan membaca sensor, menjalankan model, mencari panduan, lalu bertanya, bertindak, atau meminta persetujuan sesuai tingkat keyakinan dan risiko.' },
   ]);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(saved.draft);
   const [busy, setBusy] = useState(false);
-  const [openCase, setOpenCase] = useState<string | null>(null);
+  const [openCase, setOpenCase] = useState<string | null>(saved.openCase);
+  const [storageFailed, setStorageFailed] = useState(false);
+  // Chat stays mounted across tabs; warn on refresh only when its draft cannot be saved.
+  useUnsavedChanges(busy || (storageFailed && !!text), false);
+  const sending = useRef(false);
+  useEffect(() => { setStorageFailed(!writeChat(username, { messages: msgs, draft: text, openCase })); }, [username, msgs, text, openCase]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
 
   const send = async (t: string) => {
     const m = t.trim();
-    if (!m || busy) return;
+    if (!m || sending.current) return;
+    sending.current = true;
     setText(''); setBusy(true);
     setMsgs((x) => [...x, { from: 'user', text: m }]);
     try {
-      const r = await api.chat(m, openCase, useLlm, msgs.slice(1).map((x) => ({ from: x.from, text: x.text })));
-      const warn = (r as any).llm_error ? `\n\n[Mode LLM gagal: ${(r as any).llm_error}. Jawaban ini dari mode biasa.]` : '';
+      const r = await api.chat(m, openCase, useLlm, msgs.slice(-8).map((item) => ({ from: item.from, text: item.text.slice(0, 1500) })));
+      const warn = r.llm_error ? `\n\n[Mode LLM gagal: ${r.llm_error}. Jawaban ini dari mode biasa.]` : '';
       setMsgs((x) => [...x, { from: 'agent', text: r.reply + warn, case: r.case }]);
       setOpenCase(r.case && r.case.status === 'menunggu_klarifikasi' ? r.case.id : null);
       onChanged();
-    } catch (e: any) {
-      setMsgs((x) => [...x, { from: 'agent', text: `Terjadi kesalahan: ${e.message}` }]);
-    } finally { setBusy(false); }
+    } catch (e: unknown) {
+      setText(m);
+      setMsgs((x) => [...x, { from: 'agent', text: `Terjadi kesalahan: ${errorMessage(e)}` }]);
+    } finally { sending.current = false; setBusy(false); }
   };
 
   return (
     <div className="page" style={{ maxWidth: 860 }}>
       <div className="page-head"><div><h1>Asisten lapangan</h1><p>Laporan teknisi masuk ke kasus yang sama dengan anomali dari sensor.{useLlm ? ' Mode LLM aktif.' : ''}</p></div></div>
+      <div className="row wrap"><span className="sub">Riwayat disimpan untuk sesi browser ini hingga logout (100 pesan terakhir).</span><button type="button" className="btn sm" disabled={busy} onClick={() => { if (window.confirm('Hapus riwayat percakapan sesi ini? Kasus dan work order tetap tersimpan.')) { setMsgs([]); setText(''); setOpenCase(null); } }}>Percakapan baru</button></div>
+      {storageFailed && <div className="notice warn" role="status">Browser tidak mengizinkan penyimpanan riwayat. Percakapan hanya bertahan selama halaman terbuka.</div>}
       <div className="card chat">
         <div className="msgs">
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.from}`}>
-              {m.from === 'agent' ? <Md text={m.text} /> : m.text}
-              {m.case && (
+              {m.from === 'agent' ? <div className="markdown"><Markdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>{m.text}</Markdown></div> : m.text}
+              {(m.case || m.caseId) && (
                 <div style={{ marginTop: 8 }} className="row wrap">
-                  <CaseBadge status={m.case.status} /><RiskBadge risk={m.case.risk} />
-                  <button className="btn sm" onClick={() => onOpenCase(m.case!.id)}>Lihat jejak {m.case.id}</button>
+                  {m.case && <><CaseBadge status={m.case.status} /><RiskBadge risk={m.case.risk} /></>}
+                  <button className="btn sm" onClick={() => onOpenCase((m.case?.id ?? m.caseId)!)}>Lihat jejak {m.case?.id ?? m.caseId}</button>
                 </div>
               )}
             </div>
@@ -90,9 +64,9 @@ export default function Chat({ useLlm, onOpenCase, onChanged }: { useLlm: boolea
           {busy && <div className="msg agent sub">Agent bekerja…</div>}
           <div ref={end} />
         </div>
-        <div className="chips">{SUGGEST.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}</div>
+        <div className="chips">{SUGGEST.map((s) => <button key={s} className="chip" disabled={busy} onClick={() => send(s)}>{s}</button>)}</div>
         <form className="composer" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-          <input className="input" placeholder={openCase ? 'Jawab pertanyaan agent…' : 'Tulis keluhan atau pertanyaan…'} value={text} onChange={(e) => setText(e.target.value)} />
+          <input className="input" aria-label="Pesan untuk asisten" maxLength={8000} disabled={busy} placeholder={openCase ? 'Jawab pertanyaan agent…' : 'Tulis keluhan atau pertanyaan…'} value={text} onChange={(e) => setText(e.target.value)} />
           <button className="btn primary" disabled={busy || !text.trim()}>Kirim</button>
         </form>
       </div>

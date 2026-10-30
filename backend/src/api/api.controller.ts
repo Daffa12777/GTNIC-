@@ -1,4 +1,8 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
+import { CompleteWorkOrderDto } from './complete-work-order.dto';
+import { ChatDto } from './chat.dto';
+import { RatePolicy } from '../security/rate-policy';
+import { AnswerDto, AutoDto, DiagnoseDto, DropoutDto, FaultDto, RejectDto } from './operations.dto';
 import { AgentService } from '../agent/agent.service';
 import { CaseStore } from '../agent/case.store';
 import { LlmService } from '../agent/llm.service';
@@ -14,6 +18,7 @@ const bad = (msg: string, code = 400) => new HttpException({ detail: msg }, code
 const num = (v: any) => (v == null ? v : Number(v));
 
 @Controller()
+@UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class ApiController {
   constructor(private db: DbService, private agent: AgentService, private cases: CaseStore, private llm: LlmService,
     private sim: SimService, private ml: MlService, private monitor: MonitorService, private status: StatusStore) {}
@@ -26,8 +31,13 @@ export class ApiController {
   private needSupervisor(role?: string) {
     if ((role || '').toLowerCase() !== 'supervisor') throw bad('Hanya supervisor yang dapat menyetujui atau menolak.', 403);
   }
+  private needSimulation(role?: string) {
+    this.needSupervisor(role);
+    if (!CONFIG.SCENARIO_CONTROLS_ENABLED) throw bad('Kontrol simulator dinonaktifkan pada lingkungan ini.', 403);
+  }
 
   @Get('health')
+  @SetMetadata('public', true)
   health() { return { ok: true, db: this.db.mode, time: Date.now() / 1000 }; }
 
   @Get('overview')
@@ -44,6 +54,7 @@ export class ApiController {
     return {
       pumps: out, auto: this.status.auto.enabled, llm_available: this.llm.enabled, llm_model: this.llm.enabled ? CONFIG.GEMINI_MODEL : null,
       db: this.db.mode, tick_seconds: CONFIG.TICK_SECONDS, simulator: CONFIG.SIM_ENABLED,
+      scenario_controls_enabled: CONFIG.SCENARIO_CONTROLS_ENABLED,
       ml: meta.error ? { ok: false, error: meta.error } : { ok: true, source: meta.source, trained_at: meta.trained_at },
       fault_labels: FAULT_LABEL,
     };
@@ -63,15 +74,18 @@ export class ApiController {
   }
 
   @Post('diagnose')
-  async diagnose(@Body() b: any) {
-    if (!b?.pump_id) throw bad('pump_id wajib');
-    return this.fail(await this.agent.diagnose(b.pump_id, b.complaint ?? '', 'manual', !!b.use_llm));
+  @RatePolicy('ai')
+  async diagnose(@Body() b: DiagnoseDto) {
+    return this.fail(await this.agent.diagnose(b.pump_id, b.complaint, 'manual', b.use_llm));
   }
 
   @Post('chat')
-  chat(@Body() b: any) { return this.agent.chat(b?.message ?? '', b?.case_id ?? null, !!b?.use_llm); }
+  @RatePolicy('ai')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history); }
 
   @Post('triage')
+  @RatePolicy('ai')
   triage() { return this.agent.triage('manual'); }
 
   @Get('cases')
@@ -85,19 +99,20 @@ export class ApiController {
   }
 
   @Post('cases/:id/answer')
-  async answer(@Param('id') id: string, @Body() b: any) {
-    if (!b?.text?.trim()) throw bad('text wajib');
+  async answer(@Param('id') id: string, @Body() b: AnswerDto) {
     return this.fail(await this.agent.continueCase(id, b.text));
   }
 
   @Post('cases/:id/approve')
+  @SetMetadata('roles', ['supervisor'])
   async approve(@Param('id') id: string, @Headers('x-role') role?: string) {
     this.needSupervisor(role);
     return this.fail(await this.agent.approve(id));
   }
 
   @Post('cases/:id/reject')
-  async reject(@Param('id') id: string, @Body() b: any, @Headers('x-role') role?: string) {
+  @SetMetadata('roles', ['supervisor'])
+  async reject(@Param('id') id: string, @Body() b: RejectDto, @Headers('x-role') role?: string) {
     this.needSupervisor(role);
     return this.fail(await this.agent.reject(id, b?.note ?? ''));
   }
@@ -109,8 +124,9 @@ export class ApiController {
   }
 
   @Post('work-orders/:id/complete')
-  async complete(@Param('id') id: string, @Body() b: any) {
-    return this.fail(await this.agent.completeWorkOrder(id, b?.root_cause ?? '', b?.action ?? '', Number(b?.duration_min ?? 60)));
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async complete(@Param('id') id: string, @Body() b: CompleteWorkOrderDto) {
+    return this.fail(await this.agent.completeWorkOrder(id, b.root_cause.trim(), b.action.trim(), b.duration_min ?? 60));
   }
 
   @Get('inventory')
@@ -132,31 +148,39 @@ export class ApiController {
   }
 
   @Post('auto')
-  setAuto(@Body() b: any) { this.status.auto.enabled = !!b?.enabled; return { auto: this.status.auto.enabled }; }
+  @SetMetadata('roles', ['supervisor'])
+  setAuto(@Body() b: AutoDto, @Headers('x-role') role?: string) { this.needSupervisor(role); this.status.auto.enabled = b.enabled; return { auto: this.status.auto.enabled }; }
 
   @Post('scenario/start')
-  async startScenario() { this.sim.startScenario(); return { ok: true }; }
+  @SetMetadata('roles', ['supervisor'])
+  async startScenario(@Headers('x-role') role?: string) { this.needSimulation(role); this.sim.startScenario(); return { ok: true }; }
 
   @Post('scenario/fault')
-  async fault(@Body() b: any) {
-    if (!this.sim.startFault(b?.pump_id, b?.fault, Number(b?.rate ?? 0.07), Number(b?.severity ?? 0))) throw bad('pump_id atau fault tidak valid');
+  @SetMetadata('roles', ['supervisor'])
+  async fault(@Body() b: FaultDto, @Headers('x-role') role?: string) {
+    this.needSimulation(role);
+    if (!this.sim.startFault(b.pump_id, b.fault, b.rate, b.severity)) throw bad('pump_id atau fault tidak valid');
     return { ok: true };
   }
 
   @Post('scenario/dropout')
-  async dropout(@Body() b: any) {
-    if (!b?.pump_id) throw bad('pump_id wajib');
+  @SetMetadata('roles', ['supervisor'])
+  async dropout(@Body() b: DropoutDto, @Headers('x-role') role?: string) {
+    this.needSimulation(role);
     this.sim.setDropout(b.pump_id, b.sensor ?? null);
     return { ok: true };
   }
 
   @Post('scenario/reset')
-  async reset() {
+  @SetMetadata('roles', ['supervisor'])
+  async reset(@Headers('x-role') role?: string) {
+    this.needSimulation(role);
     for (const id of Object.keys(this.sim.state)) this.sim.resetPump(id);
     return { ok: true };
   }
 
   /** Satu siklus manual (dipakai tes dan demo tanpa timer). */
   @Post('scenario/tick')
-  async tick() { await this.monitor.tick(); return { ok: true }; }
+  @SetMetadata('roles', ['supervisor'])
+  async tick(@Headers('x-role') role?: string) { this.needSimulation(role); await this.monitor.tick(); return { ok: true }; }
 }
