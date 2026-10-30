@@ -74,7 +74,7 @@ export default function App() {
       {err && !ov && (
         <div className="page"><div className="notice bad">Tidak dapat menghubungi backend: {err}. Pastikan backend berjalan dan <code>VITE_API_URL</code> benar.</div></div>
       )}
-      {ov && tab === 'ringkasan' && <Dashboard ov={ov} onOpenCase={openCase} flash={flash} refresh={refresh} />}
+      {ov && tab === 'ringkasan' && <Dashboard ov={ov} onOpenCase={openCase} flash={flash} refresh={refresh} useLlm={useLlm} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={setCaseId} onChanged={refresh} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory />}

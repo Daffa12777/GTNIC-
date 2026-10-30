@@ -30,7 +30,7 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
   );
 }
 
-export default function Dashboard({ ov, onOpenCase, flash, refresh }: { ov: Overview; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
+export default function Dashboard({ ov, onOpenCase, flash, refresh, useLlm }: { useLlm: boolean; ov: Overview; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
   const [sel, setSel] = useState<string>(ov.pumps[0]?.id ?? '');
   const [data, setData] = useState<ReadingsResp | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,7 +107,7 @@ export default function Dashboard({ ov, onOpenCase, flash, refresh }: { ov: Over
               <div className="row">
                 {pump.open_case && <button className="btn sm" onClick={() => onOpenCase(pump.open_case!)}>Buka kasus {pump.open_case}</button>}
                 <button className="btn sm primary" disabled={busy || !!pump.open_case}
-                  onClick={() => run(async () => { const c = await api.diagnose(pump.id, '', false); onOpenCase(c.id); }, 'Analisis selesai')}>
+                  onClick={() => run(async () => { const c = await api.diagnose(pump.id, '', useLlm); onOpenCase(c.id); }, 'Analisis selesai')}>
                   Analisis unit ini
                 </button>
               </div>
