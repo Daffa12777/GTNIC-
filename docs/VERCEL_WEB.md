@@ -1,7 +1,8 @@
-# Deployment web tanpa ML
+# Deployment web dan koneksi layanan ML
 
 - Frontend: https://manualmechanic-gtnic.vercel.app
 - API: https://manualmechanic-api.vercel.app/api
+- ML eksternal: https://manualmechanic-ml.vercel.app (`ML_URL` pada backend)
 - Database: PostgreSQL Supabase yang sudah ada.
 - Kedua project memakai akun Vercel Hobby. Tidak membuat resource Azure atau Render.
 
@@ -11,8 +12,12 @@ Environment production API berisi `DATABASE_URL`, `JWT_SECRET`, `AUTH_ENABLED=tr
 Secret dikelola di Vercel dan tidak disimpan dalam repo atau bundle frontend.
 
 Simulator, agent otomatis, skenario, dan seeding dinonaktifkan lewat konfigurasi
-deployment. Tidak ada layanan ML atau Gemini yang di-deploy/dikonfigurasi.
-Diagnosis ML belum tersedia; data operasional tetap berasal dari database.
+deployment. Backend mengakses layanan ML eksternal melalui `ML_URL`;
+redeploy web tidak melakukan training atau deployment layanan ML tersebut.
+Model yang dilaporkan endpoint saat integrasi 30 Oktober 2026 adalah
+`demo_synthetic`, sehingga bukan model yang dilatih dari dataset UCI asli.
+Gemini belum dikonfigurasi. Data operasional tetap berasal dari database;
+simulator dan agent otomatis tidak diaktifkan oleh penambahan URL ML.
 
 ## Update dari PowerShell
 
