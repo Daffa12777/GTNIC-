@@ -9,6 +9,8 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { Analysis } from '../src/ml/ml.service';
+import { MlService } from '../src/ml/ml.service';
+import { SimService } from '../src/sim/sim.service';
 import { DbService } from '../src/db/db.service';
 import { AgentService } from '../src/agent/agent.service';
 const { AppModule } = require('../src/app.module');
@@ -59,6 +61,17 @@ describe('ManualMechanic end-to-end', () => {
   run('RAG mengembalikan sitasi bagian manual', async () => {
     const r = await app.get(ToolsService).call('search_manual', { query: 'pendingin oli tidak efisien suhu naik' });
     expect(r.results[0].citation).toMatch(/bagian 1\.3|Pendingin/);
+  });
+
+  run('inferensi ML mendiagnosis profil sehat dan pendingin tanpa mock analisis', async () => {
+    const ml = app.get(MlService);
+    const sim = app.get(SimService);
+    const healthy = await ml.predict(sim.vec2obj(sim.profiles.healthy[0]));
+    expect(ml.toAnalysis(healthy, {}).label).toBe('normal');
+    const faulty = await ml.predict(sim.vec2obj(sim.profiles.banks.cooler['20'][0]));
+    const analysis = ml.toAnalysis(faulty, {});
+    expect(analysis.label).toBe('cooler');
+    expect(analysis.components.cooler.p_degraded).toBeGreaterThan(0.8);
   });
 
   run('guardrail: risiko tinggi tanpa persetujuan ditolak di lapisan tool', async () => {

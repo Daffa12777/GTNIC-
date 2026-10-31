@@ -44,17 +44,23 @@ export class MlService {
     }
   }
 
-  /** Gabungkan keluaran per komponen menjadi distribusi hipotesis: normal atau salah satu komponen bermasalah. */
+  /** Ranking normal/gangguan tunggal dengan asumsi komponen independen; gangguan majemuk diperiksa agent dari components. */
   toAnalysis(raw: MlRaw, names: Record<string, string>): Analysis {
     const comps = raw.components;
-    let normalRaw = 1;
+    const degraded = COMP_KEYS.map((k) => {
+      const pd = comps[k]?.p_degraded;
+      if (!Number.isFinite(pd) || pd < 0 || pd > 1) throw new Error(`Probabilitas ML tidak valid: ${k}`);
+      return pd;
+    });
     const probsRaw: Record<string, number> = {};
-    for (const k of COMP_KEYS) {
-      const pd = comps[k]?.p_degraded ?? 0;
-      normalRaw *= 1 - pd;
-      probsRaw[k] = pd;
+    for (const [i, k] of COMP_KEYS.entries()) {
+      probsRaw[k] = degraded[i] * degraded.reduce((p, pd, j) => p * (i === j ? 1 : 1 - pd), 1);
     }
-    probsRaw.normal = normalRaw;
+    probsRaw.normal = degraded.reduce((p, pd) => p * (1 - pd), 1);
+    // Dua kerusakan pasti membuat semua hipotesis tunggal nol; pertahankan ranking untuk jalur eskalasi majemuk.
+    if (Object.values(probsRaw).every((p) => p === 0)) {
+      COMP_KEYS.forEach((k, i) => { probsRaw[k] = degraded[i]; });
+    }
     const tot = Object.values(probsRaw).reduce((a, b) => a + b, 0) || 1;
     const probs: Record<string, number> = {};
     for (const [k, v] of Object.entries(probsRaw)) probs[k] = Math.round((v / tot) * 10000) / 10000;
