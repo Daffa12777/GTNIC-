@@ -59,6 +59,12 @@ Atau jalankan ketiganya sekaligus: `.\scripts\dev.ps1`. Dengan Docker: `docker c
 
 Periksa sumber model melalui `http://localhost:8100/meta`. File model bergantung pada versi scikit-learn; bila layanan ML menjawab "model tidak dapat dimuat", latih ulang dengan `python train.py --download`. `--demo` hanya untuk mencoba data sintetis dan akan menimpa artefak aktif. UI menampilkan peringatan selama model memakai data sintetis.
 
+Model yang dibuat dengan versi scikit-learn berbeda dari runtime ditolak dengan HTTP 503, termasuk pada `/health`, agar hasil prediksi yang tidak kompatibel tidak dipakai agent. Untuk memakai artefak bawaan, gunakan environment dengan dependency sesuai `ml/requirements.txt`. Jika sengaja memakai environment lain untuk demo lokal, latih ulang dengan `python train.py --demo` di environment yang sama dengan layanan ML; perintah ini juga mengganti profil simulator dan metrik backend. Restart ML dan backend setelah mengganti artefak. Jangan menyalin model baru tanpa profil dan metrik pasangannya.
+
+Generator demo dan pengunduh UCI menulis `dataset_source.json` pada folder dataset. Training dengan `--data FOLDER` membaca penanda tersebut: data sintetis tetap `demo_synthetic`, hasil unduhan UCI `uci_real`, dan folder lama/tanpa penanda `unverified`. Format file UCI saja tidak membuktikan asal dataset; penanda ini mencatat asal dari proses lokal, bukan verifikasi independen isi data.
+
+Backend menghitung ranking normal dan gangguan tunggal dari peluang komponen dengan asumsi independensi, lalu menormalisasinya pada hipotesis tersebut. Angka keyakinan gabungan ini bukan probabilitas yang sudah dikalibrasi pada mesin nyata. Deteksi gangguan majemuk dan penilaian risiko tetap memakai hasil tiap komponen, sebelum agent memutuskan tindakan.
+
 Untuk mengisi instalasi kosong dengan data presentasi, pastikan layanan ML aktif dan hentikan backend sementara, lalu jalankan `npm run demo:seed` dari folder `backend`. Perintah ini mengisi 4 unit, 7 spare part, 6 teknisi, 4 riwayat perawatan, serta pembacaan sensor dari bank profil model. Kasus dan work order dihasilkan oleh diagnosis ML/policy yang sebenarnya; status dan jumlah tindakan mengikuti hasil prediksi, bukan dipaksakan. Akun pengguna tidak diubah dan notifikasi eksternal tidak dikirim selama seed. Menjalankan ulang tidak menggandakan data master atau diagnosis untuk unit yang sudah memiliki kasus berhasil.
 
 Untuk presentasi yang terus bergerak, isi `SIM_ENABLED=true`, `AUTO_AGENT=true`, dan `DEMO_SCENARIO=true` di `backend/.env`, lalu jalankan ulang backend. Pump-01 tetap normal, Pump-02 mengalami penurunan pendingin bertahap, dan Pump-03 mengalami kebocoran pompa berat; prediksi dapat mencerminkan beberapa gangguan dalam satu siklus UCI. Flag skenario hanya memulai simulasi gangguan dan tidak menyetujui kasus berisiko tinggi. Tetap gunakan `SEED_DEMO_DATA=false` setelah pengisian awal. Kembalikan `DEMO_SCENARIO=false` untuk startup tanpa skenario otomatis; kontrol simulator juga tersedia di dashboard.
@@ -152,7 +158,7 @@ Skrip rekaman lengkap: `docs/DEMO_SCRIPT.md`.
 
 ```powershell
 Set-Location C:\GTNIC-\ml
-python -m pytest -q                      # 5 tes ML, termasuk model hilang/rusak
+python -m pytest -q                      # 8 tes ML, termasuk model hilang/rusak, beda versi, dan asal dataset
 Set-Location C:\GTNIC-\backend
 npm.cmd test                            # tes Prisma, JWT, rollback, idempotensi, dan agent; ML wajib aktif
 Set-Location C:\GTNIC-\frontend

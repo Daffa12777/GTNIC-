@@ -42,6 +42,16 @@ def healthy_mask(Y):
     return m
 
 
+def dataset_source(folder):
+    marker = Path(folder) / "dataset_source.json"
+    if not marker.exists():
+        return "unverified"
+    source = json.loads(marker.read_text(encoding="utf-8"))["source"]
+    if source not in ("uci_real", "demo_synthetic"):
+        raise ValueError(f"sumber dataset tidak dikenal: {source}")
+    return source
+
+
 def build_profiles(X, Y, source, Xall=None, Yall=None):
     """Bank siklus nyata (dari split uji) untuk simulator: tiap (komponen, tingkat) dipilih siklus
     yang komponen lain paling sehat."""
@@ -85,9 +95,11 @@ def main():
         make_demo_data.make(folder)   # selalu bangkitkan ulang agar deterministik
         source = "demo_synthetic"
     elif a.download:
-        folder, source = download_uci(HERE / "data" / "uci"), "uci_real"
+        folder = download_uci(HERE / "data" / "uci")
+        source = dataset_source(folder)
     elif a.data:
-        folder, source = Path(a.data), "uci_real"
+        folder = Path(a.data)
+        source = dataset_source(folder)
     else:
         ap.error("pilih --download, --data FOLDER, atau --demo")
 

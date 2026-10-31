@@ -9,6 +9,7 @@ Fitur per siklus = rata-rata dan simpangan baku tiap sensor (17 sensor x 2 = 34 
 from __future__ import annotations
 
 import io
+import json
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -90,5 +91,6 @@ def download_uci(dest: str | Path) -> Path:
         blob = r.read()
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
         z.extractall(dest)
+    (dest / "dataset_source.json").write_text(json.dumps({"source": "uci_real"}), encoding="utf-8")
     print(f"Selesai: {dest}")
     return dest

@@ -7,6 +7,7 @@ Untuk hasil yang sah, latih dengan dataset asli: `python train.py --download`.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -60,6 +61,7 @@ def make(out: Path, n: int = 2205, seed: int = 11) -> None:
     for s in SENSORS:
         np.savetxt(out / f"{s}.txt", np.array(rows[s]), fmt="%.4f", delimiter="\t")
     np.savetxt(out / "profile.txt", np.array(prof), fmt="%d", delimiter="\t")
+    (out / "dataset_source.json").write_text(json.dumps({"source": "demo_synthetic"}), encoding="utf-8")
 
 
 if __name__ == "__main__":

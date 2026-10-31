@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from pathlib import Path
 
 import joblib
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
+from sklearn.exceptions import InconsistentVersionWarning
 
 from data import COMPONENTS, severity
 
@@ -34,13 +36,20 @@ def model():
         if not p.exists():
             raise HTTPException(503, "model belum dilatih: jalankan python train.py")
         try:
-            loaded = joblib.load(p)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", InconsistentVersionWarning)
+                loaded = joblib.load(p)
             sample = pd.DataFrame([[0.0] * len(loaded["features"])], columns=loaded["features"])
             loaded["iso"].score_samples(sample)
             for rf in loaded["rfs"].values():
                 rf.predict_proba(sample)
             _m = loaded
-        except Exception as e:  # versi scikit-learn berbeda dari saat training
+        except InconsistentVersionWarning as e:
+            raise HTTPException(503, (
+                f"versi scikit-learn tidak cocok: model {e.original_sklearn_version}, runtime {e.current_sklearn_version}; "
+                "gunakan environment sesuai requirements.txt atau latih ulang di runtime ini dengan python train.py --demo"
+            )) from e
+        except Exception as e:
             raise HTTPException(503, f"model tidak dapat dimuat ({type(e).__name__}); latih ulang di mesin ini: python train.py --demo atau --download")
     return _m
 
