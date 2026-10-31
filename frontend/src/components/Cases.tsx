@@ -1,5 +1,5 @@
 import { useUrlFilters } from '../useUrlFilters';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Case, Role } from '../types';
 import { CASE, CaseBadge, Empty, RiskBadge, fmtTime, pct } from './ui';
@@ -22,9 +22,9 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
 
   if (!c) return <div className="card card-b"><RequestState {...detail} retry={detail.refresh} /></div>;
 
-  const act = async (fn: () => Promise<Case>, msg: string) => {
+  const act = async (fn: () => Promise<Case>, msg: string | ((result: Case) => string)) => {
     setBusy(true);
-    try { await fn(); setText(''); setNote(''); await detail.refresh(); flash(msg); onChanged(); return true; } catch (e: unknown) { flash(errorMessage(e)); return false; } finally { setBusy(false); }
+    try { const result = await fn(); setText(''); setNote(''); await detail.refresh(); flash(typeof msg === 'function' ? msg(result) : msg); onChanged(); return true; } catch (e: unknown) { flash(errorMessage(e)); return false; } finally { setBusy(false); }
   };
   const probs = c.probs ? Object.entries(c.probs).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
   const isSup = role === 'supervisor';
@@ -55,6 +55,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
           {c.status === 'menunggu_persetujuan' && c.plan && (
             <div className="callout warn">
               <b>Menunggu keputusan supervisor</b>
+              <p className="sub">Kasus dibuat pada {fmtTime(c.created_at)}. Kondisi sensor saat ini dapat berubah; periksa unit sebelum mengambil keputusan.</p>
               <dl className="kv" style={{ margin: '8px 0 10px' }}>
                 <dt>Diagnosis</dt><dd>{labels[c.plan.fault] ?? c.plan.fault} ({pct(c.plan.confidence)})</dd>
                 <dt>Risiko</dt><dd>{c.plan.risk}</dd>
@@ -62,7 +63,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
                 {c.plan.advice && <><dt>Saran tindakan</dt><dd>{c.plan.advice}</dd></>}
               </dl>
               <div className="row wrap">
-                <button className="btn primary" disabled={busy || !isSup} onClick={() => act(() => api.approve(c.id), 'Disetujui: work order dibuat dan teknisi dijadwalkan')}>Setujui dan jalankan</button>
+                <button className="btn primary" disabled={busy || !isSup} onClick={() => act(() => api.approve(c.id), (result) => result.status === 'disetujui_dijalankan' ? 'Persetujuan diproses. Lihat hasil tindakan pada kasus.' : result.summary ?? 'Tindakan belum berhasil. Periksa detail kasus.')}>Setujui dan jalankan</button>
                 <input className="input" style={{ maxWidth: 260 }} placeholder="Catatan penolakan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
                 <button className="btn danger" disabled={busy || !isSup} onClick={() => act(() => api.reject(c.id, note), 'Rekomendasi ditolak')}>Tolak</button>
               </div>
@@ -106,7 +107,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, authenticated =
   );
 }
 
-export default function Cases({ role, labels, flash, selected, onSelect, onChanged, authenticated = false }: { role: Role; labels: Record<string, string>; flash: (m: string) => void; selected: string | null; onSelect: (id: string) => void; onChanged: () => void; authenticated?: boolean }) {
+export default function Cases({ role, labels, flash, selected, onSelect, onClear, onChanged, authenticated = false }: { role: Role; labels: Record<string, string>; flash: (m: string) => void; selected: string | null; onSelect: (id: string) => void; onClear: () => void; onChanged: () => void; authenticated?: boolean }) {
   const [filters, updateFilters] = useUrlFilters({ q: '', status: '', page: 1, pageSize: 20 });
   const query = filters.q;
   const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
@@ -120,15 +121,21 @@ export default function Cases({ role, labels, flash, selected, onSelect, onChang
   const load = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status }), signal), [page, pageSize, search, status]);
   const result = usePolling(load, 30000, true, ['cases', page, pageSize, search, status]);
   const list = result.data?.items ?? [];
+  useEffect(() => {
+    if (selected && window.matchMedia?.('(max-width: 1000px)').matches) window.scrollTo({ top: 0 });
+  }, [selected]);
 
   return (
-    <div className="page">
+    <div className={`page cases-page${selected ? ' case-selected' : ''}`}>
       <div className="page-head"><div><h1>Kasus</h1><p>Setiap analisis agent tersimpan sebagai kasus lengkap dengan jejak langkahnya.</p></div></div>
-      <RequestState {...result} retry={result.refresh} />
-      <div className="filters"><SearchField label="Cari kasus" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, unit, atau ringkasan" pending={query !== search} /><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
-      <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
+      {selected && <button type="button" className="btn mobile-case-back" onClick={onClear}>← Kembali ke daftar kasus</button>}
+      <div className="case-list-controls">
+        <RequestState {...result} retry={result.refresh} />
+        <div className="filters"><SearchField label="Cari kasus" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, unit, atau ringkasan" pending={query !== search} /><label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.entries(CASE).map(([key, [, label]]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+        <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
+      </div>
       <div className="split">
-        <div className="card">
+        <div className="card cases-list">
           {result.data && list.length === 0 && <Empty>{query || status ? 'Tidak ada kasus yang cocok dengan filter.' : 'Belum ada kasus pada halaman ini.'}</Empty>}
           {list.map((c) => (
             <button key={c.id} className={`list-item ${c.id === selected ? 'sel' : ''}`} aria-pressed={c.id === selected} onClick={() => onSelect(c.id)}>
