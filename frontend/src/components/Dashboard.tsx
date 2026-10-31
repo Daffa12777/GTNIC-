@@ -6,6 +6,7 @@ import { RequestState, usePolling, errorMessage } from '../usePolling';
 import SensorChart from './SensorChart';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
+import FacilityMap from './FacilityMap';
 import { Badge, CASE, Empty, StateBadge, fmtTime, pct } from './ui';
 
 const FAULTS: [string, string][] = [['pump', 'Kebocoran pompa'], ['valve', 'Katup lambat'], ['cooler', 'Pendingin'], ['accumulator', 'Akumulator']];
@@ -98,6 +99,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
         <div className="card stat"><div className="k">Kasus terbuka</div><div className="v num">{openCases}</div></div>
       </div>
 
+      <FacilityMap pumps={ov.pumps} selected={sel} onSelect={onSelect} onOpenCase={onOpenCase} />
+
       {triageResult && <section className="card triage-result" aria-live="polite" aria-labelledby="triage-result-title">
         <div className="card-h"><h3 id="triage-result-title">Hasil analisis prioritas</h3><span className="sub">{triageResult.cases.length} unit diproses</span></div>
         <div className="card-b">
@@ -147,7 +150,7 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
       </div>
 
       {selected && !pump && <div className="notice bad">Unit tidak ditemukan. <button className="btn sm" onClick={() => ov.pumps[0] && onSelect(ov.pumps[0].id)}>Pilih unit tersedia</button></div>}
-      {pump && <RequestState {...readings} retry={readings.refresh} />}
+      {pump && <div id="detail-unit"><RequestState {...readings} retry={readings.refresh} /></div>}
       {pump && data && (
         <div className="grid unit-detail">
           <div className="card">
