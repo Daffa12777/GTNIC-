@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { canLeavePage } from './useUnsavedChanges';
 import { LOCATION_CHANGED, writeLocation } from './location';
 
-export type Tab = 'ringkasan' | 'kasus' | 'wo' | 'inventaris' | 'asisten' | 'profil';
-const paths: Record<Tab, string> = { ringkasan: '/', kasus: '/cases', wo: '/work-orders', inventaris: '/inventory', asisten: '/assistant', profil: '/profile' };
+export type Tab = 'ringkasan' | 'tampilan3d' | 'kasus' | 'wo' | 'inventaris' | 'asisten' | 'profil';
+const paths: Record<Tab, string> = { ringkasan: '/', tampilan3d: '/3d', kasus: '/cases', wo: '/work-orders', inventaris: '/inventory', asisten: '/assistant', profil: '/profile' };
 function readRoute() {
   const parts = window.location.pathname.split('/').filter(Boolean);
-  const tab: Tab = parts[0] === 'profile' ? 'profil' : parts[0] === 'cases' ? 'kasus' : parts[0] === 'work-orders' ? 'wo' : parts[0] === 'inventory' ? 'inventaris' : parts[0] === 'assistant' ? 'asisten' : 'ringkasan';
+  const tab: Tab = parts[0] === '3d' ? 'tampilan3d' : parts[0] === 'profile' ? 'profil' : parts[0] === 'cases' ? 'kasus' : parts[0] === 'work-orders' ? 'wo' : parts[0] === 'inventory' ? 'inventaris' : parts[0] === 'assistant' ? 'asisten' : 'ringkasan';
   let id: string | null = null;
   try { id = parts[1] ? decodeURIComponent(parts[1]) : null; } catch { /* Invalid encoded URLs show the overview. */ }
-  return { tab, caseId: tab === 'kasus' ? id : null, pumpId: parts[0] === 'units' ? id : null };
+  return { tab, caseId: tab === 'kasus' ? id : null, pumpId: parts[0] === 'units' || tab === 'tampilan3d' ? id : null };
 }
 export function useNavigation() {
   const [route, setRoute] = useState(readRoute);

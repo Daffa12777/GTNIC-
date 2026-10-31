@@ -6,7 +6,6 @@ import { RequestState, usePolling, errorMessage } from '../usePolling';
 import SensorChart from './SensorChart';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
-import FacilityMap from './FacilityMap';
 import { Badge, CASE, Empty, StateBadge, fmtTime, pct } from './ui';
 
 const FAULTS: [string, string][] = [['pump', 'Kebocoran pompa'], ['valve', 'Katup lambat'], ['cooler', 'Pendingin'], ['accumulator', 'Akumulator']];
@@ -98,8 +97,6 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
         <div className="card stat"><div className="k">Kritis</div><div className="v num" style={{ color: count('kritis') ? 'var(--bad)' : undefined }}>{assessed ? count('kritis') : '—'}</div></div>
         <div className="card stat"><div className="k">Kasus terbuka</div><div className="v num">{openCases}</div></div>
       </div>
-
-      <FacilityMap pumps={ov.pumps} selected={sel} onSelect={onSelect} onOpenCase={onOpenCase} />
 
       {triageResult && <section className="card triage-result" aria-live="polite" aria-labelledby="triage-result-title">
         <div className="card-h"><h3 id="triage-result-title">Hasil analisis prioritas</h3><span className="sub">{triageResult.cases.length} unit diproses</span></div>

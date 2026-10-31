@@ -11,6 +11,8 @@ function View() {
     <button onClick={() => change({ status: 'selesai', page: 1 })}>Filter</button>
     <button onClick={() => change({ page: 2 })}>Next</button>
     <button onClick={() => route.navigate('kasus', 'C-1')}>Detail</button>
+    <button onClick={() => route.navigate('tampilan3d', 'Pump-02')}>3D</button>
+    <span data-testid="tab">{route.tab}:{route.pumpId}</span>
   </>;
 }
 it('restores shared URL filters, keeps them on details and follows Back', async () => {
@@ -30,6 +32,16 @@ it('restores shared URL filters, keeps them on details and follows Back', async 
   view.unmount();
   render(<View />);
   expect(screen.getByRole('status').textContent).toContain('"status":"selesai"');
+});
+
+it('opens a unit in the 3D page and restores it from the URL', () => {
+  const view = render(<View />);
+  fireEvent.click(screen.getByText('3D'));
+  expect(window.location.pathname).toBe('/3d/Pump-02');
+  expect(screen.getByTestId('tab').textContent).toBe('tampilan3d:Pump-02');
+  view.unmount();
+  render(<View />);
+  expect(screen.getByTestId('tab').textContent).toBe('tampilan3d:Pump-02');
 });
 
 it('normalizes invalid pagination values without passing them into API requests', () => {

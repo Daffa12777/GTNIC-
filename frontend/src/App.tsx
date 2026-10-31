@@ -3,6 +3,7 @@ import { api, setRole } from './api';
 import Cases from './components/Cases';
 import Chat from './components/Chat';
 import Dashboard from './components/Dashboard';
+import FacilityMap from './components/FacilityMap';
 import Inventory from './components/Inventory';
 import Profile from './components/Profile';
 import ProfileAvatar from './components/ProfileAvatar';
@@ -15,7 +16,7 @@ import ConnectionStatus from './components/ConnectionStatus';
 import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 
-const TABS: [Tab, string][] = [['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
+const TABS: [Tab, string][] = [['tampilan3d', 'Tampilan 3D'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
 
 const store = {
   get(k: string, d: string) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -104,6 +105,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       {tab !== 'profil' && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
+      {ov && tab === 'tampilan3d' && <FacilityMap ov={ov} selected={pumpId} onSelect={(id) => navigate('tampilan3d', id)} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}
