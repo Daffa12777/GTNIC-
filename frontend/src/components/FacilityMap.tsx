@@ -11,7 +11,7 @@ class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean
 }
 
 export default function FacilityMap({ ov, selected, onSelect, onOpenCase, onOpenUnit }: { ov: Overview; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; onOpenUnit: (id: string) => void }) {
-  const [zoom, setZoom] = useState(50);
+  const [zoom, setZoom] = useState(60);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   useEffect(() => {
     const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -33,7 +33,7 @@ export default function FacilityMap({ ov, selected, onSelect, onOpenCase, onOpen
         <div className="facility-layout">
           <div className="facility-visual">
             <SceneBoundary><Suspense fallback={<div className="facility-placeholder">Memuat peta 3D…</div>}><FacilityScene pumps={ov.pumps} selected={pump.id} onSelect={onSelect} zoom={zoom} reducedMotion={reducedMotion} /></Suspense></SceneBoundary>
-            <div className="facility-controls" aria-label="Kontrol peta"><button className="btn sm" aria-label="Perbesar peta" onClick={() => setZoom((value) => Math.min(70, value + 7))}>+</button><button className="btn sm" aria-label="Perkecil peta" onClick={() => setZoom((value) => Math.max(25, value - 7))}>−</button><button className="btn sm" onClick={() => setZoom(50)}>Reset</button></div>
+            <div className="facility-controls" aria-label="Kontrol peta"><button className="btn sm" aria-label="Perbesar peta" onClick={() => setZoom((value) => Math.min(100, value + 7))}>+</button><button className="btn sm" aria-label="Perkecil peta" onClick={() => setZoom((value) => Math.max(25, value - 7))}>−</button><button className="btn sm" onClick={() => setZoom(60)}>Reset</button></div>
           </div>
           <div className="facility-panel"><h3>Unit terpilih</h3><strong>{pump.id} · {pump.name}</strong><span className="sub">{pump.location} · {pump.model}</span><div><StateBadge state={pump.status.state} /></div>
             <dl className="facility-facts"><div><dt>Dugaan model</dt><dd>{label && label !== 'sensor' ? ov.fault_labels[label] ?? label : 'Belum tersedia'}</dd></div><div><dt>Keyakinan</dt><dd>{pct(pump.status.confidence)}</dd></div><div><dt>Work order terbuka</dt><dd>{pump.open_work_orders}</dd></div><div><dt>Kasus terbuka</dt><dd>{pump.open_case ?? 'Tidak ada'}</dd></div></dl>
