@@ -66,7 +66,7 @@ Ini adalah polling, bukan streaming WebSocket. Timer simulator default tiga deti
 
 Brand ManualMechanic membawa pengguna kembali ke dashboard dan membersihkan pilihan mesin. Pilihan mesin pada dashboard normal disimpan di state halaman, bukan URL khusus setiap klik.
 
-`FacilityScene` membuat objek untuk setiap ID yang dikirim backend. Tata letak berupa grid ilustratif berdasarkan jumlah unit; kamera menyesuaikan skala jumlah baris/kolom. Semua unit memakai model hidrolik yang sama, bukan model yang dipilih berdasarkan field `model`.
+`FacilityScene` membuat satu objek untuk setiap ID yang dikirim backend. Landasan dan zona disusun secara ilustratif berdasarkan jumlah unit; dinding rendah, rak, tangki, palet, drum, jalur kabel, dan marka merupakan dekorasi statis, bukan mesin tambahan atau denah fisik. Posisi dekorasi disaring agar tidak bertabrakan dengan landasan dan jalur utama. Kamera menyesuaikan skala terhadap jumlah unit dan ukuran kanvas. Semua unit memakai model hidrolik yang sama, bukan model yang dipilih berdasarkan field `model`.
 
 - Lampu hijau: `normal`.
 - Lampu kuning dan denyut: `waspada`.
@@ -77,7 +77,11 @@ Status kartu teks dapat memakai badge warna berbeda untuk menegaskan kegagalan l
 
 Model dimuat dari `/models/hydraulic-unit.glb` melalui GLTFLoader dan di-clone untuk tiap unit. Decoder meshopt disertakan dalam bundle aplikasi; render tidak perlu mengunduh decoder atau HDR dari CDN. Setiap mesin mempunyai label HTML yang dapat difokuskan dan diklik, sementara ring serta lampu mengikuti status dan pilihan unit. Error boundary menyediakan pesan fallback; pengguna dapat membuka daftar unit. Aset dan modul render dimuat ketika peta dipakai.
 
+Ringkasan menampilkan jumlah kondisi dari `overview.pumps`. Waktu pembaruan berasal dari `dataUpdatedAt` query overview, yaitu saat browser terakhir berhasil menerima data, bukan waktu pengukuran sensor. Status offline dan kegagalan polling ditampilkan oleh `RequestState`.
+
 Pencahayaan menggunakan ACES, hemisphere light, shadow map statis, contact shadow satu frame, dan environment yang dibuat secara lokal dengan Lightformer. Shadow diperbarui ketika tata letak/objek berubah. Garis warna pada landasan mengikuti kategori lokasi Produksi, Fabrikasi, atau Gudang; posisinya tetap ilustratif. Kamera bergerak halus ke pilihan dan menghormati reduced motion. Resolusi shadow 1024 dan contact shadow 512 dipilih untuk mengurangi biaya dibanding pengaturan resolusi penuh; performa perangkat nyata tetap perlu diuji.
+
+Drum, bollard, dan tiang rak pipa memakai instancing; marka lantai menggunakan satu tekstur kanvas. Dalam satu pemeriksaan lokal enam unit dengan Chrome headless dan SwiftShader pada server pengembangan, penghitung WebGL mencatat 267 pemanggilan draw selama satu klik zoom sebelum perubahan dan 253 sesudahnya; waktu dari navigasi hingga label pertama sekitar 1.009 ms dan 967 ms. Ini pengukuran terbatas yang mencakup seluruh pass selama interaksi, bukan draw call per frame atau tolok ukur perangkat fisik. FPS, memori, dan waktu muat pada ponsel nyata masih perlu diukur.
 
 ### Mengubah model Blender
 

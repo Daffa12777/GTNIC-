@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { ContactShadows, Environment, Html, Lightformer } from '@react-three/drei';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ACESFilmicToneMapping, Mesh, PCFSoftShadowMap, type MeshStandardMaterial } from 'three';
+import { ACESFilmicToneMapping, CanvasTexture, Mesh, PCFSoftShadowMap, type MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { Pump } from '../types';
@@ -81,6 +81,38 @@ function RefreshShadows({ layout }: { layout: string }) {
   return null;
 }
 
+function Apron({ size }: { size: number }) {
+  const alphaMap = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const gradient = ctx.createRadialGradient(128, 128, 20, 128, 128, 128);
+      gradient.addColorStop(0, '#ffffff'); gradient.addColorStop(0.55, '#888888'); gradient.addColorStop(1, '#000000');
+      ctx.fillStyle = gradient; ctx.fillRect(0, 0, 256, 256);
+    }
+    return new CanvasTexture(canvas);
+  }, []);
+  useEffect(() => () => alphaMap.dispose(), [alphaMap]);
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]} receiveShadow><planeGeometry args={[size, size]} /><meshStandardMaterial color="#acaeaa" transparent opacity={0.55} alphaMap={alphaMap} depthWrite={false} roughness={1} /></mesh>;
+}
+
+function FloorMarkings({ width, depth }: { width: number; depth: number }) {
+  const map = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.strokeStyle = 'rgba(105, 119, 116, 0.65)'; ctx.lineWidth = 3;
+      ctx.setLineDash([12, 8]); ctx.beginPath(); ctx.moveTo(20, 460); ctx.lineTo(492, 460); ctx.stroke();
+      ctx.setLineDash([]); for (const x of [90, 422]) { ctx.beginPath(); ctx.moveTo(x - 18, 435); ctx.lineTo(x + 18, 435); ctx.moveTo(x + 7, 425); ctx.lineTo(x + 18, 435); ctx.lineTo(x + 7, 445); ctx.stroke(); }
+    }
+    return new CanvasTexture(canvas);
+  }, []);
+  useEffect(() => () => map.dispose(), [map]);
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.043, 0]}><planeGeometry args={[width - 0.2, depth - 0.2]} /><meshBasicMaterial map={map} transparent depthWrite={false} /></mesh>;
+}
+
 function StatusRing({ state, selected, hovered, reducedMotion }: { state: Pump['status']['state']; selected: boolean; hovered: boolean; reducedMotion: boolean }) {
   const ring = useRef<Mesh>(null);
   const alert = state === 'waspada' || state === 'kritis';
@@ -99,7 +131,7 @@ function StatusRing({ state, selected, hovered, reducedMotion }: { state: Pump['
 
 function Machine({ pump, position, active, index, onSelect, reducedMotion }: { pump: Pump; position: [number, number]; active: boolean; index: number; onSelect: (id: string) => void; reducedMotion: boolean }) {
   const [hovered, setHovered] = useState(false);
-  const { gl } = useThree();
+  const { gl, size } = useThree();
   useEffect(() => () => { gl.domElement.style.cursor = ''; }, [gl]);
   return <group position={[position[0], 0, position[1]]} onClick={(event) => { event.stopPropagation(); onSelect(pump.id); }} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); gl.domElement.style.cursor = 'pointer'; }} onPointerOut={() => { setHovered(false); gl.domElement.style.cursor = ''; }}>
     <mesh position={[0, 0.09, 0]} receiveShadow><boxGeometry args={[2.45, 0.12, 2.05]} /><meshStandardMaterial color={zoneColor(pump.location)} /></mesh>
@@ -109,7 +141,7 @@ function Machine({ pump, position, active, index, onSelect, reducedMotion }: { p
     <StatusRing state={pump.status.state} selected={active} hovered={hovered} reducedMotion={reducedMotion} />
     {active && <mesh position={[0, 0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.02, 1.055, 48]} /><meshBasicMaterial color="#2365a5" /></mesh>}
     <mesh position={[1.02, 0.59, 0.80]}><cylinderGeometry args={[0.035, 0.035, 0.86, 8]} /><meshStandardMaterial color="#71858c" /></mesh>
-    <Html position={[0.8, 0.18, 1.25]} center zIndexRange={[5, 0]}><button type="button" className="unit-chip" data-status={pump.status.state} aria-pressed={active} aria-label={`${pump.id} · ${stateLabels[pump.status.state] ?? pump.status.state}`} onClick={(event) => { event.stopPropagation(); onSelect(pump.id); }}><span className="unit-chip-symbol" aria-hidden="true">{pump.status.state === 'normal' ? '●' : pump.status.state === 'waspada' ? '▲' : pump.status.state === 'kritis' ? '✖' : '◆'}</span><span className="unit-chip-id">{pump.id}</span></button></Html>
+    <Html position={[1.05, 0.18, 1.48]} center distanceFactor={size.width > 700 ? 0.025 : undefined} zIndexRange={[5, 0]}><button type="button" className="unit-chip" data-status={pump.status.state} aria-pressed={active} aria-label={`${pump.id} · ${stateLabels[pump.status.state] ?? pump.status.state}`} onClick={(event) => { event.stopPropagation(); onSelect(pump.id); }}><span className="unit-chip-symbol" aria-hidden="true">{pump.status.state === 'normal' ? '●' : pump.status.state === 'waspada' ? '▲' : pump.status.state === 'kritis' ? '✖' : '◆'}</span><span className="unit-chip-id">{pump.id}{pump.status.state !== 'normal' && <span className="unit-chip-status"> · {pump.status.state === 'sensor' ? 'Sensor' : pump.status.state === 'ml_error' ? 'ML error' : pump.status.state === 'tidak ada data' ? 'Tanpa data' : stateLabels[pump.status.state]}</span>}</span></button></Html>
   </group>;
 }
 
@@ -119,15 +151,15 @@ export default function FacilityScene({ pumps, selected, onSelect, zoom, reduced
   const position = (index: number): [number, number] => {
     const location = (pumps[index].location ?? '').toLowerCase();
     const offset = location.includes('produksi') ? -0.08 : location.includes('gudang') ? 0.08 : 0;
-    return [(index % columns - (columns - 1) / 2) * 3.6 + offset, (Math.floor(index / columns) - (rows - 1) / 2) * 3.6];
+    return [(index % columns - (columns - 1) / 2) * 3.6 + offset, (Math.floor(index / columns) - (rows - 1) / 2) * 4.3];
   };
   const selectedIndex = pumps.findIndex((pump) => pump.id === selected);
   const focus = selectedIndex < 0 ? [0, 0] as [number, number] : position(selectedIndex);
   const animated = !reducedMotion && pumps.some((pump) => pump.status.state === 'kritis' || pump.status.state === 'waspada');
   const layout = JSON.stringify(pumps.map((pump) => [pump.id, pump.location]));
   const slabW = columns * 3.6 + 3.2;
-  const slabD = rows * 3.6 + 3.2;
-  const padRects = pumps.map((_, index) => { const [x, z] = position(index); return { x, z: z + 0.3, w: 2.9, d: 3.1 }; });
+  const slabD = rows * 4.3 + 3.2;
+  const padRects = pumps.map((_, index) => { const [x, z] = position(index); return { x: x + 0.2, z: z + 0.45, w: 3.3, d: 3.5 }; });
   const keepOut = [...padRects, { x: 0, z: 0, w: 0.8, d: slabD }, { x: 0, z: -slabD / 2 + 0.35, w: slabW, d: 0.7 }];
   return <Canvas orthographic frameloop={animated ? 'always' : 'demand'} dpr={[1, 1.5]} shadows={{ type: PCFSoftShadowMap }} camera={{ position: [10, 12, 12], zoom: 50, near: 0.1, far: 100 }} gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: 1.15 }} onCreated={({ gl }) => { gl.shadowMap.autoUpdate = false; gl.shadowMap.needsUpdate = true; }}>
     <Camera focus={focus} zoom={zoom} width={slabW} depth={slabD} reducedMotion={reducedMotion} />
@@ -135,12 +167,14 @@ export default function FacilityScene({ pumps, selected, onSelect, zoom, reduced
     <hemisphereLight args={['#e4eef2', '#9aabae', 0.65]} />
     <directionalLight position={[8, 12, 6]} intensity={1.7} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-left={-slabW} shadow-camera-right={slabW} shadow-camera-top={slabD} shadow-camera-bottom={-slabD} shadow-bias={-0.0004} shadow-normalBias={0.02} />
     <Environment resolution={128} frames={1}><Lightformer form="rect" intensity={2} position={[0, 6, 4]} scale={[10, 4, 1]} /><Lightformer form="rect" intensity={0.8} position={[-6, 3, -4]} scale={[8, 3, 1]} /></Environment>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]} receiveShadow><planeGeometry args={[slabW * 3, slabD * 3]} /><meshStandardMaterial color="#c1d0d0" /></mesh>
+    <Apron size={Math.hypot(slabW, slabD) * 3} />
     <mesh position={[0, -0.18, 0]} receiveShadow><boxGeometry args={[slabW, 0.3, slabD]} /><meshStandardMaterial color="#aabec2" /></mesh>
     <mesh position={[0, 0, 0]} receiveShadow><boxGeometry args={[slabW - 0.2, 0.08, slabD - 0.2]} /><meshStandardMaterial color="#e6eeec" /></mesh>
+    <FloorMarkings width={slabW} depth={slabD} />
     {[-0.08, 0.08].map((x) => <mesh key={x} position={[x, 0.05, 0]}><boxGeometry args={[0.06, 0.02, slabD - 0.3]} /><meshStandardMaterial color="#b5a283" /></mesh>)}
     <mesh position={[0, 0.55, -slabD / 2 + 0.1]} receiveShadow><boxGeometry args={[slabW, 1.1, 0.16]} /><meshStandardMaterial color="#b3c1c2" /></mesh>
     <mesh position={[-slabW / 2 + 0.1, 0.55, 0]} receiveShadow><boxGeometry args={[0.16, 1.1, slabD]} /><meshStandardMaterial color="#b3c1c2" /></mesh>
+    {[-0.32, 0, 0.32].map((part) => <mesh key={part} position={[-slabW / 2 + 0.2, 0.58, part * slabD]}><boxGeometry args={[0.16, 1.16, 0.12]} /><meshStandardMaterial color="#839493" metalness={0.2} /></mesh>)}
     <group position={[0, 0.04, -slabD / 2 + 0.4]}><PipeRack length={slabW - 1} /></group>
     {Array.from({ length: columns }, (_, index) => <mesh key={index} position={[(index - (columns - 1) / 2) * 3.6 + 1.5, 0.055, 0]} receiveShadow><boxGeometry args={[0.12, 0.03, slabD - 1]} /><meshStandardMaterial color="#889596" metalness={0.4} /></mesh>)}
     {pumps.map((pump, index) => { const [x, z] = position(index); return <group key={pump.id} position={[x + 1.35, 0, z]}><mesh position={[0, 0.055, 0]}><boxGeometry args={[0.42, 0.03, 0.12]} /><meshStandardMaterial color="#889596" metalness={0.4} /></mesh><mesh position={[-0.18, 0.2, 0]}><boxGeometry args={[0.09, 0.3, 0.09]} /><meshStandardMaterial color="#889596" metalness={0.4} /></mesh></group>; })}
