@@ -44,14 +44,14 @@ Nilai keyakinan menunjukkan skor hasil model/aturan yang digunakan sistem. Nilai
 
 ## Kasus
 
-Daftar kasus mendukung pencarian, status, dan paginasi. Buka kasus untuk meninjau ringkasan, diagnosis, sitasi, dan jejak langkah agent.
+Daftar kasus mendukung pencarian, filter cepat, dan paginasi. Kasus yang menunggu persetujuan diurutkan lebih dulu. Buka kasus untuk meninjau umur kasus, status unit yang terakhir diterima, bukti diagnosis, kasus terkait, dan work order aktif.
 
 - **Menunggu klarifikasi:** baca pertanyaan lalu jawab berdasarkan pengamatan lapangan. Jangan menebak kondisi yang belum diperiksa.
-- **Menunggu persetujuan:** supervisor meninjau alasan, risiko, dan rencana sebelum menyetujui atau menolak.
-- **Dieskalasi:** perlukan penanganan senior sesuai ringkasan yang dicatat.
+- **Menunggu persetujuan:** supervisor meninjau hipotesis, bukti dan rencana, lalu membuka konfirmasi sebelum menyetujui. Penolakan risiko tinggi memerlukan alasan.
+- **Dieskalasi:** periksa work order terkait untuk mengetahui teknisi dan jadwal. Jika belum ada penanggung jawab, koordinasikan dengan supervisor.
 - **Gagal:** periksa kegagalan layanan/operasi sebelum mengulangi tindakan.
 
-Persetujuan dapat menghasilkan work order, pengajuan pembelian jika stok kosong, penugasan teknisi, dan notifikasi sesuai hasil tool. Status kasus lama dapat berbeda dari kondisi sensor terbaru pada peta.
+Persetujuan dapat membuat atau menggunakan work order aktif, mengajukan pembelian jika stok kosong, mencoba penjadwalan teknisi, dan membuat notifikasi. Pratinjau tidak mencadangkan stok atau teknisi; hasil akhir tersedia pada jejak kasus. Status kasus lama dapat berbeda dari kondisi sensor terbaru pada peta.
 
 ## Work order
 

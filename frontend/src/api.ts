@@ -1,4 +1,4 @@
-import type { Case, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
+import type { Case, CaseContext, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
@@ -81,6 +81,7 @@ export const api = {
   readings: (id: string, limit = 60, signal?: AbortSignal) => req<ReadingsResp>(`/pumps/${encodeURIComponent(id)}/readings?limit=${limit}`, { signal }),
   cases: (signal?: AbortSignal) => req<Case[]>('/cases', { signal }),
   casesPage: (query: URLSearchParams, signal?: AbortSignal) => req<RecordsPage<Case>>(`/records/cases?${query}`, { signal }),
+  caseContext: (id: string, signal?: AbortSignal) => req<CaseContext>(`/cases/${encodeURIComponent(id)}/context`, { signal }),
   workOrdersPage: (query: URLSearchParams, signal?: AbortSignal) => req<WorkOrdersPage>(`/records/work-orders?${query}`, { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),

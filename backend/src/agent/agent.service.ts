@@ -352,8 +352,9 @@ export class AgentService {
     await this.db.q('SELECT id FROM cases WHERE id=$1 FOR UPDATE', [caseId]);
     const c = await this.cases.get(caseId);
     if (!c || !['menunggu_klarifikasi', 'menunggu_persetujuan'].includes(c.status)) return { error: 'kasus tidak dapat ditolak' };
+    if ((c.risk === 'tinggi' || c.state?.plan?.risk === 'tinggi') && !note.trim()) return { error: 'alasan penolakan wajib diisi untuk risiko tinggi' };
     const trace = this.cases.trace(caseId, c.trace);
-    trace.add('decision', 'Ditolak supervisor', note || 'Tidak ada tindakan dijalankan.');
+    trace.add('decision', 'Ditolak supervisor', note.trim() || 'Tidak ada tindakan dijalankan.');
     await this.cases.save(caseId, trace, 'ditolak', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: 'Rekomendasi ditolak oleh supervisor. Tidak ada tindakan dijalankan.' });
     return this.cases.get(caseId);
     });

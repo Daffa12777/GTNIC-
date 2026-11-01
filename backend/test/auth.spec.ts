@@ -205,4 +205,21 @@ describe('Server sessions and request validation', () => {
     const orders = await get(`/api/records/work-orders?q=${marker}&pageSize=10&page=7&status=selesai`).expect(200);
     expect(orders.body.total).toBe(65); expect(orders.body.items).toHaveLength(5);
   });
+  it('prioritizes pending decisions across pages and counts filters independently of the current page', async () => {
+    const db = app.get(DbService); const server = app.getHttpServer(); const marker = randomUUID();
+    await db.client.maintenanceCase.createMany({ data: [
+      ...Array.from({ length: 6 }, (_, index) => ({ id: `${marker}-pending-${index}`, summary: marker, status: 'menunggu_persetujuan', created_at: index })),
+      ...Array.from({ length: 6 }, (_, index) => ({ id: `${marker}-done-${index}`, summary: marker, status: 'selesai', created_at: 100 + index })),
+    ] });
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    const get = (query: string) => request(server).get(`/api/records/cases?q=${marker}&pageSize=5${query}`).set('Cookie', session.access).expect(200);
+    const first = await get(''); const second = await get('&page=2'); const completed = await get('&status=group%3Aselesai');
+    expect(first.body.items.every((item: { status: string }) => item.status === 'menunggu_persetujuan')).toBe(true);
+    expect(second.body.items[0].status).toBe('menunggu_persetujuan');
+    expect(second.body.items.slice(1).every((item: { status: string }) => item.status === 'selesai')).toBe(true);
+    expect(first.body.counts).toMatchObject({ keputusan: 6, selesai: 6 });
+    expect(completed.body.total).toBe(6); expect(completed.body.counts.keputusan).toBe(6);
+    expect(completed.body.items.every((item: { status: string }) => item.status === 'selesai')).toBe(true);
+  });
 });

@@ -49,6 +49,8 @@ Folder `app/`, `data/manuals/`, Dockerfile root, dan `requirements.txt` root mer
 
 Ini adalah polling, bukan streaming WebSocket. Timer simulator default tiga detik tidak berarti browser menerima pembaruan tiap tiga detik. Saat tab berada di latar belakang, polling query tidak dipaksakan berjalan.
 
+Reservasi kasus mencegah lebih dari satu kasus berstatus diproses, menunggu klarifikasi, atau menunggu persetujuan untuk unit yang sama. Monitor otomatis juga melewati unit yang mempunyai work order aktif. Diagnosis manual tetap dapat membuat kasus baru setelah kasus sebelumnya dijalankan atau dieskalasi; daftar kasus terkait dan pekerjaan aktif membantu supervisor memeriksa pengulangan. Pembuatan work order memakai kembali pekerjaan aktif dengan unit dan judul yang sama, tetapi ini bukan penyatuan otomatis semua diagnosis yang mirip.
+
 `SIM_ENABLED=false` menonaktifkan timer; ini belum merupakan mode akuisisi sensor fisik. Bootstrap simulator masih dapat membangun pembacaan contoh dari profil. Status, ring buffer, dan indeks RAG berada dalam memori proses, sedangkan pembacaan dan catatan operasional disimpan di database. Beberapa instance backend tidak berbagi simulator/status secara otomatis.
 
 ## Peta 3D dan navigasi

@@ -96,12 +96,13 @@ Pesan 1–8000 karakter. Maksimal delapan entri history, masing-masing `{from: '
 | --- | --- | --- |
 | GET | `/cases` | Maksimal 40 kasus terbaru |
 | GET | `/cases/:id` | Detail kasus, jejak, dan state terkait |
+| GET | `/cases/:id/context` | Maksimal 10 kasus terkait, 50 work order aktif, 10 pekerjaan selesai/dibatalkan, dan pratinjau berbasis stok saat diminta; bukan reservasi stok atau teknisi |
 | POST | `/cases/:id/answer` | `{text}`; 1–4000 karakter |
 | POST | `/cases/:id/approve` | Persetujuan, supervisor saja |
-| POST | `/cases/:id/reject` | `{note}` maksimal 2000 karakter; supervisor saja |
+| POST | `/cases/:id/reject` | `{note}` maksimal 2000 karakter; supervisor saja; alasan tidak boleh kosong untuk risiko tinggi |
 | GET | `/work-orders` | Maksimal 60 pekerjaan terbaru |
 | POST | `/work-orders/:id/complete` | `{root_cause, action, duration_min?}` |
-| GET | `/records/cases` | Daftar berpaginasi |
+| GET | `/records/cases` | Daftar berpaginasi, keputusan tertunda diutamakan, dengan hitungan filter berdasarkan pencarian saat ini |
 | GET | `/records/work-orders` | Daftar berpaginasi + pilihan teknisi/unit |
 | GET | `/technicians` | Daftar teknisi |
 | GET | `/purchase-requests` | Maksimal 40 pengajuan pembelian terbaru |

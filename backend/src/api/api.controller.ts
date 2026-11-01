@@ -8,7 +8,7 @@ import { CaseStore } from '../agent/case.store';
 import { LlmService } from '../agent/llm.service';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
-import { DISPLAY_SENSORS, FAULT_LABEL } from '../domain';
+import { DISPLAY_SENSORS, FAULT_LABEL, FAULT_PART, FAULT_SKILL } from '../domain';
 import { MlService } from '../ml/ml.service';
 import { MonitorService } from '../monitor/monitor.service';
 import { StatusStore } from '../monitor/status.store';
@@ -96,6 +96,26 @@ export class ApiController {
     const c = await this.cases.get(id);
     if (!c) throw bad('kasus tidak ditemukan', 404);
     return c;
+  }
+
+  @Get('cases/:id/context')
+  async caseContext(@Param('id') id: string) {
+    const c = await this.cases.get(id);
+    if (!c) throw bad('kasus tidak ditemukan', 404);
+    if (!c.pump_id) return { related: [], orders: [], recent_closed: [], preview: null };
+    const related = await this.db.client.maintenanceCase.findMany({ where: { pump_id: c.pump_id, id: { not: id } }, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], take: 10, select: { id: true, status: true, fault: true, created_at: true } });
+    const orders = await this.db.client.workOrder.findMany({ where: { pump_id: c.pump_id, status: { notIn: ['selesai', 'dibatalkan'] } }, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], take: 50, include: { technician: { select: { name: true } } } });
+    const recentClosed = await this.db.client.workOrder.findMany({ where: { pump_id: c.pump_id, status: { in: ['selesai', 'dibatalkan'] } }, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], take: 10, include: { technician: { select: { name: true } } } });
+    const plan = c.plan;
+    let preview: { title: string; priority: string; part: string | null; stock: number | null; inventory_found: boolean; skill: string; senior: boolean; existing_order: string | null } | null = null;
+    if (plan && FAULT_LABEL[plan.fault]) {
+      const part = FAULT_PART[plan.fault] ?? '';
+      const inventory = part ? await this.db.one('SELECT name, stock FROM inventory WHERE LOWER(name) LIKE $1', [`%${part.toLowerCase()}%`]) : null;
+      const title = `${FAULT_LABEL[plan.fault]} pada ${c.pump_id}`;
+      const existing = await this.db.client.workOrder.findFirst({ where: { pump_id: c.pump_id, title, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { id: true } });
+      preview = { title, priority: ['rendah', 'sedang', 'tinggi'].includes(plan.risk) ? plan.risk : 'sedang', part: part || null, stock: inventory ? Number(inventory.stock) : null, inventory_found: !!inventory, skill: FAULT_SKILL[plan.fault] ?? 'mekanik', senior: plan.risk === 'tinggi', existing_order: existing?.id ?? null };
+    }
+    return { related, orders: orders.map((order) => ({ ...order, technician: order.technician?.name ?? null })), recent_closed: recentClosed.map((order) => ({ ...order, technician: order.technician?.name ?? null })), preview };
   }
 
   @Post('cases/:id/answer')
