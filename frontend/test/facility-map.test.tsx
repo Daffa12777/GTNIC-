@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import FacilityMap from '../src/components/FacilityMap';
 import type { Overview, Pump } from '../src/types';
 
-vi.mock('../src/components/FacilityScene', () => ({ default: ({ zoom }: { zoom: number }) => <div data-testid="scene" data-zoom={zoom}>Peta tersedia</div> }));
+vi.mock('../src/components/FacilityScene', () => ({ default: ({ zoom, rotation }: { zoom: number; rotation: number }) => <div data-testid="scene" data-zoom={zoom} data-rotation={rotation}>Peta tersedia</div> }));
 afterEach(cleanup);
 
 it('selects an actual unit and keeps its unavailable status and case accessible', () => {
@@ -45,10 +45,14 @@ it('zooms relative to the fitted view and resets the selection', async () => {
   expect(screen.getByLabelText('Ringkasan kondisi').textContent).toContain('0 kritis · 0 waspada · 1 normal');
   expect(screen.getByText('Pembaruan terakhir:').querySelector('time')?.dateTime).toBe(new Date(1700000000000).toISOString());
   const scene = await screen.findByTestId('scene');
-  expect(scene.getAttribute('data-zoom')).toBe('1');
+  expect(scene.getAttribute('data-zoom')).toBe('2');
   fireEvent.click(screen.getByRole('button', { name: 'Perbesar peta' }));
-  expect(Number(scene.getAttribute('data-zoom'))).toBeGreaterThan(1);
+  expect(Number(scene.getAttribute('data-zoom'))).toBeGreaterThan(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Putar peta ke kanan 90 derajat' }));
+  expect(scene.getAttribute('data-rotation')).toBe('1');
+  expect(screen.getByText('Arah tampilan 90 derajat.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
   expect(scene.getAttribute('data-zoom')).toBe('1');
+  expect(scene.getAttribute('data-rotation')).toBe('0');
   expect(select).toHaveBeenCalledWith(null);
 });

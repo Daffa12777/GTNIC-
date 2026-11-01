@@ -24,8 +24,8 @@ export function factoryPlacements(width: number, depth: number, keepOut: readonl
       return placed;
     }, []);
 }
-export function FactoryProps({ width, depth, keepOut }: { width: number; depth: number; keepOut: readonly Rect[] }) {
-  const placed = factoryPlacements(width, depth, keepOut);
+export function FactoryProps({ width, depth, keepOut, direction }: { width: number; depth: number; keepOut: readonly Rect[]; direction: [number, number] }) {
+  const placed = factoryPlacements(width, depth, keepOut).filter((p) => (p.kind !== 'shelf' && p.kind !== 'tank') || (p.x * direction[0] < 0 && p.z * direction[1] < 0));
   const { gl, invalidate } = useThree();
   const version = JSON.stringify(placed);
   useEffect(() => { gl.shadowMap.needsUpdate = true; invalidate(); }, [gl, invalidate, version]);

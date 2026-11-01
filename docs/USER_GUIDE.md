@@ -15,7 +15,7 @@ Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang
 3. Gunakan **Buka kasus** jika kasus tersedia, atau **Lihat detail unit** untuk melihat data dan tindakan lebih lengkap.
 4. Klik **Tutup** untuk menutup panel dan kembali melihat peta penuh.
 
-Tombol `+`, `−`, dan **Reset** mengatur skala peta. **Pilih dari daftar unit** menyediakan pilihan teks untuk keyboard atau bila memilih objek terasa sulit. Jika render gagal, daftar ini tetap dapat digunakan.
+Memilih unit memusatkan dan memperbesar peta. Gunakan `+` dan `−` untuk mengatur skala, lalu geser dengan mouse atau sentuhan ketika peta diperbesar. Pada skala awal, geser di ponsel tetap menggulir halaman. Tombol putar kiri/kanan mengubah arah peta 90°, sedangkan **Reset** mengembalikan sudut dan skala awal serta menutup pilihan. **Pilih dari daftar unit** menyediakan pilihan teks untuk keyboard atau bila memilih objek terasa sulit. Jika render gagal, daftar ini tetap dapat digunakan.
 
 Garis warna di landasan membantu membedakan kategori lokasi Produksi, Fabrikasi, dan Gudang sesuai informasi unit. Susunannya tetap bukan denah sebenarnya.
 
