@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import FacilityMap from '../src/components/FacilityMap';
+import { api } from '../src/api';
 import type { Overview, Pump } from '../src/types';
 
 vi.mock('../src/components/FacilityScene', () => ({ default: ({ zoom, rotation }: { zoom: number; rotation: number }) => <div data-testid="scene" data-zoom={zoom} data-rotation={rotation}>Peta tersedia</div> }));
@@ -51,8 +52,23 @@ it('zooms relative to the fitted view and resets the selection', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Putar peta ke kanan 90 derajat' }));
   expect(scene.getAttribute('data-rotation')).toBe('1');
   expect(screen.getByText('Arah tampilan 90 derajat.')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reset tampilan' }));
   expect(scene.getAttribute('data-zoom')).toBe('1');
   expect(scene.getAttribute('data-rotation')).toBe('0');
-  expect(select).toHaveBeenCalledWith(null);
+  expect(select).not.toHaveBeenCalled();
+  expect(screen.getByText('Unit terpilih')).toBeTruthy();
+});
+
+it('starts analysis for a selected unit without a case and displays its status flags', async () => {
+  const pump: Pump = { id: 'Pump-01', name: 'Press', location: 'Produksi', model: 'HPU', criticality: 'tinggi', status: { state: 'kritis', flags: ['Tekanan rendah'] }, open_work_orders: 0, open_case: null };
+  const ov: Overview = { pumps: [pump], auto: false, llm_available: false, llm_model: null, db: 'test', tick_seconds: 3, simulator: false, ml: { ok: true }, fault_labels: {} };
+  const diagnose = vi.spyOn(api, 'diagnose').mockResolvedValue({ id: 'C-003' } as Awaited<ReturnType<typeof api.diagnose>>);
+  const open = vi.fn();
+  render(<FacilityMap ov={ov} selected="Pump-01" onSelect={() => {}} onOpenCase={open} onOpenUnit={() => {}} />);
+  expect(screen.getByText(/Tekanan rendah/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Analisis unit ini' }));
+  expect(await screen.findByRole('button', { name: 'Analisis unit ini' })).toBeTruthy();
+  expect(diagnose).toHaveBeenCalledWith('Pump-01', '', false);
+  expect(open).toHaveBeenCalledWith('C-003');
+  diagnose.mockRestore();
 });

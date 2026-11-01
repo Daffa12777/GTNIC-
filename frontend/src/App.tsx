@@ -15,6 +15,7 @@ import SessionGate from './SessionGate';
 import ConnectionStatus from './components/ConnectionStatus';
 import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
+import { UnsavedChangesPrompt } from './useUnsavedChanges';
 
 const TABS: [Tab, string][] = [['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
 
@@ -24,7 +25,7 @@ const store = {
 };
 
 export default function App() {
-  return <><ConnectionStatus /><SessionGate>{(user, logout, loggingOut) => <Workspace key={user ? `${user.username}:${user.role}` : 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate></>;
+  return <><ConnectionStatus /><UnsavedChangesPrompt /><SessionGate>{(user, logout, loggingOut) => <Workspace key={user ? `${user.username}:${user.role}` : 'demo'} user={user} logout={logout} loggingOut={loggingOut} />}</SessionGate></>;
 }
 
 function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout: (serverAlreadyClosed?: boolean) => Promise<void>; loggingOut: boolean }) {
@@ -87,6 +88,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             </label>
             <label className="ctl">Agent otomatis
               <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={role !== 'supervisor' || !ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" title={role !== 'supervisor' ? 'Hanya supervisor yang dapat mengubah agent otomatis.' : undefined} />
+              {role !== 'supervisor' && <span className="sub">Hanya supervisor</span>}
             </label>
             <details className="mode-help">
               <summary aria-label="Penjelasan mode LLM dan agent otomatis">?</summary>
@@ -107,7 +109,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       {tab !== 'profil' && (!isMap || !ov) && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
       {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} onBack={() => { setSelectedMachine(null); navigate('ringkasan'); }} flash={flash} refresh={refresh} />}
-      {ov && isMap && <FacilityMap ov={ov} updated={overview.updated} freshness={<RequestState {...overview} retry={refresh} />} demoRole={!user} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} />}
+      {ov && isMap && <FacilityMap ov={ov} updated={overview.updated} freshness={<RequestState {...overview} retry={refresh} />} demoRole={!user} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} onChanged={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} overview={ov} updated={overview.updated} onOpenUnit={(id) => navigate('ringkasan', id, true)} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}

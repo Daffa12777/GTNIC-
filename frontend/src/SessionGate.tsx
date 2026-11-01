@@ -37,9 +37,9 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
       await session.refresh(); setLoggedOut(false);
     });
   }), [session.refresh]);
-  const logout = async (serverAlreadyClosed = false) => {
+  const logout = async (serverAlreadyClosed = false, confirmed = false) => {
     if (submitting.current) return;
-    if (!serverAlreadyClosed && !canLeavePage()) return;
+    if (!serverAlreadyClosed && !confirmed && !canLeavePage(() => { void logout(serverAlreadyClosed, true); })) return;
     submitting.current = true;
     setLoggingOut(true); setError('');
     try { await queryClient.cancelQueries({ queryKey: ['session'] }); if (!serverAlreadyClosed) await api.logout(); clearPrivateCache(); clearChats(); setLoggedOut(true); setPassword(''); queryClient.setQueryData(['session'], { enabled: true, user: null }); publishSessionChange(); await session.refresh(); } catch (e: unknown) { setError(errorMessage(e)); } finally { submitting.current = false; setLoggingOut(false); }

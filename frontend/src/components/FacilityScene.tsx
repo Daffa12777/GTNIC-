@@ -90,12 +90,12 @@ function PanControls({ enabled, focus, width, depth, setPan }: { enabled: boolea
   return null;
 }
 
-function StatusLight({ state, reducedMotion }: { state: Pump['status']['state']; reducedMotion: boolean }) {
+function StatusLight({ state, pulse }: { state: Pump['status']['state']; pulse: boolean }) {
   const light = useRef<Mesh>(null);
   const alert = state === 'kritis' || state === 'waspada';
-  useLayoutEffect(() => { light.current?.scale.setScalar(1); }, [state, reducedMotion]);
+  useLayoutEffect(() => { light.current?.scale.setScalar(1); }, [state, pulse]);
   useFrame(({ clock }) => {
-    if (light.current && alert && !reducedMotion) {
+    if (light.current && alert && pulse) {
       const pulse = 1 + (0.5 + Math.sin(clock.elapsedTime * (state === 'kritis' ? 4 : 2)) * 0.5) * 0.4;
       light.current.scale.setScalar(pulse);
     }
@@ -153,12 +153,12 @@ function FloorMarkings({ width, depth }: { width: number; depth: number }) {
   return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.043, 0]}><planeGeometry args={[width - 0.2, depth - 0.2]} /><meshBasicMaterial map={map} transparent depthWrite={false} /></mesh>;
 }
 
-function StatusRing({ state, selected, hovered, reducedMotion }: { state: Pump['status']['state']; selected: boolean; hovered: boolean; reducedMotion: boolean }) {
+function StatusRing({ state, selected, hovered, pulse }: { state: Pump['status']['state']; selected: boolean; hovered: boolean; pulse: boolean }) {
   const ring = useRef<Mesh>(null);
   const alert = state === 'waspada' || state === 'kritis';
-  useLayoutEffect(() => { if (ring.current) { ring.current.scale.setScalar(1); (ring.current.material as MeshStandardMaterial).emissiveIntensity = 0.35; } }, [state, reducedMotion]);
+  useLayoutEffect(() => { if (ring.current) { ring.current.scale.setScalar(1); (ring.current.material as MeshStandardMaterial).emissiveIntensity = 0.35; } }, [state, pulse]);
   useFrame(({ clock }) => {
-    if (ring.current && alert && !reducedMotion) {
+    if (ring.current && alert && pulse) {
       const pulse = 0.5 + Math.sin(clock.elapsedTime * (state === 'kritis' ? 4 : 2)) * 0.5;
       ring.current.scale.setScalar(1 + pulse * 0.07);
       (ring.current.material as MeshStandardMaterial).emissiveIntensity = 0.25 + pulse * 0.55;
@@ -169,7 +169,7 @@ function StatusRing({ state, selected, hovered, reducedMotion }: { state: Pump['
   return <mesh ref={ring} position={[0, 0.157, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.87, 0.95, 48]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} toneMapped={false} /></mesh>;
 }
 
-function Machine({ pump, position, active, index, direction, onSelect, reducedMotion }: { pump: Pump; position: [number, number]; active: boolean; index: number; direction: [number, number]; onSelect: (id: string) => void; reducedMotion: boolean }) {
+function Machine({ pump, position, active, index, direction, onSelect, pulse }: { pump: Pump; position: [number, number]; active: boolean; index: number; direction: [number, number]; onSelect: (id: string) => void; pulse: boolean }) {
   const [hovered, setHovered] = useState(false);
   const { gl, size } = useThree();
   useEffect(() => () => { gl.domElement.style.cursor = ''; }, [gl]);
@@ -177,15 +177,15 @@ function Machine({ pump, position, active, index, direction, onSelect, reducedMo
     <mesh position={[0, 0.09, 0]} receiveShadow><boxGeometry args={[2.45, 0.12, 2.05]} /><meshStandardMaterial color={zoneColor(pump.location)} /></mesh>
     <mesh position={[0, 0.158, 0.92]}><boxGeometry args={[2.15, 0.015, 0.065]} /><meshStandardMaterial color={zoneColor(pump.location)} /></mesh>
     <group rotation={[0, index % 2 ? Math.PI / 2 : 0, 0]}><HydraulicUnit /></group>
-    <StatusLight state={pump.status.state} reducedMotion={reducedMotion} />
-    <StatusRing state={pump.status.state} selected={active} hovered={hovered} reducedMotion={reducedMotion} />
+    <StatusLight state={pump.status.state} pulse={pulse} />
+    <StatusRing state={pump.status.state} selected={active} hovered={hovered} pulse={pulse} />
     {active && <mesh position={[0, 0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.02, 1.055, 48]} /><meshBasicMaterial color="#2365a5" /></mesh>}
     <mesh position={[1.02, 0.59, 0.80]}><cylinderGeometry args={[0.035, 0.035, 0.86, 8]} /><meshStandardMaterial color="#71858c" /></mesh>
     <Html position={[direction[0] * 1.05, 0.18, direction[1] * 1.48]} center distanceFactor={size.width > 700 ? 0.025 : undefined} zIndexRange={[5, 0]}><button type="button" className="unit-chip" data-status={pump.status.state} aria-pressed={active} aria-label={`${pump.id} · ${stateLabels[pump.status.state] ?? pump.status.state}`} onClick={(event) => { event.stopPropagation(); onSelect(pump.id); }}><span className="unit-chip-symbol" aria-hidden="true">{pump.status.state === 'normal' ? '●' : pump.status.state === 'waspada' ? '▲' : pump.status.state === 'kritis' ? '✖' : '◆'}</span><span className="unit-chip-id">{pump.id}{pump.status.state !== 'normal' && <span className="unit-chip-status"> · {pump.status.state === 'sensor' ? 'Sensor' : pump.status.state === 'ml_error' ? 'ML error' : pump.status.state === 'tidak ada data' ? 'Tanpa data' : stateLabels[pump.status.state]}</span>}</span></button></Html>
   </group>;
 }
 
-export default function FacilityScene({ pumps, selected, onSelect, zoom, rotation, pan, setPan, reducedMotion }: { pumps: Pump[]; selected: string | null; onSelect: (id: string) => void; zoom: number; rotation: number; pan: [number, number]; setPan: Dispatch<SetStateAction<[number, number]>>; reducedMotion: boolean }) {
+export default function FacilityScene({ pumps, selected, focusSelected, onSelect, zoom, rotation, pan, setPan, reducedMotion }: { pumps: Pump[]; selected: string | null; focusSelected: boolean; onSelect: (id: string) => void; zoom: number; rotation: number; pan: [number, number]; setPan: Dispatch<SetStateAction<[number, number]>>; reducedMotion: boolean }) {
   const columns = Math.max(2, Math.ceil(Math.sqrt(pumps.length)));
   const rows = Math.ceil(pumps.length / columns);
   const position = (index: number): [number, number] => {
@@ -194,11 +194,19 @@ export default function FacilityScene({ pumps, selected, onSelect, zoom, rotatio
     return [(index % columns - (columns - 1) / 2) * 3.6 + offset, (Math.floor(index / columns) - (rows - 1) / 2) * 4.3];
   };
   const selectedIndex = pumps.findIndex((pump) => pump.id === selected);
-  const baseFocus = selectedIndex < 0 ? [0, 0] as [number, number] : position(selectedIndex);
+  const baseFocus = selectedIndex < 0 || !focusSelected ? [0, 0] as [number, number] : position(selectedIndex);
   const focus: [number, number] = [baseFocus[0] + pan[0], baseFocus[1] + pan[1]];
   const angle = rotation * Math.PI / 2;
   const direction: [number, number] = [Math.sign(10 * Math.cos(angle) + 12 * Math.sin(angle)), Math.sign(12 * Math.cos(angle) - 10 * Math.sin(angle))];
-  const animated = !reducedMotion && pumps.some((pump) => pump.status.state === 'kritis' || pump.status.state === 'waspada');
+  const alertKey = JSON.stringify(pumps.map((pump) => [pump.id, pump.status.state]));
+  const hasAlert = pumps.some((pump) => pump.status.state === 'kritis' || pump.status.state === 'waspada');
+  const [animated, setAnimated] = useState(false);
+  useEffect(() => {
+    let timer: number | undefined;
+    const update = () => { window.clearTimeout(timer); const active = hasAlert && !reducedMotion && !document.hidden; setAnimated(active); if (active) timer = window.setTimeout(() => setAnimated(false), 8000); };
+    update(); document.addEventListener('visibilitychange', update);
+    return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', update); };
+  }, [alertKey, hasAlert, reducedMotion]);
   const layout = JSON.stringify(pumps.map((pump) => [pump.id, pump.location]));
   const slabW = columns * 3.6 + 3.2;
   const slabD = rows * 4.3 + 3.2;
@@ -226,7 +234,7 @@ export default function FacilityScene({ pumps, selected, onSelect, zoom, rotatio
     <ContactShadows key={`${layout}-${rotation}`} position={[0, 0.16, 0]} scale={[slabW, slabD]} opacity={0.3} blur={2.5} far={4} resolution={512} frames={1} />
     {pumps.map((pump, index) => {
       const [x, z] = position(index);
-      return <Machine key={pump.id} pump={pump} position={[x, z]} active={pump.id === selected} index={index} direction={direction} onSelect={onSelect} reducedMotion={reducedMotion} />;
+      return <Machine key={pump.id} pump={pump} position={[x, z]} active={pump.id === selected} index={index} direction={direction} onSelect={onSelect} pulse={animated} />;
     })}
   </Canvas>;
 }

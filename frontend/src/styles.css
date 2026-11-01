@@ -1,6 +1,6 @@
 :root {
   --bg: #f6f7f9; --surface: #ffffff; --border: #e4e7ec; --border-strong: #d0d5dd;
-  --text: #101828; --muted: #667085; --faint: #98a2b3;
+  --text: #101828; --muted: #667085; --faint: #667085;
   --accent: #1d4ed8; --accent-soft: #eff4ff;
   --ok: #067647; --ok-bg: #ecfdf3; --warn: #b54708; --warn-bg: #fffaeb; --bad: #b42318; --bad-bg: #fef3f2; --info: #475467; --info-bg: #f2f4f7;
   --radius: 10px;
@@ -216,6 +216,10 @@ tr.click { cursor: pointer; } tr.click:hover td { background: #fafbfc; } tr.sel 
 .case-confirm .field { margin-bottom: 10px; }
 .case-action-bar { position: sticky; bottom: 0; z-index: 3; padding: 10px 0; background: #fffcf5; border-top: 1px solid var(--border); }
 .fleet-overview > summary { cursor: pointer; color: var(--accent); padding: 10px 0; font-weight: 600; }
+.confirm-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: #10182899; }
+.confirm-dialog { width: min(100%, 440px); padding: 20px; border-radius: 8px; background: #fff; box-shadow: 0 12px 36px #10182844; }
+.confirm-dialog h2 { font-size: 18px; margin: 0; }
+.confirm-dialog p { margin: 10px 0 16px; }
 .kv { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .timeline { list-style: none; margin: 0; padding: 0; }

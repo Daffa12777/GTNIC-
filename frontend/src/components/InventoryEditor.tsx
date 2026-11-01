@@ -3,10 +3,12 @@ import { api, ApiError } from '../api';
 import type { InventoryItem } from '../types';
 import { errorMessage, RequestState, usePolling } from '../usePolling';
 import { useUnsavedChanges } from '../useUnsavedChanges';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function InventoryEditor({ parts, refresh }: { parts: InventoryItem[]; refresh: () => Promise<void> }) {
   const [part, setPart] = useState<InventoryItem>({ part_id: '', name: '', location: '', stock: 0, min_stock: 1 });
   const [selected, setSelected] = useState('');
+  const [pendingPart, setPendingPart] = useState<string | null>(null);
   const [delta, setDelta] = useState(1);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,6 +27,7 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
     finally { pending.current = false; setBusy(false); }
   };
   const current = parts.find((item) => item.part_id === selected);
+  const choosePart = (id: string) => { setSelected(id); setReason(''); setDelta(1); operation.current = undefined; };
   return <details className="card card-b inventory-editor"><summary>Kelola inventaris</summary>
     {(newPartDirty || stockDirty) && <div className="notice warn" role="status">Ada perubahan inventaris yang belum disimpan.</div>}
     {error && <div role="alert" className="notice bad">{error}</div>}{message && <div role="status" className="notice">{message}</div>}
@@ -40,7 +43,7 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
         await api.adjustStock(selected, { operationId: operation.current.id, delta, reason: reason.trim(), expectedStock: operation.current.expectedStock });
         operation.current = undefined; setReason(''); setDelta(1); setMessage('Perubahan stok tersimpan.'); await history.refresh();
       }); }}><h3>Stok masuk / koreksi</h3><fieldset className="form-stack" disabled={busy}>
-        <label className="field">Spare part<select className="sel" required value={selected} onChange={(e) => { if (stockDirty && !window.confirm('Buang perubahan stok yang belum disimpan dan pilih part lain?')) return; setSelected(e.target.value); setReason(''); setDelta(1); operation.current = undefined; }}><option value="">Pilih part</option>{parts.map((item) => <option value={item.part_id} key={item.part_id}>{item.name} — stok {item.stock}</option>)}</select></label>
+        <label className="field">Spare part<select className="sel" required value={selected} onChange={(e) => { const next = e.target.value; if (stockDirty) setPendingPart(next); else choosePart(next); }}><option value="">Pilih part</option>{parts.map((item) => <option value={item.part_id} key={item.part_id}>{item.name} — stok {item.stock}</option>)}</select></label>
         <label className="field">Perubahan jumlah (+ masuk, − keluar)<input className="input" type="number" required min={-1000000} max={1000000} step={1} value={delta} onChange={(e) => setDelta(Number(e.target.value))} /></label>
         <label className="field">Alasan perubahan<textarea className="textarea" required minLength={5} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
         <p className="sub">Stok setelah perubahan: {current ? current.stock + delta : '—'}</p>
@@ -48,5 +51,6 @@ export default function InventoryEditor({ parts, refresh }: { parts: InventoryIt
       </fieldset></form>
     </div>
     {selected && <section><h3>Riwayat perubahan stok</h3><RequestState {...history} retry={history.refresh} /><ul>{history.data?.map((item) => <li key={item.id}>{new Date(item.createdAt).toLocaleString('id-ID')} · {item.actor}: {item.delta > 0 ? '+' : ''}{item.delta} → {item.balance}. {item.reason}</li>)}</ul>{history.data?.length === 0 && <p className="sub">Belum ada perubahan stok tercatat.</p>}</section>}
+    {pendingPart !== null && <ConfirmDialog title="Ganti spare part?" description="Perubahan stok yang belum disimpan akan dibuang." confirmLabel="Buang dan ganti" onCancel={() => setPendingPart(null)} onConfirm={() => { choosePart(pendingPart); setPendingPart(null); }} />}
   </details>;
 }

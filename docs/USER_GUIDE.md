@@ -15,7 +15,7 @@ Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang
 3. Gunakan **Buka kasus** jika kasus tersedia, atau **Lihat detail unit** untuk melihat data dan tindakan lebih lengkap.
 4. Klik **Tutup** untuk menutup panel dan kembali melihat peta penuh.
 
-Memilih unit memusatkan dan memperbesar peta. Gunakan `+` dan `−` untuk mengatur skala, lalu geser dengan mouse atau sentuhan ketika peta diperbesar. Pada skala awal, geser di ponsel tetap menggulir halaman. Tombol putar kiri/kanan mengubah arah peta 90°, sedangkan **Reset** mengembalikan sudut dan skala awal serta menutup pilihan. **Pilih dari daftar unit** menyediakan pilihan teks untuk keyboard atau bila memilih objek terasa sulit. Jika render gagal, daftar ini tetap dapat digunakan.
+Memilih unit memusatkan dan memperbesar peta. Gunakan `+` dan `−` untuk mengatur skala, lalu geser dengan mouse atau sentuhan ketika peta diperbesar. Pada skala awal, geser di ponsel tetap menggulir halaman. Tombol putar kiri/kanan mengubah arah peta 90°, sedangkan **Reset tampilan** mengembalikan sudut dan skala awal tanpa menutup panel unit. **Pilih dari daftar unit** menyediakan pilihan teks untuk keyboard atau bila memilih objek terasa sulit. Jika render gagal, daftar ini tetap dapat digunakan.
 
 Garis warna di landasan membantu membedakan kategori lokasi Produksi, Fabrikasi, dan Gudang sesuai informasi unit. Susunannya tetap bukan denah sebenarnya.
 
@@ -32,7 +32,7 @@ Brand ManualMechanic di kiri atas mengembalikan pengguna ke dashboard. Tidak ada
 | ML tidak tersedia | Analisis tidak dapat dijalankan; jangan menganggap mesin normal atau rusak |
 | Tidak ada data | Belum tersedia pembacaan untuk dinilai |
 
-Preferensi gerakan minimal perangkat mematikan denyut indikator. Denah dan model masih ilustrasi. Lampu tidak menyatakan mesin fisik sedang berputar atau berhenti.
+Indikator waspada/kritis berdenyut sebentar lalu tetap menyala; denyut berhenti ketika tab tidak aktif. Preferensi gerakan minimal perangkat mematikan denyut. Denah dan model masih ilustrasi. Lampu tidak menyatakan mesin fisik sedang berputar atau berhenti.
 
 ## Detail unit dan diagnosis
 

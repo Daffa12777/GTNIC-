@@ -27,6 +27,10 @@ export const RiskBadge = ({ risk }: { risk: string | null }) =>
   !risk ? null : <Badge tone={risk === 'tinggi' ? 'bad' : risk === 'sedang' ? 'warn' : 'ok'}>Risiko {risk}</Badge>;
 
 export const WO_TONE: Record<string, Tone> = { terbuka: 'warn', terjadwal: 'acc', selesai: 'ok', dibatalkan: 'info' };
+export const WO_LABEL: Record<string, string> = { terbuka: 'Terbuka', terjadwal: 'Terjadwal', selesai: 'Selesai', dibatalkan: 'Dibatalkan' };
+export const PRIORITY_LABEL: Record<string, string> = { rendah: 'Rendah', sedang: 'Sedang', tinggi: 'Tinggi' };
+export const WorkOrderBadge = ({ status }: { status: string }) => <Badge tone={WO_TONE[status] ?? 'info'}>{WO_LABEL[status] ?? status}</Badge>;
+export const PriorityBadge = ({ priority }: { priority: string }) => <Badge tone={priority === 'tinggi' ? 'bad' : priority === 'sedang' ? 'warn' : 'info'}>{PRIORITY_LABEL[priority] ?? priority}</Badge>;
 
 export const fmtTime = (ts: number) =>
   new Date(ts * 1000).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
