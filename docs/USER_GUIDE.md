@@ -77,7 +77,7 @@ Riwayat/draft Asisten disimpan dalam sesi browser per username dan dibersihkan s
 
 ## Notifikasi dan profil
 
-Lonceng pada akun yang login menampilkan notifikasi operasional serta persetujuan. Penanda dibaca berlaku untuk akun tersebut; daftar ini merupakan informasi tim, bukan kotak pesan pribadi teknisi.
+Lonceng menampilkan notifikasi operasional. Pada akun yang login, lonceng juga menampilkan persetujuan dan penanda dibaca berlaku untuk akun tersebut; daftar ini merupakan informasi tim, bukan kotak pesan pribadi teknisi. Pada mode demo notifikasi hanya dapat dilihat dan status dibaca tidak disimpan.
 
 Avatar membuka Profil. Pengguna dapat memperbarui nama/email/username, mengganti password, dan logout. Role ditampilkan sebagai informasi, bukan diedit sendiri. Mengganti password mencabut sesi sehingga perlu login kembali. Penghapusan akun memerlukan konfirmasi password; supervisor aktif terakhir tidak dapat dihapus.
 

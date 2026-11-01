@@ -100,7 +100,8 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             </label>
             <p className="sub">Mode LLM mengubah cara Asisten menjawab. Agent otomatis memantau unit dan dapat membuat kasus serta tindakan; risiko tinggi memerlukan persetujuan supervisor.</p>
           </div></details>
-          {user && <><NotificationBell onOpenCase={openCase} /><ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} /></>}
+          <NotificationBell onOpenCase={openCase} demo={!user} />
+          {user && <ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} />}
         </div>
       </header>
 
