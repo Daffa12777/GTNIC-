@@ -12,7 +12,7 @@ Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang
 
 1. Klik objek mesin atau label ID di atasnya untuk memilih unit. Titik pada label menunjukkan status.
 2. Panel menampilkan nama, lokasi/model, status, dugaan ML, keyakinan, kasus terbuka, dan jumlah work order.
-3. Gunakan **Buka kasus** jika kasus tersedia, atau **Lihat detail unit** untuk melihat data dan tindakan lebih lengkap.
+3. Gunakan **Buka kasus** jika kasus tersedia, **Analisis unit ini** jika belum ada kasus, atau **Lihat detail unit** untuk melihat data lebih lengkap.
 4. Klik **Tutup** untuk menutup panel dan kembali melihat peta penuh.
 
 Memilih unit memusatkan dan memperbesar peta. Gunakan `+` dan `−` untuk mengatur skala, lalu geser dengan mouse atau sentuhan ketika peta diperbesar. Pada skala awal, geser di ponsel tetap menggulir halaman. Tombol putar kiri/kanan mengubah arah peta 90°, sedangkan **Reset tampilan** mengembalikan sudut dan skala awal tanpa menutup panel unit. **Pilih dari daftar unit** menyediakan pilihan teks untuk keyboard atau bila memilih objek terasa sulit. Jika render gagal, daftar ini tetap dapat digunakan.
@@ -36,7 +36,7 @@ Indikator waspada/kritis berdenyut sebentar lalu tetap menyala; denyut berhenti 
 
 ## Detail unit dan diagnosis
 
-Detail unit membuka layar operasional dengan grafik sensor, komponen, langkah berikutnya, dan work order. Garis putus-putus pada grafik menunjukkan nilai nominal sehat dari profil. Persentase perubahan grafik bukan persentase kerusakan mesin.
+Detail unit membuka layar operasional dengan grafik sensor, komponen, langkah berikutnya, dan work order. Ringkasan armada dapat dibuka jika diperlukan; **Kembali ke peta** kembali ke dashboard. Garis putus-putus pada grafik menunjukkan nilai nominal sehat dari profil. Persentase perubahan grafik bukan persentase kerusakan mesin.
 
 Gunakan **Analisis unit ini** untuk memulai diagnosis. Jika unit memiliki kasus terbuka, buka kasus tersebut untuk melanjutkan penanganan. Analisis prioritas dapat memproses beberapa unit yang perlu perhatian dan dapat membuat catatan/tindakan; ini bukan sekadar refresh visual.
 
@@ -71,7 +71,7 @@ Pengajuan pembelian dibuat oleh alur tool saat dibutuhkan. Aplikasi belum terint
 
 Masukkan ID unit dan gejala yang jelas, misalnya: “Pump-02 oli panas dan respons aktuator melambat.” Asisten dapat menanyakan klarifikasi atau menghubungkan percakapan dengan kasus.
 
-**Mode LLM** mengubah cara Asisten menyusun jawaban/memilih tool dan membutuhkan Gemini yang terkonfigurasi. **Agent otomatis** adalah kontrol berbeda: monitor dapat memulai penanganan ketika pola perhatian ditemukan. Perubahan agent otomatis hanya untuk supervisor.
+Buka **Pengaturan agent** di navbar untuk mengubah peran demo atau mode yang tersedia. **Mode LLM** mengubah cara Asisten menyusun jawaban/memilih tool dan membutuhkan Gemini yang terkonfigurasi. **Agent otomatis** adalah kontrol berbeda: monitor dapat memulai penanganan ketika pola perhatian ditemukan. Perubahan agent otomatis hanya untuk supervisor.
 
 Riwayat/draft Asisten disimpan dalam sesi browser per username dan dibersihkan saat logout. Riwayat tidak disinkronkan antarperangkat.
 

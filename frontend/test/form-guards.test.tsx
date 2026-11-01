@@ -27,6 +27,9 @@ it('does not discard a work report when filtering or closing its form is cancell
   vi.spyOn(api, 'workOrdersPage').mockResolvedValue({ items: [order], total: 1, page: 1, pageSize: 20, technicians: [], units: ['Pump-01'] });
   render(<WorkOrders flash={() => {}} onChanged={() => {}} onOpenCase={() => {}} />);
   fireEvent.click(await screen.findByText('Selesaikan'));
+  expect(screen.getByLabelText('Akar masalah').tagName).toBe('TEXTAREA');
+  expect(screen.getByLabelText('Tindakan').tagName).toBe('TEXTAREA');
+  expect(screen.getAllByText('Terbuka').length).toBeGreaterThan(0);
   fireEvent.change(screen.getByLabelText('Akar masalah'), { target: { value: 'Seal aus' } });
   fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'selesai' } });
   fireEvent.click(screen.getByRole('button', { name: 'Batal' }));

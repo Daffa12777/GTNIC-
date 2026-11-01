@@ -48,11 +48,11 @@ export default function FacilityMap({ ov, updated, freshness, demoRole = false, 
     ['produksi', 'Produksi'], ['fabrikasi', 'Fabrikasi'], ['gudang', 'Gudang'],
   ].filter(([key]) => ov.pumps.some((item) => (item.location ?? '').toLowerCase().includes(key)));
   return <div className="page facility-page">
-    <div className="page-head"><div><h1>Dashboard</h1><p>Pilih mesin atau simbol status untuk melihat kondisinya.</p></div></div>
+    <div className="page-head"><div><h1>Dashboard</h1><p>Pilih mesin atau simbol status.</p></div></div>
     {(ov.simulator || ov.ml.source === 'demo_synthetic' || demoRole) && <div className="notice warn facility-demo">Demo: {[ov.simulator && 'sensor simulasi', ov.ml.source === 'demo_synthetic' && 'model dilatih dengan data sintetis', demoRole && 'peran demo bukan autentikasi'].filter(Boolean).join(' · ')}.</div>}
     {!ov.ml.ok && <div className="notice bad">Layanan ML tidak tersedia. Status terakhir mungkin belum mencerminkan kondisi terbaru.</div>}
     <section className="facility card" aria-labelledby="facility-title">
-      <div className="facility-head"><div><h2 id="facility-title">Peta kondisi unit</h2><p>Posisi dan bentuk mesin adalah ilustrasi. Warna dan animasi menandai status analisis, bukan gerakan mesin sebenarnya.</p></div>{freshness ?? (updated != null && <span className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time></span>)}</div>
+      <div className="facility-head"><div><h2 id="facility-title">Peta kondisi unit</h2><p>Posisi ilustratif. Warna menandai analisis, bukan gerakan mesin.</p></div>{freshness ?? (updated != null && <span className="sub">Pembaruan terakhir: <time dateTime={new Date(updated).toISOString()}>{new Date(updated).toLocaleTimeString('id-ID')}</time></span>)}</div>
       {!ov.pumps.length ? <div className="facility-placeholder">Belum ada unit terdaftar.</div> : <>
         <div className={`facility-layout ${pump ? '' : 'facility-layout-overview'}`}>
           <div className="facility-canvas-panel"><div className="facility-meta">

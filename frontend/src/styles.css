@@ -22,6 +22,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -0.02em; }
 .brand { color: var(--text); text-decoration: none; flex-shrink: 0; }
 .brand:hover { color: var(--accent); }
+.brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-avatar { width: 40px; height: 40px; flex-shrink: 0; display: grid; place-items: center; border: 2px solid transparent; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; cursor: pointer; }
 .profile-avatar:hover, .profile-avatar.active { border-color: var(--accent); }
 .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
@@ -31,7 +32,13 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .nav button.on { color: var(--accent); border-bottom-color: var(--accent); }
 .nav .count { margin-left: 6px; background: var(--info-bg); color: var(--info); border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 600; }
 .nav .count.alert { background: var(--bad-bg); color: var(--bad); }
-.controls { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.controls { margin-left: auto; }
+.agent-settings { position: relative; flex-shrink: 0; }
+.agent-settings > summary { list-style: none; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 8px; padding: 7px 10px; white-space: nowrap; font-size: 12.5px; }
+.agent-settings > summary::-webkit-details-marker { display: none; }
+.agent-settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.agent-settings-panel { position: absolute; top: calc(100% + 8px); right: 0; width: min(330px, calc(100vw - 24px)); padding: 14px; display: grid; gap: 10px; box-shadow: 0 8px 24px #10182822; z-index: 20; }
+.agent-settings-panel p { margin: 0; }
 .ctl { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .mode-help { position: relative; }
 .mode-help > summary { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--muted); cursor: pointer; list-style: none; font-size: 12px; font-weight: 600; }
@@ -102,7 +109,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .facility-units { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .facility-unit { display: flex; align-items: center; gap: 8px; min-height: 40px; border: 1px solid var(--border-strong); border-radius: 8px; background: white; padding: 6px 10px; cursor: pointer; }
 .facility-unit.is-selected { border-color: var(--accent); background: var(--accent-soft); }
-@media (max-width: 700px) { .facility-layout { grid-template-columns: 1fr; } .facility-visual { height: clamp(340px, calc(100dvh - 250px), 620px); } .facility-summary { width: 100%; margin-left: 0; } .unit-chip { min-height: 22px; padding: 1px 3px; gap: 2px; font-size: 10px; } .unit-chip-symbol { font-size: 10px; } .unit-chip-status { display: none; } .facility-panel { padding: 16px; } .facility-head { align-items: flex-start; flex-direction: column; gap: 4px; } }
+@media (max-width: 700px) { .facility-layout { grid-template-columns: 1fr; } .facility-visual { height: clamp(320px, calc(100dvh - 320px), 560px); } .facility-summary { width: 100%; margin-left: 0; } .unit-chip { min-height: 22px; padding: 1px 3px; gap: 2px; font-size: 10px; } .unit-chip-symbol { font-size: 10px; } .unit-chip-status { display: none; } .facility-panel { padding: 16px; } .facility-head { align-items: flex-start; flex-direction: column; gap: 4px; padding: 10px 12px; } .facility-page { padding-top: 8px; } .facility-page .page-head { margin-bottom: 8px; } }
 .overview-summary strong { font-size: 15px; }
 .overview-summary > div > span { color: var(--muted); font-size: 13px; }
 .triage-result { margin-bottom: 16px; }
@@ -151,6 +158,8 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .markdown pre { overflow-x: auto; padding: 12px; background: var(--bg); border-radius: 6px; }
 .pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
 .pagination > span { margin-right: auto; }
+.work-order-title { max-width: 380px; }
+.work-order-actions { text-align: right; }
 .service-container { padding-top: 12px; padding-bottom: 0; }
 .service-status > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--muted); font-size: 12px; }
 .service-status > .card { margin-top: 8px; }
@@ -289,13 +298,28 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .topbar-in { height: auto; min-height: 56px; flex-wrap: wrap; overflow: visible; padding: 12px; }
   .nav { order: 3; width: 100%; overflow-x: auto; height: 42px; }
   .nav button { flex-shrink: 0; }
-  .controls { flex-wrap: wrap; }
   .unit-detail { grid-template-columns: minmax(0, 1fr); }
   .page-head, .card-h { flex-wrap: wrap; align-items: flex-start; }
 }
 @media (max-width: 600px) {
-  .controls { order: 2; }
-  .controls { width: 100%; margin-left: 0; gap: 12px; }
+  .card > .work-orders-table { min-width: 0; }
+  .work-orders-table, .work-orders-table tbody { display: block; }
+  .work-orders-table thead { display: none; }
+  .work-order-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 14px; border-bottom: 1px solid var(--border); }
+  .work-order-row td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .work-order-row td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
+  .work-order-row .work-order-title { grid-column: 1 / -1; max-width: none; }
+  .work-order-actions { text-align: left; align-self: end; }
+  .work-order-report, .work-order-report td { display: block; width: 100%; }
+  .work-order-report .field { width: 100%; }
+  .topbar-in { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; }
+  .brand { grid-row: 1; grid-column: 1; min-width: 0; gap: 6px; font-size: 13px; white-space: nowrap; }
+  .controls { grid-row: 1; grid-column: 2; margin: 0; }
+  .agent-settings > summary { padding: 7px 6px; font-size: 11px; }
+  .notification-bell { grid-row: 1; grid-column: 3; }
+  .profile-avatar { grid-row: 1; grid-column: 4; margin: 0; }
+  .nav { grid-row: 2; grid-column: 1 / -1; }
+  .agent-settings-panel { position: fixed; top: 58px; right: 12px; }
   .nav button { padding: 0 8px; font-size: 12.5px; }
   .inventory-grid { grid-template-columns: minmax(0, 1fr); }
   .charts { grid-template-columns: minmax(0, 1fr); }

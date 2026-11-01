@@ -73,25 +73,25 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
       <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
       <div className="card">
         {rows.length === 0 ? result.data && <Empty>Tidak ada pekerjaan pada halaman ini atau sesuai filter.</Empty> : (
-          <table>
+          <table className="work-orders-table">
             <thead><tr><th>ID</th><th>Unit</th><th>Pekerjaan</th><th>Prioritas</th><th>Status</th><th>Teknisi</th><th></th></tr></thead>
             <tbody>
               {rows.map((w) => (
                 <Fragment key={w.id}>
-                  <tr>
-                    <td className="id">{w.id}</td>
-                    <td>{w.pump_id}</td>
-                    <td style={{ maxWidth: 380 }}>{w.title}<div className="sub">{fmtTime(w.created_at)}{w.part ? ` · Part: ${w.part}` : ''}{w.case_id ? <> · <a href="#kasus" onClick={(e) => { e.preventDefault(); onOpenCase(w.case_id); }}>{w.case_id}</a></> : null}</div></td>
-                    <td><PriorityBadge priority={w.priority} /></td>
-                    <td><WorkOrderBadge status={w.status} /></td>
-                    <td>{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
-                    <td style={{ textAlign: 'right' }}>{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => setOpen(next))) setOpen(next); }}>Selesaikan</button>}</td>
+                  <tr className="work-order-row">
+                    <td className="id" data-label="Work order">{w.id}</td>
+                    <td data-label="Unit">{w.pump_id}</td>
+                    <td className="work-order-title" data-label="Pekerjaan">{w.title}<div className="sub">{fmtTime(w.created_at)}{w.part ? ` · Part: ${w.part}` : ''}{w.case_id ? <> · <a href="#kasus" onClick={(e) => { e.preventDefault(); onOpenCase(w.case_id); }}>{w.case_id}</a></> : null}</div></td>
+                    <td data-label="Prioritas"><PriorityBadge priority={w.priority} /></td>
+                    <td data-label="Status"><WorkOrderBadge status={w.status} /></td>
+                    <td data-label="Teknisi">{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
+                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => setOpen(next))) setOpen(next); }}>Selesaikan</button>}</td>
                   </tr>
                   {open === w.id && (
-                    <tr><td colSpan={7} style={{ background: '#fafbfc' }}>
+                    <tr className="work-order-report"><td colSpan={7} style={{ background: '#fafbfc' }}>
                       <form className="row wrap" aria-busy={busy} onSubmit={(e) => { e.preventDefault(); void complete(w.id); }}>
-                        <label className="field">Akar masalah<input className="input" required maxLength={2000} disabled={busy} placeholder="Akar masalah yang ditemukan" value={cause} onChange={(e) => setCause(e.target.value)} /></label>
-                        <label className="field">Tindakan<input className="input" required maxLength={2000} disabled={busy} placeholder="Tindakan yang dilakukan" value={action} onChange={(e) => setAction(e.target.value)} /></label>
+                        <label className="field">Akar masalah<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Akar masalah yang ditemukan" value={cause} onChange={(e) => setCause(e.target.value)} /></label>
+                        <label className="field">Tindakan<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Tindakan yang dilakukan" value={action} onChange={(e) => setAction(e.target.value)} /></label>
                         <button className="btn primary" disabled={busy || !cause.trim() || !action.trim()}>{busy ? 'Menyimpan…' : 'Simpan dan tutup'}</button>
                         {error && <div className="form-error" role="alert">{error}</div>}
                       </form>

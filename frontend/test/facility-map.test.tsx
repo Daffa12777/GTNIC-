@@ -4,7 +4,7 @@ import FacilityMap from '../src/components/FacilityMap';
 import { api } from '../src/api';
 import type { Overview, Pump } from '../src/types';
 
-vi.mock('../src/components/FacilityScene', () => ({ default: ({ zoom, rotation }: { zoom: number; rotation: number }) => <div data-testid="scene" data-zoom={zoom} data-rotation={rotation}>Peta tersedia</div> }));
+vi.mock('../src/components/FacilityScene', () => ({ default: ({ zoom, rotation, focusSelected }: { zoom: number; rotation: number; focusSelected: boolean }) => <div data-testid="scene" data-zoom={zoom} data-rotation={rotation} data-focus-selected={String(focusSelected)}>Peta tersedia</div> }));
 afterEach(cleanup);
 
 it('selects an actual unit and keeps its unavailable status and case accessible', () => {
@@ -55,6 +55,7 @@ it('zooms relative to the fitted view and resets the selection', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Reset tampilan' }));
   expect(scene.getAttribute('data-zoom')).toBe('1');
   expect(scene.getAttribute('data-rotation')).toBe('0');
+  expect(scene.getAttribute('data-focus-selected')).toBe('false');
   expect(select).not.toHaveBeenCalled();
   expect(screen.getByText('Unit terpilih')).toBeTruthy();
 });
