@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Prisma } from '../generated/prisma/client';
 import { CONFIG, ROOT } from '../config';
 import { now } from '../domain';
+import { ADDITIONAL_DEMO_PUMPS } from './additional-demo-pumps';
 
 /** Shape of legacy SQL projections. New mutations use generated Prisma model types. */
 export interface DbRow {
@@ -66,6 +67,7 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
       ['Pump-02', 'HPU Injeksi Plastik', 'Produksi, Line 2', 'HPU-75', 'tinggi'],
       ['Pump-03', 'HPU Pengepres Logam', 'Fabrikasi, Area B', 'HPU-55', 'sedang'],
       ['Pump-04', 'HPU Conveyor Hidrolik', 'Gudang, Area C', 'HPU-37', 'sedang'],
+      ...ADDITIONAL_DEMO_PUMPS.map((pump) => [pump.id, pump.name, pump.location, pump.model, pump.criticality]),
     ];
     for (const p of pumps) await this.x('INSERT INTO pumps VALUES ($1,$2,$3,$4,$5)', p);
     const inv = [

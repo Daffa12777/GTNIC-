@@ -16,10 +16,11 @@ def material(name, color, metallic=0.0, roughness=0.5):
     mat.roughness = roughness
     return mat
 
-blue = material('Painted steel blue', (0.08, 0.22, 0.32), 0.35)
-body = material('Reservoir blue', (0.15, 0.34, 0.42), 0.25)
-steel = material('Steel', (0.48, 0.56, 0.57), 0.75, 0.3)
-dark = material('Rubber and dark steel', (0.045, 0.065, 0.07), 0.2)
+blue = material('Painted steel blue', (0.08, 0.22, 0.32), 0.35, 0.38)
+body = material('Reservoir blue', (0.15, 0.34, 0.42), 0.25, 0.48)
+steel = material('Steel', (0.48, 0.56, 0.57), 0.75, 0.28)
+dark = material('Dark steel', (0.045, 0.065, 0.07), 0.4, 0.42)
+rubber = material('Rubber hose', (0.045, 0.055, 0.05), 0.0, 0.86)
 light = material('Gauge face', (0.84, 0.9, 0.88))
 yellow = material('Safety yellow', (0.93, 0.64, 0.08))
 red = material('Valve handle', (0.73, 0.12, 0.09))
@@ -87,7 +88,7 @@ box('Valve manifold', (0.48, 0.0, 1.02), (0.52, 0.74, 0.31), steel)
 for y in (-0.23, 0, 0.23):
     cylinder('Solenoid valve', (0.48, y, 1.28), 0.075, 0.28, dark)
     cylinder('Valve cap', (0.48, y, 1.44), 0.08, 0.04, blue)
-    pipe('Hydraulic hose', [(0.7, y, 1.04), (0.86, y, 1.04), (0.86, y, 0.72), (0.55, y, 0.72)], 0.035, dark)
+    pipe('Hydraulic hose', [(0.7, y, 1.04), (0.86, y, 1.04), (0.86, y, 0.72), (0.55, y, 0.72)], 0.035, rubber)
 cylinder('Gauge stem', (0.7, -0.25, 1.42), 0.025, 0.3, steel)
 cylinder('Pressure gauge bezel', (0.7, -0.25, 1.61), 0.14, 0.055, dark, (math.pi / 2, 0, 0))
 cylinder('Pressure gauge face', (0.7, -0.282, 1.61), 0.115, 0.01, light, (math.pi / 2, 0, 0))
@@ -98,7 +99,21 @@ box('Control panel', (0.74, 0.365, 0.98), (0.25, 0.02, 0.3), blue)
 for z, mat in ((1.08, red), (0.98, yellow), (0.88, dark)):
     cylinder('Control button', (0.74, 0.345, z), 0.035, 0.03, mat, (math.pi / 2, 0, 0))
 
+# Bake contact occlusion into vertex colors after applying the edge modifiers.
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.convert(target='MESH')
+bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
+bpy.ops.object.join()
+asset = bpy.context.object
+asset.name = 'Hydraulic power unit'
+asset.data.color_attributes.new(name='BakedAO', type='BYTE_COLOR', domain='CORNER')
+asset.data.color_attributes.active_color = asset.data.color_attributes['BakedAO']
+bpy.context.scene.render.engine = 'CYCLES'
+bpy.context.scene.cycles.samples = 24
+bpy.context.scene.render.bake.target = 'VERTEX_COLORS'
+bpy.ops.object.bake(type='AO')
+
 output = Path(__file__).resolve().parents[1] / 'public' / 'models' / 'hydraulic-unit.glb'
 output.parent.mkdir(parents=True, exist_ok=True)
-bpy.ops.export_scene.gltf(filepath=str(output), export_format='GLB', export_apply=True)
+bpy.ops.export_scene.gltf(filepath=str(output), export_format='GLB', export_apply=True, export_vertex_color='ACTIVE')
 print(f'Exported {output}')

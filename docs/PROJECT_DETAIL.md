@@ -1,5 +1,7 @@
 # ManualMechanic: AI Agent Diagnosis & Tindak Lanjut Perawatan Pompa Industri
 
+> Arsip konsep awal. Dokumen ini memuat rancangan pompa sentrifugal, jumlah unit, dan teknologi yang tidak semuanya sesuai implementasi web sekarang. Untuk spesifikasi terkini gunakan [PRD](PRD.md), [dokumentasi teknis](TECHNICAL.md), dan [README](../README.md). Jangan memakai target/manfaat atau jadwal di arsip ini sebagai hasil yang telah terverifikasi.
+
 > Proyek untuk **GTNIC 2026 (Garda Tech National Innovation Competition)**, kategori **AI Agent Development**
 > Sub-tema: *Building Intelligent AI Agents for Enterprise Productivity* (Enterprise & Industry)
 
