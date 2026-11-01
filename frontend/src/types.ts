@@ -35,6 +35,12 @@ export interface Case {
   summary: string | null; created_at: number; mode: string;
   trace?: TraceItem[]; question?: string | null; plan?: { fault: string; confidence: number; risk: string; citation: string; advice?: string } | null; probs?: Record<string, number> | null;
 }
+export interface CaseContext {
+  related: { id: string; status: string; fault: string | null; created_at: number }[];
+  orders: WorkOrder[];
+  recent_closed: WorkOrder[];
+  preview: { title: string; priority: string; part: string | null; stock: number | null; inventory_found: boolean; skill: string; senior: boolean; existing_order: string | null } | null;
+}
 export interface WorkOrder {
   id: string; pump_id: string; case_id: string; title: string; description: string; priority: string; status: string;
   technician: string | null; scheduled_at: string | null; part: string; created_at: number;
@@ -45,7 +51,7 @@ export interface Technician { id: string; name: string; skill: string; level: st
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
 export interface Notification { id: number; ts: number; recipient: string; message: string; status: string }
 export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }
-export interface RecordsPage<T> { items: T[]; total: number; page: number; pageSize: number }
+export interface RecordsPage<T> { items: T[]; total: number; page: number; pageSize: number; counts?: Record<string, number> }
 export interface WorkOrdersPage extends RecordsPage<WorkOrder> { technicians: { id: string; name: string }[]; units: string[] }
 export interface LlmConnectionStatus { state: 'unconfigured' | 'unchecked' | 'ready' | 'error'; checkedAt: number | null; code: string | null; message: string }
 export interface ServicesStatus { checkedAt: number; database: { ok: boolean }; ml: { ok: boolean }; llm: LlmConnectionStatus }

@@ -53,7 +53,8 @@ describe('ManualMechanic end-to-end', () => {
   run('health dan overview', async () => {
     expect((await api().get('/api/health')).body.ok).toBe(true);
     const o = (await api().get('/api/overview')).body;
-    expect(o.pumps).toHaveLength(4);
+    expect(o.pumps).toHaveLength(6);
+    expect(o.pumps.map((pump: { id: string }) => pump.id)).toEqual(['Pump-01', 'Pump-02', 'Pump-03', 'Pump-04', 'Pump-05', 'Pump-06']);
     expect(o.ml.ok).toBe(true);
     expect(o.pumps.every((p: any) => p.status.state === 'normal')).toBe(true);
   });

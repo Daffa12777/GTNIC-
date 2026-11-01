@@ -13,8 +13,8 @@ export default function ServiceStatus() {
   const llm = probe && (!current?.checkedAt || (probe.checkedAt ?? 0) >= current.checkedAt) ? probe : current;
   return <details className="service-status"><summary>Status layanan <Badge tone={services.error || llm?.state === 'error' || services.data?.ml.ok === false || services.data?.database.ok === false ? 'warn' : 'info'}>{services.error ? 'Koneksi terganggu' : llm?.state === 'error' ? 'Gemini bermasalah' : 'Detail'}</Badge></summary>
     <div className="card card-b"><div className="row wrap">
-      <Badge tone={services.data?.database.ok && !services.error ? 'ok' : 'warn'}>Database: {services.data?.database.ok && !services.error ? 'Terhubung' : 'Belum terkonfirmasi'}</Badge>
-      <Badge tone={services.data?.ml.ok && !services.error ? 'ok' : 'warn'}>ML sensor: {services.data?.ml.ok && !services.error ? 'Terhubung' : 'Belum terkonfirmasi'}</Badge>
+      <Badge tone={services.data?.database.ok && !services.error ? 'ok' : 'warn'}>Database: {services.error || !services.data ? 'Belum terkonfirmasi' : services.data.database.ok ? 'Terhubung' : 'Tidak tersedia'}</Badge>
+      <Badge tone={services.data?.ml.ok && !services.error ? 'ok' : 'warn'}>ML sensor: {services.error || !services.data ? 'Belum terkonfirmasi' : services.data.ml.ok ? 'Terhubung' : 'Tidak tersedia'}</Badge>
       <Badge tone={llm?.state === 'ready' ? 'ok' : llm?.state === 'error' ? 'bad' : 'info'}>Gemini: {llm?.state === 'ready' ? 'Uji terakhir berhasil' : llm?.state === 'error' ? 'Gagal' : llm?.state === 'unconfigured' ? 'Belum dikonfigurasi' : 'Belum diuji'}</Badge>
     </div><p>{llm?.message ?? 'Memeriksa koneksi backend…'}{llm?.code ? ` (${llm.code})` : ''}</p>
     {llm?.checkedAt && <p className="sub">Hasil Gemini terakhir: {new Date(llm.checkedAt).toLocaleString('id-ID')}. Status ini bukan jaminan kuota untuk permintaan berikutnya.</p>}

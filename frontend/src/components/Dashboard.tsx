@@ -6,7 +6,7 @@ import { RequestState, usePolling, errorMessage } from '../usePolling';
 import SensorChart from './SensorChart';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
-import { Badge, Empty, StateBadge, pct } from './ui';
+import { Badge, CASE, Empty, StateBadge, fmtTime, pct } from './ui';
 
 const FAULTS: [string, string][] = [['pump', 'Kebocoran pompa'], ['valve', 'Katup lambat'], ['cooler', 'Pendingin'], ['accumulator', 'Akumulator']];
 
@@ -51,10 +51,15 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
   const [faultPump, setFaultPump] = useState('Pump-02');
   const [fault, setFault] = useState('cooler');
   const [sudden, setSudden] = useState(false);
+  const [triageResult, setTriageResult] = useState<Awaited<ReturnType<typeof api.triage>> | null>(null);
 
   const count = (s: string) => ov.pumps.filter((p) => p.status.state === s).length;
+  const assessed = ov.pumps.filter((p) => ['normal', 'waspada', 'kritis'].includes(p.status.state)).length;
+  const unassessed = ov.pumps.length - assessed;
   const openCases = ov.pumps.filter((p) => p.open_case).length;
   const pump: Pump | undefined = ov.pumps.find((p) => p.id === sel);
+  const pendingCases = cases.data?.filter((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)) ?? [];
+  const visiblePumps = ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase()));
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -70,38 +75,62 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
           <h1>Ringkasan unit</h1>
           <p>Status tiap unit tenaga hidrolik dari pembacaan sensor, dianalisis model ML dan agent.</p>
         </div>
-        <button className="btn primary" disabled={busy} onClick={() => run(() => api.triage(), 'Triase selesai: unit bermasalah dianalisis berurutan prioritas')}>
-          Triase semua unit
-        </button>
+        <div className="overview-action">
+          <button className="btn primary" disabled={busy} onClick={() => run(async () => { setTriageResult(null); setTriageResult(await api.triage()); }, 'Analisis prioritas selesai')}>
+            {busy ? 'Sedang memproses…' : 'Analisis unit prioritas'}
+          </button>
+          <span className="sub">Menganalisis unit yang perlu perhatian. Agent dapat membuat kasus dan tindakan sesuai aturan risiko.</span>
+        </div>
       </div>
 
       {!ov.ml.ok && <div className="notice bad">Layanan ML tidak dapat dihubungi: {ov.ml.error}. Diagnosis tidak dapat berjalan sampai layanan aktif.</div>}
-      {ov.ml.ok && ov.ml.source === 'demo_synthetic' && (
-        <div className="notice warn">Model saat ini dilatih dari data demo sintetis berformat UCI, bukan dataset asli. Jalankan <code>python train.py --download</code> di folder <code>ml</code> untuk melatih dari dataset UCI asli.</div>
-      )}
+      {ov.ml.ok && ov.ml.source === 'demo_synthetic' && <div className="notice warn">Mode demo: analisis memakai model yang dilatih dari data sintetis.</div>}
+
+      <div className="overview-summary">
+        <div><strong>Kondisi unit saat ini</strong><span>{assessed} dari {ov.pumps.length} unit dapat dinilai{unassessed > 0 ? ` · ${unassessed} belum dapat dinilai` : ''}</span></div>
+        <span className="sub">Berdasarkan pembacaan sensor dan analisis terbaru.</span>
+      </div>
 
       <div className="grid stats">
-        <div className="card stat"><div className="k">Normal</div><div className="v num">{count('normal')}</div></div>
-        <div className="card stat"><div className="k">Waspada</div><div className="v num" style={{ color: count('waspada') ? 'var(--warn)' : undefined }}>{count('waspada')}</div></div>
-        <div className="card stat"><div className="k">Kritis</div><div className="v num" style={{ color: count('kritis') ? 'var(--bad)' : undefined }}>{count('kritis')}</div></div>
+        <div className="card stat"><div className="k">Normal</div><div className="v num">{assessed ? count('normal') : '—'}</div></div>
+        <div className="card stat"><div className="k">Waspada</div><div className="v num" style={{ color: count('waspada') ? 'var(--warn)' : undefined }}>{assessed ? count('waspada') : '—'}</div></div>
+        <div className="card stat"><div className="k">Kritis</div><div className="v num" style={{ color: count('kritis') ? 'var(--bad)' : undefined }}>{assessed ? count('kritis') : '—'}</div></div>
         <div className="card stat"><div className="k">Kasus terbuka</div><div className="v num">{openCases}</div></div>
       </div>
 
+      {triageResult && <section className="card triage-result" aria-live="polite" aria-labelledby="triage-result-title">
+        <div className="card-h"><h3 id="triage-result-title">Hasil analisis prioritas</h3><span className="sub">{triageResult.cases.length} unit diproses</span></div>
+        <div className="card-b">
+          {triageResult.cases.length === 0 ? <p>Tidak ada unit yang memerlukan analisis prioritas saat ini.</p> : triageResult.cases.map((result) => <div className="attention-row" key={result.pump_id}>
+            <div><b>{result.pump_id}</b><div className="sub">{result.status ? CASE[result.status]?.[1] ?? result.status : 'Status kasus belum tersedia'}</div></div>
+            {result.case_id && <button className="btn sm" onClick={() => onOpenCase(result.case_id!)}>Lihat kasus {result.case_id}</button>}
+          </div>)}
+        </div>
+      </section>}
+
       <section className="card attention" aria-labelledby="attention-title">
-        <div className="card-h"><h3 id="attention-title">Perlu tindakan</h3><span className="sub">Approval, klarifikasi, dan unit kritis</span></div>
+        <div className="card-h"><div><h3 id="attention-title">Perlu tindakan</h3><span className="sub">Keputusan yang menunggu dan unit yang perlu diperiksa</span></div></div>
         <div className="card-b">
           <RequestState {...cases} retry={cases.refresh} />
-          {cases.data?.filter((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)).map((c) => <div className="attention-row" key={c.id}><div><b>{c.pump_id} · {c.status === 'menunggu_persetujuan' ? 'Persetujuan supervisor' : 'Jawaban teknisi'}</b><div className="sub">{c.summary}</div></div><button className="btn sm" onClick={() => onOpenCase(c.id)}>Buka {c.id}</button></div>)}
-          {ov.pumps.filter((p) => ['kritis', 'sensor', 'ml_error'].includes(p.status.state)).map((p) => <div className="attention-row" key={p.id}><div><b>{p.id} · {p.name}</b> <StateBadge state={p.status.state} /></div><button className="btn sm" onClick={() => p.open_case ? onOpenCase(p.open_case) : onSelect(p.id)}>Periksa unit</button></div>)}
+          {pendingCases.map((c) => {
+            const current = ov.pumps.find((p) => p.id === c.pump_id);
+            return <div className="attention-row" key={c.id}><div>
+              <b>{c.pump_id ?? 'Unit'} · {c.status === 'menunggu_persetujuan' ? 'Menunggu persetujuan supervisor' : 'Menunggu jawaban teknisi'}</b>
+              <div className="sub">Kasus {c.id} · Dibuat {fmtTime(c.created_at)}</div>
+              <div className="attention-summary">{c.summary}</div>
+              {current && <div className="sub">Kondisi unit saat ini: <StateBadge state={current.status.state} /></div>}
+            </div><button className="btn sm" onClick={() => onOpenCase(c.id)}>{c.status === 'menunggu_persetujuan' ? 'Tinjau persetujuan' : 'Jawab pertanyaan'} <span className="sr-only">{c.id}</span></button></div>;
+          })}
+          {ov.pumps.filter((p) => ['kritis', 'sensor', 'ml_error'].includes(p.status.state) && !pendingCases.some((c) => c.id === p.open_case)).map((p) => <div className="attention-row" key={p.id}><div><b>{p.id} · {p.name}</b> <StateBadge state={p.status.state} /></div><button className="btn sm" onClick={() => p.open_case ? onOpenCase(p.open_case) : onSelect(p.id)}>Periksa unit</button></div>)}
           {cases.data && !cases.data.some((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)) && !ov.pumps.some((p) => ['kritis', 'sensor', 'ml_error'].includes(p.status.state)) && <Empty>Tidak ada tindakan mendesak.</Empty>}
         </div>
       </section>
-      <div className="filters"><SearchField label="Cari unit" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, nama, atau lokasi" pending={query !== search} /><label>Status<select className="sel" value={state} onChange={(e) => setState(e.target.value)}><option value="">Semua status</option>{['normal', 'waspada', 'kritis', 'sensor', 'ml_error', 'tidak ada data'].map((s) => <option key={s}>{s}</option>)}</select></label></div>
+      <div className="filters"><SearchField label="Cari unit" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, nama, atau lokasi" pending={query !== search} /><label>Status<select className="sel" value={state} onChange={(e) => setState(e.target.value)}><option value="">Semua status</option>{[['normal', 'Normal'], ['waspada', 'Waspada'], ['kritis', 'Kritis'], ['sensor', 'Sensor bermasalah'], ['ml_error', 'ML tidak tersedia'], ['tidak ada data', 'Tidak ada data']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       <div className="card" style={{ marginBottom: 16 }}>
         <table>
           <thead><tr><th>Unit</th><th>Nama</th><th>Kritikalitas</th><th>Status</th><th>Dugaan model</th><th>Keyakinan</th><th>WO terbuka</th></tr></thead>
           <tbody>
-            {ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase())).map((p) => (
+            {visiblePumps.map((p) => (
               <tr key={p.id} className={p.id === sel ? 'sel' : ''}>
                 <td className="id"><button className="link-button" aria-pressed={p.id === sel} onClick={() => onSelect(p.id)}>{p.id}</button></td>
                 <td>{p.name}<div className="sub">{p.location}</div></td>
@@ -112,17 +141,18 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
                 <td className="num">{p.open_work_orders || '-'}</td>
               </tr>
             ))}
+            {visiblePumps.length === 0 && <tr><td colSpan={7}><Empty>Tidak ada unit yang cocok dengan pencarian atau status ini.</Empty></td></tr>}
           </tbody>
         </table>
       </div>
 
       {selected && !pump && <div className="notice bad">Unit tidak ditemukan. <button className="btn sm" onClick={() => ov.pumps[0] && onSelect(ov.pumps[0].id)}>Pilih unit tersedia</button></div>}
-      {pump && <RequestState {...readings} retry={readings.refresh} />}
+      {pump && <div id="detail-unit"><RequestState {...readings} retry={readings.refresh} /></div>}
       {pump && data && (
         <div className="grid unit-detail">
           <div className="card">
             <div className="card-h">
-              <div><h3>{pump.id} · {pump.name}</h3><div className="sub">Grafik 60 siklus terakhir. Garis putus-putus = rata-rata kondisi sehat.</div></div>
+              <div><h3>{pump.id} · {pump.name}</h3><div className="sub">Grafik 60 siklus terakhir. Garis putus-putus = rata-rata kondisi sehat.</div>{pump.open_case && <div className="sub">Kasus {pump.open_case} masih terbuka; diagnosis sebelumnya dapat berbeda dari kondisi sensor saat ini.</div>}</div>
               <div className="row">
                 {pump.open_case && <button className="btn sm" onClick={() => onOpenCase(pump.open_case!)}>Buka kasus {pump.open_case}</button>}
                 <button className="btn sm primary" disabled={busy || !!pump.open_case}

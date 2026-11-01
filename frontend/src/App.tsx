@@ -3,6 +3,7 @@ import { api, setRole } from './api';
 import Cases from './components/Cases';
 import Chat from './components/Chat';
 import Dashboard from './components/Dashboard';
+import FacilityMap from './components/FacilityMap';
 import Inventory from './components/Inventory';
 import Profile from './components/Profile';
 import ProfileAvatar from './components/ProfileAvatar';
@@ -35,6 +36,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
   const [useLlm, setUseLlm] = useState(store.get('mm_llm', '0') === '1');
   const [autoBusy, setAutoBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [selectedMachine, setSelectedMachine] = useState<string | null>(null);
   const tt = useRef<number>();
 
   useEffect(() => { setRole(role); store.set('mm_role', role); }, [role]);
@@ -59,7 +61,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       <a className="skip-link" href="#main-content">Lewati ke konten utama</a>
       <header className="topbar">
         <div className="topbar-in">
-          <a className="brand" href="/" aria-label="ManualMechanic — Dashboard" aria-current={tab === 'ringkasan' ? 'page' : undefined} onClick={(event) => { if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate('ringkasan'); } }}>
+          <a className="brand" href="/" aria-label="ManualMechanic — Dashboard" aria-current={tab === 'ringkasan' ? 'page' : undefined} onClick={(event) => { if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setSelectedMachine(null); navigate('ringkasan'); } }}>
             <span className="brand-mark"><svg width="16" height="16" viewBox="0 0 32 32"><path d="M7 23V9l9 9 9-9v14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
             ManualMechanic
           </a>
@@ -85,6 +87,15 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             <label className="ctl">Agent otomatis
               <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={role !== 'supervisor' || !ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" title={role !== 'supervisor' ? 'Hanya supervisor yang dapat mengubah agent otomatis.' : undefined} />
             </label>
+            <details className="mode-help">
+              <summary aria-label="Penjelasan mode LLM dan agent otomatis">?</summary>
+              <div className="mode-help-panel card" role="note">
+                <strong>Cara kerja agent</strong>
+                <p><b>Mode LLM</b> mengubah cara Asisten menyusun jawaban dan memilih tool.</p>
+                <p><b>Agent otomatis</b> memantau unit dan dapat membuat kasus serta tindakan sesuai aturan risiko. Tindakan berisiko tinggi menunggu persetujuan supervisor.</p>
+                <p className="sub">Ketersediaan dan hasil uji layanan dapat dilihat di Status layanan.</p>
+              </div>
+            </details>
           </div>
           {user && <><NotificationBell onOpenCase={openCase} /><ProfileAvatar user={user} active={tab === 'profil'} onClick={() => navigate('profil')} /></>}
         </div>
@@ -94,8 +105,9 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       <div className="page service-container"><ServiceStatus /></div>
       {tab !== 'profil' && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
-      {ov && tab === 'ringkasan' && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
-      {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} flash={flash} selected={caseId} onSelect={openCase} onChanged={refresh} authenticated={!!user} />}
+      {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} flash={flash} refresh={refresh} />}
+      {ov && ((tab === 'ringkasan' && !pumpId) || tab === 'tampilan3d') && <FacilityMap ov={ov} updated={overview.updated} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} />}
+      {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} overview={ov} updated={overview.updated} onOpenUnit={(id) => navigate('ringkasan', id, true)} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}
       {ov && <div hidden={tab !== 'asisten'}><Chat username={user?.username ?? 'demo'} useLlm={useLlm && ov.llm_available} onOpenCase={openCase} onChanged={refresh} /></div>}

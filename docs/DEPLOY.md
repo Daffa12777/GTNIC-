@@ -1,5 +1,7 @@
 # Deploy (UI publik + backend + database)
 
+> Panduan deployment historis. Untuk konfigurasi stack saat ini, batas serverless, dan verifikasi pascadeploy lihat [dokumentasi teknis](TECHNICAL.md#deployment) serta [panduan Vercel](VERCEL_WEB.md). Harga, tier, dan batas provider di bawah perlu diperiksa ulang pada layanan yang digunakan.
+
 Guide Book mensyaratkan UI yang dapat diakses publik, repo GitHub publik, dan video demo 3–5 menit. Susunan yang disarankan, semuanya punya tier gratis:
 
 | Bagian | Layanan | Catatan |

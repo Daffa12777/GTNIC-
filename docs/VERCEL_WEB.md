@@ -1,5 +1,7 @@
 # Deployment web dan koneksi layanan ML
 
+> Catatan lingkungan deployment saat verifikasi historis yang disebut di dokumen. URL, konfigurasi provider, dan status layanan tidak diperiksa ulang saat dokumentasi baru disusun. Untuk arsitektur serta setup checkout terbaru lihat [dokumentasi teknis](TECHNICAL.md#deployment); jangan menganggap perubahan lokal sudah ada di production sebelum deploy dan smoke test.
+
 - Frontend: https://manualmechanic-gtnic.vercel.app
 - API: https://manualmechanic-api.vercel.app/api
 - ML eksternal: https://manualmechanic-ml.vercel.app (`ML_URL` pada backend)
