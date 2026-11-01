@@ -32,6 +32,15 @@ const renderDashboard = (ov: Overview, onOpenCase = vi.fn()) => render(
 );
 
 describe('Ringkasan unit', () => {
+  it('focuses the chosen unit and lets the user return to the map', () => {
+    const back = vi.fn();
+    render(<Dashboard ov={overview(['normal'])} canManage selected="Pump-01" onSelect={vi.fn()} onOpenCase={vi.fn()} onBack={back} flash={vi.fn()} refresh={vi.fn()} />);
+    const title = screen.getByRole('heading', { name: 'Pump-01 · Unit 1' });
+    expect(document.activeElement).toBe(title);
+    expect(screen.getByText('Ringkasan seluruh unit dan tindakan').closest('details')?.open).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '← Kembali ke peta' }));
+    expect(back).toHaveBeenCalledOnce();
+  });
   it('distinguishes unavailable analysis from zero healthy or critical units', async () => {
     renderDashboard(overview(['ml_error', 'ml_error']));
     expect(screen.getByText('0 dari 2 unit dapat dinilai · 2 belum dapat dinilai')).toBeTruthy();

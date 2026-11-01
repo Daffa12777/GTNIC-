@@ -34,7 +34,7 @@ function Camera({ focus, zoom, rotation, width, depth, reducedMotion }: { focus:
   const horizontal = Math.hypot(xOffset, zOffset);
   const projectedWidth = (width * Math.abs(zOffset) + depth * Math.abs(xOffset)) / horizontal;
   const projectedHeight = (width * Math.abs(xOffset) + depth * Math.abs(zOffset)) / horizontal * 0.61 + 2.5 * 0.79;
-  const targetZoom = Math.min(Math.max(1, size.width - 100) / projectedWidth, Math.max(1, size.height - 100) / projectedHeight) * zoom;
+  const targetZoom = Math.min(Math.max(1, size.width - (size.width < 700 ? 50 : 100)) / projectedWidth, Math.max(1, size.height - 100) / projectedHeight) * zoom;
   useLayoutEffect(() => {
     if (reducedMotion || !ready.current) {
       currentFocus.current = [focus[0], focus[1]];

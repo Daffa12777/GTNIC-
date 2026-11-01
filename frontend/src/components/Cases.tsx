@@ -29,6 +29,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
   const decisionRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (decision) decisionRef.current?.focus(); }, [decision]);
@@ -37,8 +38,8 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
   if (!c) return <div className="card card-b"><RequestState {...detail} retry={detail.refresh} /></div>;
 
   const act = async (fn: () => Promise<Case>, msg: string | ((result: Case) => string)) => {
-    setBusy(true);
-    try { const result = await fn(); setText(''); setNote(''); setDecision(null); await detail.refresh(); flash(typeof msg === 'function' ? msg(result) : msg); onChanged(); return true; } catch (e: unknown) { flash(errorMessage(e)); return false; } finally { setBusy(false); }
+    setBusy(true); setActionError('');
+    try { const result = await fn(); if (decision && result.status === 'gagal') { setActionError(result.summary ?? 'Tindakan belum berhasil. Periksa detail kasus.'); await detail.refresh(); onChanged(); return false; } setText(''); setNote(''); setDecision(null); await detail.refresh(); flash(typeof msg === 'function' ? msg(result) : msg); onChanged(); return true; } catch (e: unknown) { if (decision) setActionError(errorMessage(e)); else flash(errorMessage(e)); return false; } finally { setBusy(false); }
   };
   const probs = c.probs ? Object.entries(c.probs).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
   const isSup = role === 'supervisor';
@@ -52,6 +53,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
   return (
     <div className="grid">
       <RequestState {...detail} retry={detail.refresh} showUpdated={false} />
+      {actionError && c.status !== 'menunggu_persetujuan' && <div className="notice bad" role="alert">{actionError}</div>}
       {(text || note) && <div className="notice warn" role="status">Ada jawaban atau catatan yang belum dikirim.</div>}
       <div className="card">
         <div className="card-h">
@@ -93,12 +95,12 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
                 {context.error ? <p role="alert">Rencana dan data terkait tidak dapat dimuat. <button className="btn sm" onClick={() => void context.refresh()}>Coba lagi</button></p> : !context.data ? <p>Memuat rencana dan data terkait…</p> : !preview ? <p>Rencana tindakan tidak tersedia untuk kasus ini.</p> : <><p>Work order: {preview.title} · prioritas rencana {preview.priority}{preview.existing_order ? ` · gunakan ${preview.existing_order} yang masih aktif` : ' · dibuat jika belum ada yang sama'}.</p><p>Part: {preview.part ?? 'tidak ditentukan'}{preview.part ? preview.inventory_found ? ` · stok ${preview.stock}` : ' · tidak ditemukan di inventaris' : ''}. {preview.part && (preview.stock == null || preview.stock <= 0) ? 'Sistem akan mencoba mengajukan pembelian.' : ''}</p><p>Teknisi: {preview.senior ? 'senior' : `keahlian ${preview.skill}`} dipilih saat dijalankan jika work order belum memiliki teknisi; bila tidak tersedia, work order tetap terbuka.</p><p className="sub">{context.updated ? `Data diperiksa ${new Date(context.updated).toLocaleTimeString('id-ID')}. ` : ''}Stok dan ketersediaan dapat berubah sebelum tindakan dijalankan.</p></>}
               </section>
               {relatedInfo}
-              <div className="row wrap">
-                <button className="btn primary" disabled={busy || !isSup || !preview || !!context.error} onClick={() => { setDecision('approve'); void context.refresh(); }}>Tinjau persetujuan</button>
-                <button className="btn danger" disabled={busy || !isSup} onClick={() => setDecision('reject')}>Tolak</button>
+              <div className="case-action-bar row wrap">
+                <button className="btn primary" disabled={busy || !isSup || !preview || !!context.error} onClick={() => { setActionError(''); setDecision('approve'); void context.refresh(); }}>Tinjau persetujuan</button>
+                <button className="btn danger" disabled={busy || !isSup} onClick={() => { setActionError(''); setDecision('reject'); }}>Tolak</button>
               </div>
-              {decision === 'approve' && <div ref={decisionRef} tabIndex={-1} className="case-confirm" role="region" aria-label="Konfirmasi persetujuan"><b>Konfirmasi persetujuan</b>{preview && <><p>{preview.title} · prioritas rencana {preview.priority}{preview.existing_order ? ` · gunakan ${preview.existing_order}` : ' · buat atau gunakan work order aktif'}.</p><p>Part: {preview.part ?? 'tidak ditentukan'}{preview.part ? preview.inventory_found ? ` · stok ${preview.stock}` : ' · tidak ditemukan' : ''}. Teknisi {preview.senior ? 'senior' : preview.skill} ditentukan saat tindakan dijalankan bila belum ditugaskan.</p></>}<p className="sub">Periksa kembali kondisi unit; stok dan ketersediaan dapat berubah.</p><div className="row wrap"><button className="btn primary" disabled={busy || !preview || !!context.error || context.loading} onClick={() => act(() => api.approve(c.id), (result) => result.status === 'disetujui_dijalankan' ? 'Persetujuan diproses. Lihat hasil tindakan pada kasus.' : result.summary ?? 'Tindakan belum berhasil. Periksa detail kasus.')}>{busy ? 'Memproses…' : 'Setujui dan jalankan'}</button><button className="btn" disabled={busy} onClick={() => setDecision(null)}>Batal</button></div></div>}
-              {decision === 'reject' && <div ref={decisionRef} tabIndex={-1} className="case-confirm" role="region" aria-label="Alasan penolakan"><label className="field">Alasan penolakan {highRisk ? '(wajib)' : '(opsional)'}<textarea className="textarea" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} /></label><div className="row wrap"><button className="btn danger" disabled={busy || (highRisk && !note.trim())} onClick={() => act(() => api.reject(c.id, note), 'Rekomendasi ditolak')}>{busy ? 'Memproses…' : 'Konfirmasi penolakan'}</button><button className="btn" disabled={busy} onClick={() => { setDecision(null); setNote(''); }}>Batal</button></div></div>}
+              {decision === 'approve' && <div ref={decisionRef} tabIndex={-1} className="case-confirm" role="region" aria-label="Konfirmasi persetujuan"><b>Konfirmasi persetujuan</b>{preview && <><p>{preview.title} · prioritas rencana {preview.priority}{preview.existing_order ? ` · gunakan ${preview.existing_order}` : ' · buat atau gunakan work order aktif'}.</p><p>Part: {preview.part ?? 'tidak ditentukan'}{preview.part ? preview.inventory_found ? ` · stok ${preview.stock}` : ' · tidak ditemukan' : ''}. Teknisi {preview.senior ? 'senior' : preview.skill} ditentukan saat tindakan dijalankan bila belum ditugaskan.</p></>}<p className="sub">Periksa kembali kondisi unit; stok dan ketersediaan dapat berubah.</p>{actionError && <p className="form-error" role="alert">{actionError}</p>}<div className="row wrap"><button className="btn primary" disabled={busy || !preview || !!context.error || context.loading} onClick={() => act(() => api.approve(c.id), (result) => result.status === 'disetujui_dijalankan' ? 'Persetujuan diproses. Lihat hasil tindakan pada kasus.' : result.summary ?? 'Tindakan belum berhasil. Periksa detail kasus.')}>{busy ? 'Memproses…' : 'Setujui dan jalankan'}</button><button className="btn" disabled={busy} onClick={() => { setActionError(''); setDecision(null); }}>Batal</button></div></div>}
+              {decision === 'reject' && <div ref={decisionRef} tabIndex={-1} className="case-confirm" role="region" aria-label="Alasan penolakan"><label className="field">Alasan penolakan {highRisk ? '(wajib)' : '(opsional)'}<textarea className="textarea" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} /></label>{actionError && <p className="form-error" role="alert">{actionError}</p>}<div className="row wrap"><button className="btn danger" disabled={busy || (highRisk && !note.trim())} onClick={() => act(() => api.reject(c.id, note), 'Rekomendasi ditolak')}>{busy ? 'Memproses…' : 'Konfirmasi penolakan'}</button><button className="btn" disabled={busy} onClick={() => { setActionError(''); setDecision(null); setNote(''); }}>Batal</button></div></div>}
               {!isSup && <div className="sub" style={{ marginTop: 8 }}>{authenticated ? 'Persetujuan atau penolakan harus dilakukan oleh akun supervisor.' : 'Ubah peran demo ke Supervisor di bilah atas untuk menyetujui atau menolak.'}</div>}
             </div>
           )}

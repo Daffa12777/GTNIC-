@@ -1,5 +1,5 @@
 import { useUrlFilters } from '../useUrlFilters';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Overview, Pump, ReadingsResp } from '../types';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
@@ -34,7 +34,7 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
   );
 }
 
-export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
+export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, onBack, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; onBack?: () => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
   const readings = usePolling(loadReadings, Math.max(10000, ov.tick_seconds * 1000), !!sel, ['readings', sel, 60], 10000);
@@ -58,6 +58,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
   const unassessed = ov.pumps.length - assessed;
   const openCases = ov.pumps.filter((p) => p.open_case).length;
   const pump: Pump | undefined = ov.pumps.find((p) => p.id === sel);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (selected) heading.current?.focus(); }, [selected]);
   const pendingCases = cases.data?.filter((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)) ?? [];
   const visiblePumps = ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase()));
 
@@ -70,6 +72,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
 
   return (
     <div className="page">
+      {selected && <div className="page-head"><div><button type="button" className="link-button" onClick={onBack}>← Kembali ke peta</button><h1 ref={heading} tabIndex={-1}>{pump ? `${pump.id} · ${pump.name}` : 'Unit tidak ditemukan'}</h1>{pump && <p>{pump.location} · {pump.model} · <StateBadge state={pump.status.state} /></p>}</div></div>}
+      <details className="fleet-overview" open={selected ? undefined : true}><summary>Ringkasan seluruh unit dan tindakan</summary>
       <div className="page-head">
         <div>
           <h1>Ringkasan unit</h1>
@@ -145,6 +149,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
           </tbody>
         </table>
       </div>
+
+      </details>
 
       {selected && !pump && <div className="notice bad">Unit tidak ditemukan. <button className="btn sm" onClick={() => ov.pumps[0] && onSelect(ov.pumps[0].id)}>Pilih unit tersedia</button></div>}
       {pump && <div id="detail-unit"><RequestState {...readings} retry={readings.refresh} /></div>}

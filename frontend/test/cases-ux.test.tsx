@@ -46,7 +46,8 @@ it('does not claim a technician was scheduled when approved actions fail', async
   const approve = within(confirm).getByRole('button', { name: 'Setujui dan jalankan' });
   await waitFor(() => expect(approve.hasAttribute('disabled')).toBe(false));
   fireEvent.click(approve);
-  await waitFor(() => expect(flash).toHaveBeenCalledWith('Persetujuan diberikan tetapi tindakan gagal dijalankan.'));
+  expect((await screen.findByRole('alert')).textContent).toContain('Persetujuan diberikan tetapi tindakan gagal dijalankan.');
+  expect(flash).not.toHaveBeenCalled();
 });
 
 it('requires a reason before rejecting a high-risk recommendation', async () => {
