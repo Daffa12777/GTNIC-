@@ -46,7 +46,8 @@ it('does not claim a technician was scheduled when approved actions fail', async
   const approve = within(confirm).getByRole('button', { name: 'Setujui dan jalankan' });
   await waitFor(() => expect(approve.hasAttribute('disabled')).toBe(false));
   fireEvent.click(approve);
-  await waitFor(() => expect(flash).toHaveBeenCalledWith('Persetujuan diberikan tetapi tindakan gagal dijalankan.'));
+  expect((await screen.findByRole('alert')).textContent).toContain('Persetujuan diberikan tetapi tindakan gagal dijalankan.');
+  expect(flash).not.toHaveBeenCalled();
 });
 
 it('requires a reason before rejecting a high-risk recommendation', async () => {
@@ -65,4 +66,17 @@ it('does not allow review of an approval when the action preview cannot be loade
   render(<Cases role="supervisor" labels={{}} flash={vi.fn()} selected="C-001" onSelect={vi.fn()} onClear={vi.fn()} onChanged={vi.fn()} />);
   expect(await screen.findByText(/Rencana dan data terkait tidak dapat dimuat/)).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Tinjau persetujuan' }).hasAttribute('disabled')).toBe(true);
+});
+
+it('keeps a failed approval visible inside the confirmation', async () => {
+  vi.spyOn(api, 'approve').mockRejectedValue(new Error('Koneksi terputus'));
+  render(<Cases role="supervisor" labels={{}} flash={vi.fn()} selected="C-001" onSelect={vi.fn()} onClear={vi.fn()} onChanged={vi.fn()} />);
+  const review = await screen.findByRole('button', { name: 'Tinjau persetujuan' });
+  await waitFor(() => expect(review.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(review);
+  const confirmation = screen.getByRole('region', { name: 'Konfirmasi persetujuan' });
+  const approve = within(confirmation).getByRole('button', { name: 'Setujui dan jalankan' });
+  await waitFor(() => expect(approve.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(approve);
+  expect((await within(confirmation).findByRole('alert')).textContent).toContain('Koneksi terputus');
 });

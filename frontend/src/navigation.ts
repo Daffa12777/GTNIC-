@@ -17,16 +17,27 @@ export function useNavigation() {
   const currentPath = useRef(window.location.pathname + window.location.search);
   const searches = useRef(new Map<Tab, string>());
   const restoring = useRef(false);
+  const confirmed = useRef(false);
+  const afterRestore = useRef<(() => void) | null>(null);
   useEffect(() => {
     window.history.replaceState({ ...window.history.state, mmNavIndex: index.current }, '', window.location.href);
     const update = (event: PopStateEvent) => {
-      if (restoring.current) { restoring.current = false; return; }
-      if (!canLeavePage()) {
-        const target: unknown = event.state?.mmNavIndex;
+      if (restoring.current) { restoring.current = false; const pending = afterRestore.current; afterRestore.current = null; pending?.(); return; }
+      const target: unknown = event.state?.mmNavIndex;
+      const targetPath = window.location.pathname + window.location.search;
+      const resume = () => {
+        const proceed = () => {
+          if (typeof target === 'number' && target !== index.current) { confirmed.current = true; window.history.go(target - index.current); }
+          else { writeLocation(targetPath); index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = targetPath; setRoute(readRoute()); }
+        };
+        if (restoring.current) afterRestore.current = proceed; else proceed();
+      };
+      if (!confirmed.current && !canLeavePage(resume)) {
         if (typeof target === 'number' && target !== index.current) { restoring.current = true; window.history.go(index.current - target); }
         else window.history.pushState({ mmNavIndex: index.current }, '', currentPath.current);
         return;
       }
+      confirmed.current = false;
       index.current = Number(event.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname + window.location.search; setRoute(readRoute());
     };
     const changed = () => { index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = window.location.pathname + window.location.search; setRoute(readRoute()); };
@@ -38,8 +49,9 @@ export function useNavigation() {
     const search = tab === readRoute().tab ? window.location.search : searches.current.get(tab) ?? '';
     const path = (unit && id ? `/units/${encodeURIComponent(id)}` : `${paths[tab]}${id ? `/${encodeURIComponent(id)}` : ''}`) + search;
     if (window.location.pathname + window.location.search !== path) {
-      if (!canLeavePage()) return;
-      writeLocation(path); index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = path;
+      const proceed = () => { writeLocation(path); index.current = Number(window.history.state?.mmNavIndex) || 0; currentPath.current = path; setRoute(readRoute()); };
+      if (!canLeavePage(proceed)) return;
+      proceed();
     }
     setRoute(readRoute());
   };

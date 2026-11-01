@@ -6,18 +6,20 @@ import { errorMessage } from '../usePolling';
 import Markdown from 'react-markdown';
 import { readChat, writeChat } from '../chatSession';
 import { useUnsavedChanges } from '../useUnsavedChanges';
+import ConfirmDialog from './ConfirmDialog';
 
-const SUGGEST = ['Unit 3 oli cepat panas dan tekanan sulit naik', 'Unit 2 gerak aktuator tersendat', 'Urutan prioritas penanganan', 'Stok seal kit pompa'];
+const SUGGEST = ['Pump-03 oli cepat panas dan tekanan sulit naik', 'Pump-02 gerak aktuator tersendat', 'Urutan prioritas penanganan', 'Stok seal kit pompa'];
 
 export default function Chat({ username, useLlm, onOpenCase, onChanged }: { username: string; useLlm: boolean; onOpenCase: (id: string) => void; onChanged: () => void }) {
   const [saved] = useState(() => readChat(username));
   const [msgs, setMsgs] = useState<ChatMsg[]>(saved.messages.length ? saved.messages : [
-    { from: 'agent', text: 'Laporkan keluhan dari lapangan, misalnya "Unit 3 oli cepat panas". Saya akan membaca sensor, menjalankan model, mencari panduan, lalu bertanya, bertindak, atau meminta persetujuan sesuai tingkat keyakinan dan risiko.' },
+    { from: 'agent', text: 'Laporkan keluhan dari lapangan, misalnya "Pump-03 oli cepat panas". Saya akan membaca sensor, menjalankan model, mencari panduan, lalu bertanya, bertindak, atau meminta persetujuan sesuai tingkat keyakinan dan risiko.' },
   ]);
   const [text, setText] = useState(saved.draft);
   const [busy, setBusy] = useState(false);
   const [openCase, setOpenCase] = useState<string | null>(saved.openCase);
   const [storageFailed, setStorageFailed] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   // Chat stays mounted across tabs; warn on refresh only when its draft cannot be saved.
   useUnsavedChanges(busy || (storageFailed && !!text), false);
   const sending = useRef(false);
@@ -46,10 +48,10 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
   return (
     <div className="page" style={{ maxWidth: 860 }}>
       <div className="page-head"><div><h1>Asisten lapangan</h1><p>Laporan teknisi masuk ke kasus yang sama dengan anomali dari sensor.{useLlm ? ' Mode LLM aktif.' : ''}</p></div></div>
-      <div className="row wrap"><span className="sub">Riwayat disimpan untuk sesi browser ini hingga logout (100 pesan terakhir).</span><button type="button" className="btn sm" disabled={busy} onClick={() => { if (window.confirm('Hapus riwayat percakapan sesi ini? Kasus dan work order tetap tersimpan.')) { setMsgs([]); setText(''); setOpenCase(null); } }}>Percakapan baru</button></div>
+      <div className="row wrap"><span className="sub">Riwayat disimpan untuk sesi browser ini hingga logout (100 pesan terakhir).</span><button type="button" className="btn sm" disabled={busy} onClick={() => setConfirmClear(true)}>Percakapan baru</button></div>
       {storageFailed && <div className="notice warn" role="status">Browser tidak mengizinkan penyimpanan riwayat. Percakapan hanya bertahan selama halaman terbuka.</div>}
       <div className="card chat">
-        <div className="msgs">
+        <div className="msgs" role="log" aria-label="Percakapan asisten" aria-live="polite" aria-relevant="additions text">
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.from}`}>
               {m.from === 'agent' ? <div className="markdown"><Markdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>{m.text}</Markdown></div> : m.text}
@@ -70,6 +72,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
           <button className="btn primary" disabled={busy || !text.trim()}>Kirim</button>
         </form>
       </div>
+      {confirmClear && <ConfirmDialog title="Mulai percakapan baru?" description="Riwayat percakapan sesi ini dihapus. Kasus dan work order tetap tersimpan." confirmLabel="Hapus percakapan" onCancel={() => setConfirmClear(false)} onConfirm={() => { setMsgs([]); setText(''); setOpenCase(null); setConfirmClear(false); }} />}
     </div>
   );
 }

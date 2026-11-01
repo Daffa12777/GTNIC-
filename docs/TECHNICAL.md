@@ -75,7 +75,7 @@ Brand ManualMechanic membawa pengguna kembali ke dashboard dan membersihkan pili
 - Lampu merah dan denyut: `kritis`.
 - Lampu netral: `sensor`, `ml_error`, atau `tidak ada data`.
 
-Status kartu teks dapat memakai badge warna berbeda untuk menegaskan kegagalan layanan. Denyut lampu adalah sinyal perhatian, bukan simulasi pergerakan komponen. Reduced motion mematikannya. Render menggunakan mode demand ketika tidak ada animasi perhatian, dengan DPR maksimum 1,5.
+Status kartu teks dapat memakai badge warna berbeda untuk menegaskan kegagalan layanan. Denyut lampu adalah sinyal perhatian, bukan simulasi pergerakan komponen. Denyut berhenti setelah delapan detik atau saat tab tidak aktif, dan dapat muncul lagi saat tab kembali aktif atau status berubah. Reduced motion mematikannya. Render kembali ke mode demand saat denyut berhenti, dengan DPR maksimum 1,5.
 
 Model dimuat dari `/models/hydraulic-unit.glb` melalui GLTFLoader dan di-clone untuk tiap unit. Decoder meshopt disertakan dalam bundle aplikasi; render tidak perlu mengunduh decoder atau HDR dari CDN. Setiap mesin mempunyai label HTML yang dapat difokuskan dan diklik, sementara ring serta lampu mengikuti status dan pilihan unit. Error boundary menyediakan pesan fallback; pengguna dapat membuka daftar unit. Aset dan modul render dimuat ketika peta dipakai.
 

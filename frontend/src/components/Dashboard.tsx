@@ -1,12 +1,13 @@
 import { useUrlFilters } from '../useUrlFilters';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Overview, Pump, ReadingsResp } from '../types';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
 import SensorChart from './SensorChart';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
-import { Badge, CASE, Empty, StateBadge, fmtTime, pct } from './ui';
+import ConfirmDialog from './ConfirmDialog';
+import { Badge, CASE, Empty, StateBadge, WorkOrderBadge, fmtTime, pct } from './ui';
 
 const FAULTS: [string, string][] = [['pump', 'Kebocoran pompa'], ['valve', 'Katup lambat'], ['cooler', 'Pendingin'], ['accumulator', 'Akumulator']];
 
@@ -34,7 +35,7 @@ function Health({ data, labels }: { data: ReadingsResp; labels: Record<string, s
   );
 }
 
-export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; flash: (m: string) => void; refresh: () => void }) {
+export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCase, onBack, flash, refresh }: { ov: Overview; canManage: boolean; selected: string | null; onSelect: (id: string) => void; onOpenCase: (id: string) => void; onBack?: () => void; flash: (m: string) => void; refresh: () => void }) {
   const sel = selected ?? ov.pumps[0]?.id ?? '';
   const loadReadings = useCallback((signal: AbortSignal) => api.readings(sel, 60, signal), [sel]);
   const readings = usePolling(loadReadings, Math.max(10000, ov.tick_seconds * 1000), !!sel, ['readings', sel, 60], 10000);
@@ -48,6 +49,7 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
   const state = filters.status;
   const setState = (value: string) => updateFilters({ status: value });
   const [busy, setBusy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [faultPump, setFaultPump] = useState('Pump-02');
   const [fault, setFault] = useState('cooler');
   const [sudden, setSudden] = useState(false);
@@ -58,6 +60,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
   const unassessed = ov.pumps.length - assessed;
   const openCases = ov.pumps.filter((p) => p.open_case).length;
   const pump: Pump | undefined = ov.pumps.find((p) => p.id === sel);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (selected) heading.current?.focus(); }, [selected]);
   const pendingCases = cases.data?.filter((c) => ['menunggu_persetujuan', 'menunggu_klarifikasi'].includes(c.status)) ?? [];
   const visiblePumps = ov.pumps.filter((p) => (!state || p.status.state === state) && `${p.id} ${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase()));
 
@@ -70,6 +74,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
 
   return (
     <div className="page">
+      {selected && <div className="page-head"><div><button type="button" className="link-button" onClick={onBack}>← Kembali ke peta</button><h1 ref={heading} tabIndex={-1}>{pump ? `${pump.id} · ${pump.name}` : 'Unit tidak ditemukan'}</h1>{pump && <p>{pump.location} · {pump.model} · <StateBadge state={pump.status.state} /></p>}</div></div>}
+      <details className="fleet-overview" open={selected ? undefined : true}><summary>Ringkasan seluruh unit dan tindakan</summary>
       <div className="page-head">
         <div>
           <h1>Ringkasan unit</h1>
@@ -146,6 +152,8 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
         </table>
       </div>
 
+      </details>
+
       {selected && !pump && <div className="notice bad">Unit tidak ditemukan. <button className="btn sm" onClick={() => ov.pumps[0] && onSelect(ov.pumps[0].id)}>Pilih unit tersedia</button></div>}
       {pump && <div id="detail-unit"><RequestState {...readings} retry={readings.refresh} /></div>}
       {pump && data && (
@@ -169,7 +177,7 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
               <div className="card-b"><Health data={data} labels={ov.fault_labels} /></div>
             </div>
             <div className="card"><div className="card-h"><h3>Tindakan berikutnya</h3></div><div className="card-b"><p>{pump.open_case ? 'Buka kasus untuk meninjau diagnosis, bukti, dan keputusan yang diperlukan.' : pump.status.state === 'normal' ? 'Terus pantau kondisi unit.' : 'Analisis unit untuk menentukan pemeriksaan berikutnya.'}</p><div className="sub">{pump.model} · {pump.location}</div>{pump.status.error && <p role="alert">{pump.status.error}</p>}</div></div>
-            <div className="card"><div className="card-h"><h3>Work order unit</h3></div><div className="card-b"><RequestState {...workOrders} retry={workOrders.refresh} />{workOrders.data?.filter((w) => w.pump_id === pump.id).map((w) => <div className="attention-row" key={w.id}><div><b>{w.id}</b><div>{w.title}</div><div className="sub">{w.status} · {w.technician ?? 'Belum ditugaskan'}</div></div>{w.case_id && <button className="btn sm" onClick={() => onOpenCase(w.case_id)}>Kasus</button>}</div>)}{workOrders.data && !workOrders.data.some((w) => w.pump_id === pump.id) && <Empty>Belum ada work order untuk unit ini.</Empty>}</div></div>
+            <div className="card"><div className="card-h"><h3>Work order unit</h3></div><div className="card-b"><RequestState {...workOrders} retry={workOrders.refresh} />{workOrders.data?.filter((w) => w.pump_id === pump.id).map((w) => <div className="attention-row" key={w.id}><div><b>{w.id}</b><div>{w.title}</div><div className="sub"><WorkOrderBadge status={w.status} /> · {w.technician ?? 'Belum ditugaskan'}</div></div>{w.case_id && <button className="btn sm" onClick={() => onOpenCase(w.case_id)}>Kasus</button>}</div>)}{workOrders.data && !workOrders.data.some((w) => w.pump_id === pump.id) && <Empty>Belum ada work order untuk unit ini.</Empty>}</div></div>
             {data.status?.flags && data.status.flags.length > 0 && (
               <div className="callout warn"><b>Ambang kritis</b><div className="sub">{data.status.flags.join('; ')}</div></div>
             )}
@@ -192,9 +200,10 @@ export default function Dashboard({ ov, canManage, selected, onSelect, onOpenCas
           <button className="btn" disabled={busy} onClick={() => run(() => api.scenarioFault(faultPump, fault, sudden), `Gangguan disuntikkan ke ${faultPump}`)}>Suntik gangguan</button>
           <button className="btn" disabled={busy} onClick={() => run(() => api.scenarioDropout(faultPump, 'VS1'), `Sensor getaran ${faultPump} dimatikan`)}>Matikan sensor getaran</button>
           <span className="spacer" />
-          <button className="btn danger" disabled={busy} onClick={() => { if (window.confirm('Kembalikan simulasi semua unit ke kondisi normal? Kasus dan work order tetap tersimpan.')) void run(() => api.scenarioReset(), 'Simulasi semua unit dikembalikan normal'); }}>Reset semua unit</button>
+          <button className="btn danger" disabled={busy} onClick={() => setConfirmReset(true)}>Reset semua unit</button>
         </div>
       </details>}
+      {confirmReset && <ConfirmDialog title="Reset simulasi semua unit?" description="Simulasi dikembalikan ke kondisi normal. Kasus dan work order tetap tersimpan." confirmLabel="Reset simulasi" onCancel={() => setConfirmReset(false)} onConfirm={() => { setConfirmReset(false); void run(() => api.scenarioReset(), 'Simulasi semua unit dikembalikan normal'); }} />}
     </div>
   );
 }

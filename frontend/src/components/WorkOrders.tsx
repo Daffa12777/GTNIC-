@@ -5,11 +5,12 @@ import SearchField from './SearchField';
 import { useDebounced } from '../useDebounced';
 import { api } from '../api';
 import { RequestState, usePolling, errorMessage } from '../usePolling';
-import { Badge, Empty, WO_TONE, fmtTime } from './ui';
+import { Empty, PriorityBadge, PRIORITY_LABEL, WO_LABEL, WorkOrderBadge, fmtTime } from './ui';
 import { useUnsavedChanges } from '../useUnsavedChanges';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
-  const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 }, () => discardCompletion());
+  const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 }, (resume) => discardCompletion(resume));
   const query = filters.q;
   const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
   const status = filters.status;
@@ -35,11 +36,12 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState('');
+  const [discard, setDiscard] = useState<{ run: () => void } | null>(null);
   const dirty = !!cause || !!action;
   useUnsavedChanges(dirty || busy);
-  const discardCompletion = () => {
+  const discardCompletion = (resume?: () => void) => {
     if (busy) return false;
-    if (dirty && !window.confirm('Buang laporan penyelesaian yang belum disimpan?')) return false;
+    if (dirty) { setDiscard({ run: () => { setCause(''); setAction(''); setError(''); setOpen(null); resume?.(); } }); return false; }
     setCause(''); setAction(''); setError(''); setOpen(null);
     return true;
   };
@@ -63,33 +65,33 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
       {dirty && <div className="notice warn" role="status">Ada laporan penyelesaian yang belum disimpan.</div>}
       <div className="filters">
         <SearchField label="Cari pekerjaan" value={query} onChange={(value) => { setQuery(value); }} placeholder="ID, judul, unit, teknisi" pending={query !== search} />
-        <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.keys(WO_TONE).map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); }}><option value="">Semua prioritas</option>{['rendah', 'sedang', 'tinggi'].map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option>{Object.entries(WO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); }}><option value="">Semua prioritas</option>{Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>
         <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
       <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
       <div className="card">
         {rows.length === 0 ? result.data && <Empty>Tidak ada pekerjaan pada halaman ini atau sesuai filter.</Empty> : (
-          <table>
+          <table className="work-orders-table">
             <thead><tr><th>ID</th><th>Unit</th><th>Pekerjaan</th><th>Prioritas</th><th>Status</th><th>Teknisi</th><th></th></tr></thead>
             <tbody>
               {rows.map((w) => (
                 <Fragment key={w.id}>
-                  <tr>
-                    <td className="id">{w.id}</td>
-                    <td>{w.pump_id}</td>
-                    <td style={{ maxWidth: 380 }}>{w.title}<div className="sub">{fmtTime(w.created_at)}{w.part ? ` · Part: ${w.part}` : ''}{w.case_id ? <> · <a href="#kasus" onClick={(e) => { e.preventDefault(); onOpenCase(w.case_id); }}>{w.case_id}</a></> : null}</div></td>
-                    <td>{w.priority}</td>
-                    <td><Badge tone={WO_TONE[w.status] ?? 'info'}>{w.status}</Badge></td>
-                    <td>{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
-                    <td style={{ textAlign: 'right' }}>{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { if (discardCompletion()) setOpen(open === w.id ? null : w.id); }}>Selesaikan</button>}</td>
+                  <tr className="work-order-row">
+                    <td className="id" data-label="Work order">{w.id}</td>
+                    <td data-label="Unit">{w.pump_id}</td>
+                    <td className="work-order-title" data-label="Pekerjaan">{w.title}<div className="sub">{fmtTime(w.created_at)}{w.part ? ` · Part: ${w.part}` : ''}{w.case_id ? <> · <a href="#kasus" onClick={(e) => { e.preventDefault(); onOpenCase(w.case_id); }}>{w.case_id}</a></> : null}</div></td>
+                    <td data-label="Prioritas"><PriorityBadge priority={w.priority} /></td>
+                    <td data-label="Status"><WorkOrderBadge status={w.status} /></td>
+                    <td data-label="Teknisi">{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
+                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => setOpen(next))) setOpen(next); }}>Selesaikan</button>}</td>
                   </tr>
                   {open === w.id && (
-                    <tr><td colSpan={7} style={{ background: '#fafbfc' }}>
+                    <tr className="work-order-report"><td colSpan={7} style={{ background: '#fafbfc' }}>
                       <form className="row wrap" aria-busy={busy} onSubmit={(e) => { e.preventDefault(); void complete(w.id); }}>
-                        <label className="field">Akar masalah<input className="input" required maxLength={2000} disabled={busy} placeholder="Akar masalah yang ditemukan" value={cause} onChange={(e) => setCause(e.target.value)} /></label>
-                        <label className="field">Tindakan<input className="input" required maxLength={2000} disabled={busy} placeholder="Tindakan yang dilakukan" value={action} onChange={(e) => setAction(e.target.value)} /></label>
+                        <label className="field">Akar masalah<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Akar masalah yang ditemukan" value={cause} onChange={(e) => setCause(e.target.value)} /></label>
+                        <label className="field">Tindakan<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Tindakan yang dilakukan" value={action} onChange={(e) => setAction(e.target.value)} /></label>
                         <button className="btn primary" disabled={busy || !cause.trim() || !action.trim()}>{busy ? 'Menyimpan…' : 'Simpan dan tutup'}</button>
                         {error && <div className="form-error" role="alert">{error}</div>}
                       </form>
@@ -101,6 +103,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
           </table>
         )}
       </div>
+      {discard && <ConfirmDialog title="Buang laporan?" description="Laporan penyelesaian yang belum disimpan akan hilang." confirmLabel="Buang laporan" onCancel={() => setDiscard(null)} onConfirm={() => { const run = discard.run; setDiscard(null); run(); }} />}
     </div>
   );
 }
