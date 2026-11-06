@@ -1,0 +1,30 @@
+{
+  "cooler": {
+    "akurasi_latih": 1.0,
+    "akurasi_uji_acak": 0.9982,
+    "cv5_rata2": 0.9982,
+    "cv5_sd": 0.0009,
+    "akurasi_uji_berurutan": 1.0
+  },
+  "valve": {
+    "akurasi_latih": 0.9994,
+    "akurasi_uji_acak": 0.9873,
+    "cv5_rata2": 0.9846,
+    "cv5_sd": 0.0066,
+    "akurasi_uji_berurutan": 0.3478
+  },
+  "pump": {
+    "akurasi_latih": 1.0,
+    "akurasi_uji_acak": 0.9982,
+    "cv5_rata2": 0.995,
+    "cv5_sd": 0.0026,
+    "akurasi_uji_berurutan": 0.7301
+  },
+  "accumulator": {
+    "akurasi_latih": 1.0,
+    "akurasi_uji_acak": 0.9891,
+    "cv5_rata2": 0.981,
+    "cv5_sd": 0.0084,
+    "akurasi_uji_berurutan": 0.2772
+  }
+}
