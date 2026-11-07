@@ -7,7 +7,7 @@ import * as security from '../src/security/http-security';
 import handler from '../serverless/handler';
 
 it('closes failed startup, returns a safe retryable response, and recovers on the next request', async () => {
-  const init = jest.fn().mockRejectedValueOnce(new Error('private-database-connection')).mockResolvedValue(undefined);
+  const init = jest.fn().mockRejectedValueOnce(Object.assign(new Error('private-database-connection'), { code: 'P2022' })).mockResolvedValue(undefined);
   const close = jest.fn().mockResolvedValue(undefined);
   const runtime = express(); runtime.get('/api/health', (_req, res) => res.json({ ok: true }));
   const app = { init, close, setGlobalPrefix: jest.fn(), getHttpAdapter: () => ({ getInstance: () => runtime }) } as unknown as INestApplication;
@@ -23,6 +23,8 @@ it('closes failed startup, returns a safe retryable response, and recovers on th
     expect(failed.body.requestId).toBeTruthy();
     expect(JSON.stringify(failed.body)).not.toContain('private-database');
     expect(log.mock.calls.flat().join(' ')).not.toContain('private-database');
+    expect(log.mock.calls.flat().join(' ')).toContain('code=P2022');
+    expect(JSON.stringify(failed.body)).not.toContain('P2022');
     await request(server).get('/api/health').expect(200, { ok: true });
     await request(server).get('/api/health').expect(200, { ok: true });
     expect(create).toHaveBeenCalledTimes(2);

@@ -33,7 +33,8 @@ export default async function handler(request: Request, response: Response): Pro
     server(request, response);
   } catch (error: unknown) {
     const requestId = randomUUID();
-    console.error(`API initialization failed (${error instanceof Error ? error.name : 'UnknownError'}), requestId=${requestId}`);
+    const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
+    console.error(`API initialization failed (${error instanceof Error ? error.name : 'UnknownError'}, code=${errorCode}), requestId=${requestId}`);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Retry-After', '30');
     response.setHeader('X-Request-Id', requestId);
