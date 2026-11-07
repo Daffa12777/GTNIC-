@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ChatImageDto, validateChatImage } from '../api/chat.dto';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
 import { FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
@@ -409,12 +410,15 @@ export class AgentService {
     return { ranking, cases };
   }
 
-  async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = []): Promise<any> {
+  async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = [], image?: ChatImageDto): Promise<any> {
+    const attachment = validateChatImage(image);
+    if (attachment && (!useLlm || !this.llm.enabled)) throw new BadRequestException('Aktifkan Mode LLM yang sudah dikonfigurasi untuk membaca gambar.');
     if (useLlm && this.llm.enabled && (message || '').trim()) {
-      try { return await this.llm.chat(message.trim(), history); }
+      try { return await this.llm.chat(message.trim(), history, attachment); }
       catch (e: any) {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);
+        if (attachment) throw new ServiceUnavailableException('Gambar belum berhasil dianalisis. Coba kirim ulang.');
         return { ...(await this.chatPolicy(message, caseId)), llm_error: err };
       }
     }

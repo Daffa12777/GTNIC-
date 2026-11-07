@@ -51,7 +51,12 @@ export function configureHttpSecurity(app: INestApplication, options: { origins?
     next();
   });
   app.enableCors({ origin: [...origins], credentials: true, allowedHeaders: ['content-type', 'x-role', 'x-mm-client'], exposedHeaders: ['X-Request-Id', 'Retry-After', 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'], methods: ['GET', 'HEAD', 'POST', 'OPTIONS'], maxAge: 600 });
-  app.use(json({ limit: '128kb', strict: true, inflate: false }));
+  const standardJson = json({ limit: '128kb', strict: true, inflate: false });
+  const chatJson = json({ limit: '3mb', strict: true, inflate: false });
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const parser = req.method === 'POST' && req.path === '/api/chat' ? chatJson : standardJson;
+    parser(req, res, next);
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, forbidUnknownValues: true, validationError: { target: false, value: false } }));
   app.useGlobalFilters(new SafeExceptionFilter());
 }
