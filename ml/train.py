@@ -137,7 +137,7 @@ def main():
     iso = make_pipeline(StandardScaler(), IsolationForest(n_estimators=300, random_state=SEED, contamination="auto"))
     iso.fit(Xtr[htr])
     s_h = iso.score_samples(Xtr[htr])
-    threshold = float(np.percentile(s_h, 2))   # skor di bawah ambang = anomali
+    threshold = float(np.percentile(s_h, 15))   # skor di bawah ambang = anomali
     s_te = iso.score_samples(Xte)
     hte = healthy_mask(Yte)
     if hte.sum() == 0:

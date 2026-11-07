@@ -31,6 +31,7 @@ export const TOOL_SPECS: [string, string, any][] = [
 @Injectable()
 export class ToolsService {
   private cache = new Map<string, { ts: number; a: Analysis }>();
+  private zeroable?: Set<string>;
 
   constructor(private db: DbService, private ml: MlService, private sim: SimService, private rag: RagService) {}
   async refreshKnowledge() { await this.rag.build(); }
@@ -53,13 +54,31 @@ export class ToolsService {
     return { pump_id: a.pump_id, n: rows.length, latest: this.sim.display(last.features), nominal: this.sim.nominalDisplay(), rows };
   }
 
+  /** Sensor yang di data nyata pernah tepat 0 (mis. PS4 pada kondisi rusak) bukan bukti sensor mati. */
+  private zeroableSensors(): Set<string> {
+    if (!this.zeroable) {
+      const p = this.sim.profiles;
+      const rows: number[][] = [...p.healthy];
+      for (const comp of Object.values(p.banks)) for (const lv of Object.values(comp)) rows.push(...lv);
+      this.zeroable = new Set(
+        p.features
+          .map((n, j) => (n.endsWith('_mean') && rows.some((r) => r[j] === 0) ? n.replace('_mean', '') : ''))
+          .filter(Boolean),
+      );
+    }
+    return this.zeroable;
+  }
+
   async check_sensor_validity(a: { pump_id: string }) {
     const rows = this.sim.recent(a.pump_id, 5);
     const bad: string[] = [];
     if (rows.length) {
+      const zeroable = this.zeroableSensors();
       for (const s of this.sim.profiles.features.filter((f) => f.endsWith('_mean')).map((f) => f.replace('_mean', ''))) {
         const vals = rows.map((r) => r.features[`${s}_mean`]);
-        if (vals.some((v) => v == null || !Number.isFinite(v)) || vals.every((v) => v === 0)) bad.push(s);
+        const missing = vals.some((v) => v == null || !Number.isFinite(v));
+        const allZero = !zeroable.has(s) && vals.every((v) => v === 0);
+        if (missing || allZero) bad.push(s);
       }
     }
     return { valid: bad.length === 0, suspect_sensors: bad };
