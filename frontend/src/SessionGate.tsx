@@ -57,6 +57,6 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     <label className="field">Username<input className="input" autoComplete="username" required maxLength={100} disabled={busy} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
     <div className="field"><label htmlFor="login-password">Kata sandi</label><PasswordInput id="login-password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
     {error && <div className="notice bad" role="alert">{error}</div>}
-    <button className="btn primary" disabled={busy || !username.trim() || !password}>{busy ? 'Memeriksa…' : 'Masuk'}</button>
+    <button className="btn primary" disabled={busy || loggingOut || !username.trim() || !password}>{loggingOut ? 'Menyiapkan sesi…' : busy ? 'Memeriksa…' : 'Masuk'}</button>
   </form></main>;
 }
