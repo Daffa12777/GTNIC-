@@ -8,6 +8,10 @@ Gunakan username dan password dari pengelola instalasi. Akun memiliki peran tekn
 
 Login baru yang berhasil membuka dashboard, termasuk setelah logout dari Profil lalu memakai akun berbeda. Memuat ulang halaman saat sesi masih sah tetap mempertahankan tautan halaman yang sedang dibuka.
 
+Sesi otomatis berakhir setelah **30 menit tanpa interaksi** atau **maksimal delapan jam sejak login**, termasuk saat masih aktif. Klik/sentuhan, pengetikan, dan gerakan roda scroll pada tab yang terlihat memperbarui aktivitas. Polling data serta animasi tidak membuat sesi terus hidup. Bila waktu habis, aplikasi meminta login kembali; simpan laporan pekerjaan secara berkala karena isian yang belum tersimpan dapat hilang.
+
+Cookie mengikuti sesi browser. Menutup satu tab saja tidak menjamin langsung logout, dan pemulihan sesi browser dapat mengembalikan cookie. Untuk langsung mengakhiri akses, tetap gunakan **Profil → Logout**. Batas waktu backend tetap berlaku setelah browser/aplikasi ditutup. Ketika kebijakan ini pertama kali dipasang, pengguna dengan sesi tujuh hari dari versi lama perlu login ulang.
+
 ## Dashboard 3D
 
 Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang dipilih secara otomatis.

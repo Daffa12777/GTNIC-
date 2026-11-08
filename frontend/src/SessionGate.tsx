@@ -8,6 +8,7 @@ import { errorMessage, RequestState, usePolling } from './usePolling';
 import { clearPrivateCache, queryClient } from './queryClient';
 import { publishSessionChange, subscribeSessionChange } from './sessionSync';
 import { writeLocation } from './location';
+import { useSessionActivity } from './useSessionActivity';
 
 export default function SessionGate({ children }: { children: (user: AuthUser | null, logout: (serverAlreadyClosed?: boolean) => Promise<void>, loggingOut: boolean) => ReactNode }) {
   const identity = useRef<string | null>(null);
@@ -24,9 +25,10 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [loggedOut, setLoggedOut] = useState(false);
+  useSessionActivity(session.data, !loggedOut && !!session.data?.enabled);
   const submitting = useRef(false);
   useEffect(() => {
-    const expired = () => { clearPrivateCache(); clearChats(); setLoggedOut(true); queryClient.setQueryData(['session'], { enabled: true, user: null }); };
+    const expired = () => { clearPrivateCache(); clearChats(); setLoggedOut(true); setError('Sesi berakhir. Silakan masuk kembali.'); queryClient.setQueryData(['session'], { enabled: true, user: null }); };
     const updated = () => { void session.refresh(); };
     window.addEventListener('session-expired', expired); window.addEventListener('session-updated', updated);
     return () => { window.removeEventListener('session-expired', expired); window.removeEventListener('session-updated', updated); };
@@ -52,7 +54,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     submitting.current = true; setBusy(true); setError('');
     try { await queryClient.cancelQueries({ queryKey: ['session'] }); const value = await api.login(username.trim(), password); clearPrivateCache(); writeLocation('/', true); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); publishSessionChange(); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
   }}>
-    <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola.</p>
+    <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola. Sesi berakhir setelah 30 menit tanpa aktivitas atau maksimal 8 jam sejak login.</p>
     <RequestState {...session} retry={session.refresh} showUpdated={false} />
     <label className="field">Username<input className="input" autoComplete="username" required maxLength={100} disabled={busy} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
     <div className="field"><label htmlFor="login-password">Kata sandi</label><PasswordInput id="login-password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></div>

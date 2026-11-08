@@ -1,7 +1,7 @@
 export type Role = 'teknisi' | 'supervisor';
 export interface AuthUser { username: string; role: Role; name?: string | null }
 export interface UserProfile extends AuthUser { name: string | null; email: string | null }
-export interface SessionInfo { enabled: boolean; user: AuthUser | null }
+export interface SessionInfo { enabled: boolean; user: AuthUser | null; expiresAt?: number; absoluteExpiresAt?: number }
 
 export interface Comp {
   level: number; severity: number; confidence: number; p_degraded: number; probs: Record<string, number>;

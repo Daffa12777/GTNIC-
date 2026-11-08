@@ -178,7 +178,7 @@ Environment Vercel Production dikelola pada project **`manualmechanic-api`**. Me
 
 - React Query menyimpan data API di memori browser. Default data dianggap segar 30 detik dan cache yang tidak digunakan dibersihkan setelah lima menit; overview melakukan polling 15 detik. Perubahan operasional memicu invalidasi cache terkait.
 - Cache privat dibersihkan saat sesi berganti. Riwayat chat disimpan di session storage per username sampai logout; byte gambar tidak ikut disimpan di sana.
-- Password akun disimpan sebagai hash scrypt. Access JWT dan refresh token memakai cookie HttpOnly; refresh token dirotasi dan sesi dapat dicabut. Izin teknisi/supervisor diperiksa backend.
+- Password akun disimpan sebagai hash scrypt. Access JWT dan refresh token memakai cookie HttpOnly; refresh token dirotasi dan sesi dapat dicabut. Izin teknisi/supervisor diperiksa backend. Sesi dibatasi 30 menit idle dan delapan jam dari login; polling/refresh tidak memperpanjangnya. Cookie mengikuti sesi browser dengan batas waktu server tetap berlaku.
 - Origin eksplisit, validasi DTO, header klien untuk mutasi, Helmet, CSP, serta batas body membantu melindungi API. Batas body umum 128 KB; `/api/chat` dibatasi 3 MB untuk membawa gambar maksimal 2 MB setelah decoding.
 - Rate limiter berbasis PostgreSQL membatasi permintaan global, login, AI, dan operasi sensitif. Nilai default global 600/menit/IP, login 20/15 menit/IP, dan AI 20/menit/IP. Gangguan store limiter dapat menghasilkan 503.
 
@@ -203,7 +203,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan 8 November 2026, termasuk Tugas saya, ringkasan chat, reset navigasi login, dan startup, menghasilkan **69 tes frontend dan 88 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Uji browser headless lokal pada 1440, 768, dan 380 px memeriksa antrean supervisor, penugasan gagal/retry, ringkasan chat, serta batas tampilan teknisi menggunakan API fixture. Pergantian akun dari Profil juga diuji pada desktop/ponsel dan kembali ke dashboard. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, penggunaan fitur baru di production, dan uji pengguna manusia belum diverifikasi. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
+Pemeriksaan 8 November 2026, termasuk Tugas saya, ringkasan chat, reset navigasi login, dan startup, menghasilkan **75 tes frontend dan 93 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Uji browser headless lokal pada 1440, 768, dan 380 px memeriksa antrean supervisor, penugasan gagal/retry, ringkasan chat, serta batas tampilan teknisi menggunakan API fixture. Pergantian akun dari Profil juga diuji pada desktop/ponsel dan kembali ke dashboard. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, penggunaan fitur baru di production, dan uji pengguna manusia belum diverifikasi. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 

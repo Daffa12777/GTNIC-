@@ -229,7 +229,13 @@ Perubahan `.env` backend memerlukan restart; perubahan `VITE_*` pada produksi me
 
 `npm.cmd run auth:setup` membantu menyiapkan `.env` backend dan kredensial bootstrap lokal. File `.auth-bootstrap.json` tidak untuk source control. Bootstrap username/hash hanya membuat akun ketika tabel akun kosong; perubahan env berikutnya tidak menimpa akun yang sudah ada. Gunakan Profil untuk perubahan akun berikutnya.
 
-Access JWT berlaku 15 menit dan refresh token tujuh hari. Cookie HttpOnly digunakan untuk transport. Refresh token disimpan sebagai hash, dirotasi, dan dapat dicabut; penggunaan ulang token lama dapat mencabut sesi terkait. Password baru mencabut seluruh sesi. Supervisor aktif terakhir tidak dapat dihapus.
+Access JWT berlaku maksimal 15 menit, dibatasi juga oleh sisa masa sesi. Backend menolak sesi setelah 30 menit tanpa pembaruan aktivitas atau delapan jam sejak login. `refresh_sessions.expiresAt` menyimpan batas idle yang bergeser hanya lewat `POST /auth/activity`, sedangkan `createdAt` menentukan batas absolut delapan jam. Refresh token tidak memperpanjang kedua batas tersebut. Tidak ada migrasi atau environment baru; konstanta kebijakan berada di `auth.service.ts`.
+
+Cookie access/refresh tetap HttpOnly, SameSite=Lax, dan Secure sesuai konfigurasi deployment, tetapi tidak memakai Max-Age/Expires sehingga menjadi cookie sesi browser. Penutupan browser bukan sinyal logout yang terjamin: restore session dapat memulihkan cookie, dan menutup tab saja tidak selalu mengakhiri proses browser. Backend tetap menjadi penentu kedaluwarsa. Sesi lama dengan deadline tujuh hari ditolak kebijakan baru dan membutuhkan login ulang setelah rilis.
+
+Frontend mengirim aktivitas dari pointer, keyboard, wheel, atau touch pada tab terlihat, maksimal sekali per menit per tab. Polling, animasi, dan rotasi token tidak dihitung sebagai aktivitas. Ini penanda interaksi klien, bukan bukti kehadiran manusia; klien yang sudah memiliki kredensial dapat memanggil endpoint aktivitas sendiri. Endpoint memvalidasi JWT serta sesi aktif di server, memakai kunci baris, waktu server, dan batas absolut; timestamp klien tidak dipercaya. Timer UI memeriksa ulang sesi ke backend sebelum menutup workspace agar tab aktif lain yang telah memperpanjang sesi tidak menyebabkan logout keliru. Jika sesi benar-benar habis atau pemeriksaan gagal, data privat/riwayat chat dibersihkan dan form login ditampilkan. Isian yang belum disimpan dapat hilang ketika sesi berakhir.
+
+Refresh token disimpan sebagai hash, dirotasi, dan dapat dicabut; penggunaan ulang token lama dapat mencabut sesi terkait. Password baru mencabut seluruh sesi. Supervisor aktif terakhir tidak dapat dihapus.
 
 API memvalidasi JSON, origin, header klien, dan izin peran. Dalam mode autentikasi role dibaca dari sesi/database, bukan dipercaya dari `x-role`. Mode `AUTH_ENABLED=false` hanya untuk demo lokal dan ditolak untuk production publik sesuai validasi konfigurasi.
 

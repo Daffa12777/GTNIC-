@@ -43,8 +43,9 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
   });
   const data: unknown = await r.json().catch(() => null);
   if (!r.ok) {
-    if (r.status === 401 && !path.startsWith('/auth/') && retry && await renewAccess()) return req<T>(path, init, false);
-    if (r.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('session-expired'));
+    const protectedRequest = !path.startsWith('/auth/') || path === '/auth/activity';
+    if (r.status === 401 && protectedRequest && retry && await renewAccess()) return req<T>(path, init, false);
+    if (r.status === 401 && protectedRequest) window.dispatchEvent(new Event('session-expired'));
     const body = data && typeof data === 'object' ? data as Record<string, unknown> : {};
     throw new ApiError(r.status, String(body.detail || body.message || `Permintaan gagal (${r.status})`));
   }
@@ -71,6 +72,7 @@ export const api = {
   },
   login: (username: string, password: string) => post<SessionInfo>('/auth/login', { username, password }),
   logout: () => post('/auth/logout'),
+  activity: () => post<{ expiresAt: number; absoluteExpiresAt: number }>('/auth/activity'),
   profile: (signal?: AbortSignal) => req<UserProfile>('/profile', { signal }),
   updateProfile: (body: { name: string; email: string; username: string }) => post<UserProfile>('/profile', body),
   changePassword: (body: { currentPassword: string; newPassword: string }) => post('/profile/password', body),

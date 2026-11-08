@@ -7,7 +7,7 @@ import { validate } from 'class-validator';
 import { AuthModule } from '../src/auth/auth.module';
 import { DbModule } from '../src/db/db.module';
 import { DbService } from '../src/db/db.service';
-import { AuthService } from '../src/auth/auth.service';
+import { AuthService, SESSION_IDLE_MS, SESSION_MAX_MS } from '../src/auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { CompleteWorkOrderDto } from '../src/api/complete-work-order.dto';
@@ -76,6 +76,55 @@ describe('Server sessions and request validation', () => {
   it('revokes a session on logout', async () => {
     await request(app.getHttpServer()).post('/api/auth/logout').set('Cookie', cookie).set('x-mm-client', 'web').expect(201);
     await request(app.getHttpServer()).get('/api/private').set('Cookie', cookie).expect(401);
+  });
+  it('uses browser-session cookies and starts a thirty-minute idle deadline', async () => {
+    const start = Date.now();
+    const login = await request(app.getHttpServer()).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'technician', password }).expect(201);
+    const values = login.headers['set-cookie'] as unknown as string[];
+    for (const name of ['mm_access=', 'mm_refresh=']) {
+      const value = values.filter(v => v.startsWith(name)).at(-1)!;
+      expect(value).toContain('HttpOnly'); expect(value).not.toMatch(/Max-Age|Expires=/i);
+    }
+    const session = cookiesFrom(login.headers);
+    const info = await request(app.getHttpServer()).get('/api/auth/session').set('Cookie', session.all).expect(200);
+    expect(info.body.expiresAt).toBeGreaterThanOrEqual(start + SESSION_IDLE_MS);
+    expect(info.body.absoluteExpiresAt - info.body.expiresAt).toBe(SESSION_MAX_MS - SESSION_IDLE_MS);
+  });
+  it('does not extend idle time through polling or refresh, but extends it on explicit activity', async () => {
+    const session = await loginUser(), db = app.get(DbService), id = session.refresh.split('=')[1].split('.')[0];
+    const expiresAt = new Date(Date.now() + 5 * 60000);
+    await db.client.refreshSession.update({ where: { id }, data: { expiresAt } });
+    for (let i = 0; i < 2; i++) await request(app.getHttpServer()).get('/api/auth/session').set('Cookie', session.all).expect(200);
+    const rotated = await request(app.getHttpServer()).post('/api/auth/refresh').set('x-mm-client', 'web').set('Cookie', session.refresh).expect(201);
+    expect((await db.client.refreshSession.findUniqueOrThrow({ where: { id } })).expiresAt).toEqual(expiresAt);
+    const active = await request(app.getHttpServer()).post('/api/auth/activity').set('x-mm-client', 'web').set('Cookie', cookiesFrom(rotated.headers).all).expect(201);
+    expect(active.body.expiresAt).toBeGreaterThan(expiresAt.getTime());
+    expect(active.body.expiresAt).toBeLessThanOrEqual(Date.now() + SESSION_IDLE_MS);
+  });
+  it('rejects an idle session even with an unexpired JWT and cannot resurrect it by activity or refresh', async () => {
+    const session = await loginUser(), db = app.get(DbService), id = session.refresh.split('=')[1].split('.')[0];
+    await db.client.refreshSession.update({ where: { id }, data: { expiresAt: new Date(Date.now() - 1) } });
+    await request(app.getHttpServer()).get('/api/private').set('Cookie', session.all).expect(401);
+    await request(app.getHttpServer()).post('/api/auth/activity').set('x-mm-client', 'web').set('Cookie', session.all).expect(401);
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('x-mm-client', 'web').set('Cookie', session.refresh).expect(401);
+  });
+  it('caps activity at eight hours and expires sessions at the absolute boundary', async () => {
+    const session = await loginUser(), db = app.get(DbService), id = session.refresh.split('=')[1].split('.')[0];
+    const createdAt = new Date(Date.now() - SESSION_MAX_MS + 5 * 60000), absolute = createdAt.getTime() + SESSION_MAX_MS;
+    await db.client.refreshSession.update({ where: { id }, data: { createdAt, expiresAt: new Date(Date.now() + 3 * 60000) } });
+    const active = await request(app.getHttpServer()).post('/api/auth/activity').set('x-mm-client', 'web').set('Cookie', session.all).expect(201);
+    expect(active.body.expiresAt).toBe(absolute);
+    await db.client.refreshSession.update({ where: { id }, data: { createdAt: new Date(Date.now() - SESSION_MAX_MS - 1) } });
+    await request(app.getHttpServer()).get('/api/private').set('Cookie', session.all).expect(401);
+    await request(app.getHttpServer()).post('/api/auth/activity').set('x-mm-client', 'web').set('Cookie', session.all).expect(401);
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('x-mm-client', 'web').set('Cookie', session.refresh).expect(401);
+  });
+  it('requires a fresh login for legacy seven-day sessions', async () => {
+    const session = await loginUser(), id = session.refresh.split('=')[1].split('.')[0];
+    await app.get(DbService).client.refreshSession.update({ where: { id }, data: { expiresAt: new Date(Date.now() + 7 * 86400000) } });
+    const info = await request(app.getHttpServer()).get('/api/auth/session').set('Cookie', session.all).expect(200);
+    expect(info.body.user).toBeNull();
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('x-mm-client', 'web').set('Cookie', session.refresh).expect(401);
   });
   it('rejects blank completion reports and nonfinite durations', async () => {
     const report = Object.assign(new CompleteWorkOrderDto(), { root_cause: '  ', action: '', duration_min: Infinity });

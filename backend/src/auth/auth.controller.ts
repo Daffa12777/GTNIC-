@@ -15,7 +15,11 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
   @Get('session')
   @Header('Cache-Control', 'no-store')
-  async session(@Req() req: Request) { return { enabled: this.auth.enabled, user: await this.auth.current(req) }; }
+  async session(@Req() req: Request) { return this.auth.sessionInfo(req); }
+  @Post('activity')
+  @RatePolicy('refresh')
+  @Header('Cache-Control', 'no-store')
+  async activity(@Req() req: Request) { return this.auth.activity(req); }
   @Post('refresh')
   @RatePolicy('refresh')
   @Header('Cache-Control', 'no-store')

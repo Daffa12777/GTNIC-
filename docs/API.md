@@ -19,10 +19,11 @@ Base URL pengembangan: `http://localhost:8000/api`. Frontend mengakses `/api` me
 
 | Metode | Path | Body / fungsi | Akses |
 | --- | --- | --- | --- |
-| GET | `/auth/session` | `{enabled, user}` | Publik; user dapat null |
+| GET | `/auth/session` | `{enabled, user, expiresAt?, absoluteExpiresAt?}` | Publik; user dapat null; deadline epoch milidetik |
 | POST | `/auth/login` | `{username, password}`; menetapkan cookie | Publik dengan proteksi mutasi |
 | POST | `/auth/refresh` | Refresh lewat cookie; rotasi token | Publik dengan proteksi mutasi |
 | POST | `/auth/logout` | Mencabut sesi, menghapus cookie | Publik dengan proteksi mutasi |
+| POST | `/auth/activity` | Memperbarui deadline idle; mengembalikan `{expiresAt, absoluteExpiresAt}` | JWT dan sesi aktif; proteksi mutasi; limiter refresh |
 | GET | `/profile` | Profil akun | Akun login |
 | POST | `/profile` | `{name, email, username}` | Akun login |
 | POST | `/profile/password` | `{currentPassword, newPassword}` | Akun login; password baru 12–256 karakter |
@@ -31,6 +32,8 @@ Base URL pengembangan: `http://localhost:8000/api`. Frontend mengakses `/api` me
 | POST | `/inbox/read` | `{through: number}` | Akun login; penanda dibaca per akun |
 
 Nama profil 1–100 karakter, email valid maksimal 254 karakter, username 3–100 karakter dengan huruf/angka/`_`/`.`/`-`. Endpoint profil/inbox tetap membutuhkan identitas akun meskipun instalasi menggunakan mode demo tanpa login.
+
+Sesi idle maksimal 30 menit dan absolut maksimal delapan jam dari login. `GET /auth/session` serta `POST /auth/refresh` tidak memperpanjang deadline. Aktivitas hanya diterima untuk sesi yang belum kedaluwarsa dan tidak pernah melewati batas absolut; sesi idle/absolut yang sudah lewat menghasilkan 401 dan tidak dapat dipulihkan oleh heartbeat atau refresh. Cookie login dan hasil refresh adalah cookie sesi browser tanpa Max-Age/Expires. Deploy kebijakan baru memerlukan login ulang untuk sesi lama yang masih memakai deadline tujuh hari.
 
 ## Monitoring dan diagnosis
 

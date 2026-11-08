@@ -6,6 +6,12 @@ Acuan perbaikan awal: `8e11389` beserta rangkaian commit-nya; perbaikan percakap
 
 ## Tindak lanjut: Tugas saya, ringkasan chat, dan uji dua peran
 
+### Kebijakan sesi lanjutan — implementasi lokal
+
+Kebijakan baru: 30 menit idle, maksimal delapan jam dari login, access JWT maksimal 15 menit, cookie sesi browser, serta endpoint aktivitas eksplisit. Pemakaian kolom `expiresAt`/`createdAt` yang sudah ada membuat migrasi tidak diperlukan. Polling dan rotasi token tidak menambah deadline; heartbeat tidak dapat menghidupkan sesi yang sudah berakhir. Sesi tujuh hari dari versi lama wajib login ulang saat kebijakan ini dirilis.
+
+Validasi lokal: **93 tes backend dan 75 tes frontend lulus**, termasuk batas idle/absolut, cookie tanpa Max-Age/Expires, polling/refresh tanpa perpanjangan, aktivitas yang dibatasi delapan jam, penolakan sesi lama, throttling satu menit, tab tersembunyi, pemeriksaan ulang sesi antar-tab, respons dari akun lama yang tidak boleh menimpa akun berikutnya, serta renewal JWT untuk heartbeat. Build frontend, Node, dan Vercel lulus. Browser headless lokal pada 1440/380 px memeriksa kembali ke login saat idle, input yang memperpanjang sesi, tidak ada keepalive dari polling, dan login ulang tanpa exception JavaScript. Deadline browser menggunakan fixture dipercepat; batas 30 menit/delapan jam diperiksa melalui timestamp pada database tes terisolasi. Menutup browser sungguhan dan perilaku restore-session berbagai browser belum diuji. Perubahan kebijakan sesi ini belum di-push atau di-deploy pada saat pencatatan.
+
 **Pembaruan deployment:** fitur-fitur pada laporan ini sudah masuk ke `main` dan production; rincian deployment serta smoke live tersedia di [VERCEL_WEB.md](VERCEL_WEB.md). Saat pemeriksaan production ditemukan dan diperbaiki penerimaan broadcast sesi oleh tab pengirim sendiri serta tombol login yang dapat ditekan ketika cleanup logout belum selesai. Setelahnya 69 tes frontend lulus. Browser production memverifikasi pergantian supervisor ke teknisi dengan dashboard `/` tampil dan kedua sesi logout. Angka/status "belum di-push/deploy" di bagian historis berikut menjelaskan kondisi pada saat tahap tersebut dicatat.
 
 - Commit penugasan supervisor `6fc9386` sudah di-push ke `origin/farras`. Perubahan sesudahnya dalam bagian ini belum di-push atau di-deploy pada saat pencatatan.

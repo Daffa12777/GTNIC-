@@ -3,6 +3,17 @@ import { api } from '../src/api';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('JWT cookie renewal', () => {
+  it('renews an expired access token for authenticated activity without extending it by polling', async () => {
+    let renewed = false;
+    const fetch = vi.fn(async (input: string) => {
+      if (input.endsWith('/auth/session')) return new Response(JSON.stringify({ enabled: true, user: null }));
+      if (input.endsWith('/auth/refresh')) { renewed = true; return new Response('{}', { status: 201 }); }
+      return new Response(JSON.stringify(renewed ? { expiresAt: 123, absoluteExpiresAt: 456 } : { message: 'expired' }), { status: renewed ? 201 : 401 });
+    });
+    vi.stubGlobal('fetch', fetch);
+    expect(await api.activity()).toEqual({ expiresAt: 123, absoluteExpiresAt: 456 });
+    expect(fetch.mock.calls.filter(([path]) => path.endsWith('/auth/refresh'))).toHaveLength(1);
+  });
   it('renews once for concurrent unauthorized requests and retries each request', async () => {
     let renewed = false;
     let refreshCalls = 0;

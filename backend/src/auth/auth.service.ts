@@ -14,7 +14,8 @@ const derive = promisify(scrypt);
 const ACCESS = 'mm_access';
 const REFRESH = 'mm_refresh';
 const ACCESS_SECONDS = 15 * 60;
-const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+export const SESSION_IDLE_MS = 30 * 60 * 1000;
+export const SESSION_MAX_MS = 8 * 60 * 60 * 1000;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
 @Injectable()
@@ -43,10 +44,35 @@ export class AuthService implements OnModuleInit {
     });
   }
   async current(req: Request): Promise<User | null> {
+    const session = await this.activeSession(req);
+    return session ? this.publicUser(session.user) : null;
+  }
+  private valid(session: { expiresAt: Date; createdAt: Date; revokedAt: Date | null; user: { active: boolean } }): boolean {
+    const time = Date.now(), absolute = session.createdAt.getTime() + SESSION_MAX_MS;
+    return !session.revokedAt && session.user.active && session.expiresAt.getTime() > time && absolute > time && session.expiresAt.getTime() <= absolute;
+  }
+  private async activeSession(req: Request) {
     const claims = await this.claims(req);
     if (!claims) return null;
     const session = await this.db.client.refreshSession.findFirst({ where: { id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { gt: new Date() }, user: { active: true } }, include: { user: true } });
-    return session ? this.publicUser(session.user) : null;
+    return session && this.valid(session) ? session : null;
+  }
+  async sessionInfo(req: Request) {
+    const session = await this.activeSession(req);
+    return { enabled: this.enabled, user: session ? this.publicUser(session.user) : null, ...(session ? { expiresAt: session.expiresAt.getTime(), absoluteExpiresAt: session.createdAt.getTime() + SESSION_MAX_MS } : {}) };
+  }
+  async activity(req: Request) {
+    const claims = await this.claims(req);
+    if (!claims || !this.enabled) throw new UnauthorizedException('Sesi berakhir. Silakan masuk kembali.');
+    return this.db.transaction(async () => {
+      await this.db.q('SELECT id FROM refresh_sessions WHERE id=$1 FOR UPDATE', [claims.sid]);
+      const session = await this.db.client.refreshSession.findUnique({ where: { id: claims.sid }, include: { user: true } });
+      if (!session || session.userId !== claims.sub || !this.valid(session)) throw new UnauthorizedException('Sesi berakhir. Silakan masuk kembali.');
+      const absoluteExpiresAt = session.createdAt.getTime() + SESSION_MAX_MS;
+      const expiresAt = Math.min(Date.now() + SESSION_IDLE_MS, absoluteExpiresAt);
+      await this.db.client.refreshSession.update({ where: { id: session.id }, data: { expiresAt: new Date(expiresAt) } });
+      return { expiresAt, absoluteExpiresAt };
+    });
   }
   private async claims(req: Request): Promise<AccessClaims | null> {
     try {
@@ -121,9 +147,9 @@ export class AuthService implements OnModuleInit {
   private clear(res: Response) { res.clearCookie(ACCESS, this.options('/api')); res.clearCookie(REFRESH, this.options('/api/auth')); res.clearCookie('mm_session', this.options('/api')); }
   private options(path: string) { return { httpOnly: true, sameSite: 'lax' as const, secure: process.env.SESSION_COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && CONFIG.FRONTEND_ORIGIN.split(',').every((origin) => origin.trim().startsWith('https://'))), path }; }
   private async issue(userId: string, sessionId: string, refresh: string, expiresAt: Date, res: Response) {
-    const token = await this.jwt.signAsync({ sid: sessionId, typ: 'access' }, { secret: process.env.JWT_SECRET, algorithm: 'HS256', subject: userId, issuer: 'manualmechanic', audience: 'manualmechanic-web', expiresIn: ACCESS_SECONDS });
-    res.cookie(ACCESS, token, { ...this.options('/api'), maxAge: ACCESS_SECONDS * 1000 });
-    res.cookie(REFRESH, refresh, { ...this.options('/api/auth'), maxAge: Math.max(0, expiresAt.getTime() - Date.now()) });
+    const token = await this.jwt.signAsync({ sid: sessionId, typ: 'access' }, { secret: process.env.JWT_SECRET, algorithm: 'HS256', subject: userId, issuer: 'manualmechanic', audience: 'manualmechanic-web', expiresIn: Math.min(ACCESS_SECONDS, Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000))) });
+    res.cookie(ACCESS, token, this.options('/api'));
+    res.cookie(REFRESH, refresh, this.options('/api/auth'));
   }
   async login(username: string, password: string, req: Request, res: Response): Promise<User> {
     if (!this.enabled) throw new UnauthorizedException('Login tidak diaktifkan.');
@@ -142,8 +168,8 @@ export class AuthService implements OnModuleInit {
     await this.logout(req, res);
     const id = randomUUID();
     const refresh = `${id}.${randomBytes(32).toString('hex')}`;
-    const expiresAt = new Date(now + REFRESH_MS);
-    await this.db.client.refreshSession.create({ data: { id, userId: user.id, tokenHash: digest(refresh), expiresAt } });
+    const expiresAt = new Date(now + SESSION_IDLE_MS);
+    await this.db.client.refreshSession.create({ data: { id, userId: user.id, tokenHash: digest(refresh), expiresAt, createdAt: new Date(now) } });
     await this.issue(user.id, id, refresh, expiresAt, res);
     return this.publicUser(user);
   }
@@ -154,7 +180,7 @@ export class AuthService implements OnModuleInit {
     const rotated = await this.db.transaction(async () => {
       await this.db.q('SELECT id FROM refresh_sessions WHERE id=$1 FOR UPDATE', [id]);
       const session = await this.db.client.refreshSession.findUnique({ where: { id }, include: { user: true } });
-      if (!session || session.revokedAt || session.expiresAt <= new Date() || !session.user.active) return null;
+      if (!session || !this.valid(session)) return null;
       const tokenHash = digest(token);
       if (tokenHash !== session.tokenHash) {
         const consumed = await this.db.client.consumedRefreshToken.findUnique({ where: { tokenHash } });
