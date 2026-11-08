@@ -38,14 +38,14 @@ Alur mencoba aplikasi:
 - **Monitoring dan ML:** validasi sensor, deteksi anomali dengan Isolation Forest, dan klasifikasi kondisi pompa, katup, pendingin, serta akumulator dengan Random Forest.
 - **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi.
 - **RAG bersitasi:** pencarian manual Markdown dan riwayat perawatan menggunakan TF-IDF serta cosine similarity.
-- **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran memiliki pratinjau, dapat dihapus, dan dipertahankan untuk dikirim ulang saat permintaan gagal. Gambar dikirim ke Gemini saat pesan dikirim; riwayat sesi menyimpan teks serta nama lampiran, sementara pratinjau berakhir ketika halaman dimuat ulang.
+- **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran dapat dihapus dan dicoba ulang saat permintaan gagal. Riwayat sesi menyimpan teks serta nama lampiran; hanya tiga pratinjau foto terbaru berada di memori sampai halaman dimuat ulang.
 - **Operasional:** kasus dan work order dengan filter/paginasi, inventaris beserta riwayat stok, notifikasi, profil pengguna, dan autentikasi sesi.
 - **UX dan ketahanan:** detail unit dengan jalan kembali ke peta, action bar persetujuan, pesan gagal yang menetap, konfirmasi dalam halaman, perlindungan isian, tampilan WO ponsel, serta cache data dengan status offline/kesegaran.
 - **Integrasi opsional:** Gemini untuk function calling dan Telegram untuk pengiriman notifikasi.
 
 Mode policy dapat berjalan tanpa Gemini. Hasil analisis tidak langsung mengendalikan perangkat fisik; tindakan sistem berupa pencatatan dan koordinasi pekerjaan maintenance.
 
-Tinjauan terbaru mencatat celah pada penegakan risiko dan penyatuan kasus di jalur LLM. Batasan serta contoh reproduksinya ada di [laporan tinjauan](docs/REVIEW_2026-11-08.md); perilaku policy dan LLM perlu dibuktikan terpisah.
+Pengamanan risiko, rencana persetujuan LLM, konteks kasus chat, batas waktu, dan retensi foto telah diperbaiki serta diuji. Hasil dan batas verifikasinya ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md). Verifikasi lokal tidak berarti versi production sudah diperbarui.
 
 ## Arsitektur
 
@@ -201,7 +201,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan ulang 8 November 2026 menghasilkan **54 tes frontend dan 47 tes backend lulus**. Backend dijalankan dengan `--testPathIgnorePatterns test/e2e.spec.ts`; suite integrasi penuh serta pytest ML belum dijalankan ulang pada pemeriksaan ini. Angka 101 tersebut adalah cakupan yang terverifikasi dalam tinjauan ini. Lihat [laporan tinjauan](docs/REVIEW_2026-11-08.md) untuk batas bukti dan catatan proposal.
+Pemeriksaan 8 November 2026 menghasilkan **57 tes frontend dan 74 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi LLM memakai respons Gemini terkontrol dan database lokal terisolasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 
@@ -230,8 +230,8 @@ Dokumen konsep lama [PROJECT_DETAIL.md](docs/PROJECT_DETAIL.md) dipertahankan se
 - Belum ada formulir/API umum untuk mendaftarkan mesin, integrasi sensor MQTT/OPC-UA, ataupun integrasi ERP/CMMS eksternal.
 - Keyakinan ML belum dikalibrasi untuk mesin pabrik pengguna. Dataset satu rig dan data sintetis tidak membuktikan akurasi lapangan.
 - Penambahan riwayat membantu pencarian RAG; model ML tidak otomatis dilatih ulang dari pekerjaan yang selesai.
-- Kasus percakapan LLM belum selalu ditautkan ke ID unit/kasus yang sama. Guardrail risiko pada tool masih perlu diperkuat terhadap argumen risiko yang keliru dari LLM; lihat laporan tinjauan.
-- Lampiran gambar hanya tersedia pada permintaan saat dikirim dan memori halaman. Riwayat setelah reload berisi nama file dan teks, sehingga pemeriksaan visual ulang memerlukan pengunggahan kembali.
+- Konteks chat memakai satu unit per kasus; sebut ID unit lain untuk berpindah. Kasus yang menunggu keputusan dipertahankan agar rencana tidak ditimpa. Foto tambahan pada kasus tersebut dinyatakan belum dianalisis.
+- Memori chat dibatasi 100 pesan dan tiga pratinjau foto terbaru. Riwayat setelah reload berisi nama file dan teks; pemeriksaan visual ulang memerlukan pengunggahan kembali.
 - Simulasi, snapshot data, dan koneksi layanan perlu diperiksa sebelum presentasi.
 
 Referensi dataset: Helwig, N., Pignanelli, E., & Schütze, A. (2015), *Condition monitoring of hydraulic systems*, UCI Machine Learning Repository, DOI [10.24432/C5CW21](https://doi.org/10.24432/C5CW21). Ketentuan dataset mengikuti sumbernya. Lisensi penggunaan kode proyek belum ditetapkan dalam repositori.

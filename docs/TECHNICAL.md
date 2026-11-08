@@ -49,7 +49,7 @@ Folder `app/`, `data/manuals/`, Dockerfile root, dan `requirements.txt` root mer
 
 Ini adalah polling, bukan streaming WebSocket. Timer simulator default tiga detik tidak berarti browser menerima pembaruan tiap tiga detik. Saat tab berada di latar belakang, polling query tidak dipaksakan berjalan.
 
-Reservasi kasus mencegah lebih dari satu kasus berstatus diproses, menunggu klarifikasi, atau menunggu persetujuan untuk unit yang sama. Monitor otomatis juga melewati unit yang mempunyai work order aktif. Diagnosis manual tetap dapat membuat kasus baru setelah kasus sebelumnya dijalankan atau dieskalasi; daftar kasus terkait dan pekerjaan aktif membantu supervisor memeriksa pengulangan. Pembuatan work order memakai kembali pekerjaan aktif dengan unit dan judul yang sama, tetapi ini bukan penyatuan otomatis semua diagnosis yang mirip.
+Reservasi kasus mengunci baris unit dan memakai kembali kasus terbuka atau kasus yang terkait work order aktif. Monitor juga melewati unit yang masih mempunyai pekerjaan. Work order dideduplikasi berdasarkan unit dan judul atau ID kasus yang sama; perubahan judul dari LLM tidak membuat pekerjaan kedua dalam kasus tersebut. Kelanjutan chat LLM mengklaim kasus dengan row lock agar dua request tidak menjalankan percakapan yang sama bersamaan.
 
 `SIM_ENABLED=false` menonaktifkan timer; ini belum merupakan mode akuisisi sensor fisik. Bootstrap simulator masih dapat membangun pembacaan contoh dari profil. Status, ring buffer, dan indeks RAG berada dalam memori proses, sedangkan pembacaan dan catatan operasional disimpan di database. Beberapa instance backend tidak berbagi simulator/status secara otomatis.
 
@@ -130,7 +130,11 @@ ML mengembalikan HTTP 503 bila model hilang, rusak, atau scikit-learn tidak komp
 
 Mode policy tersedia tanpa API LLM. Mode Gemini bersifat opsional dan memakai function calling. Tool backend tetap memberlakukan aturan risiko/persetujuan, stok, dan transaksi.
 
-Tinjauan terbaru menemukan bahwa guardrail `create_work_order` masih menggunakan nilai `risk` dari argumen tool, sehingga risiko yang lebih rendah dari kasus tersimpan bisa melewati pemeriksaan persetujuan. Jalur chat LLM juga belum meneruskan `case_id` yang diterima API dan menyimpan state dengan `pump_id: null`; saat membutuhkan persetujuan, `state.plan` belum tersedia. Perilaku dan usulan perbaikannya ada di [laporan tinjauan](REVIEW_2026-11-08.md).
+`create_work_order` mempertimbangkan risiko kasus, rencana tersimpan, serta analisis ML terbaru; argumen model hanya dapat memperketat risiko. Persetujuan harus tercatat pada kasus untuk unit yang sama dan masih menunggu keputusan. Loop LLM tidak dapat memberi dirinya flag `approved`. Jalur inspeksi merupakan parameter internal backend, tidak dapat diaktifkan melalui argumen model. Keyakinan untuk tindakan memakai rencana backend, termasuk bukti teknisi yang diproses policy.
+
+Chat meneruskan `case_id`, mengikat satu ID unit yang disebut pengguna, serta memakai reservasi kasus yang sama dengan monitor/policy. LLM membangun `state.plan` dari ML dan manual backend, bukan dari klaim model, sehingga endpoint approve dapat menjalankan rantai stok, WO, jadwal, dan notifikasi yang sudah ada. Kasus pending tidak ditimpa percakapan baru. Hasil pengujian dan batas deployment ada di [validasi agent](AGENT_VALIDATION_2026-11-08.md).
+
+Interaksi LLM mempunyai anggaran 45 detik termasuk retry; panggilan Gemini memakai sisa anggaran. Tool baru ditahan bila sisa waktu tidak lebih dari 12 detik. Ini memberi ruang untuk pencatatan kegagalan sebelum batas function Vercel 60 detik, tanpa menjamin latensi seluruh dependency. Progres disimpan setiap tool. Respons kosong atau loop 12 langkah yang tidak selesai menjadi kegagalan, bukan sukses semu.
 
 ### Chat multimodal
 
@@ -138,7 +142,7 @@ Tinjauan terbaru menemukan bahwa guardrail `create_work_order` masih menggunakan
 
 `AgentService.chat` mensyaratkan Mode LLM serta konfigurasi Gemini untuk lampiran. `LlmService.loop` menambahkan `inlineData` pada bagian pesan pengguna yang dikirim ke `generateContent`; gambar yang sama tersedia selama loop permintaan itu. History percakapan berikutnya hanya memuat teks. Kegagalan LLM dengan gambar mengembalikan error untuk pengiriman ulang; jalur teks masih mempunyai fallback policy.
 
-Byte gambar berada dalam memori halaman dan permintaan ke Gemini. `writeChat` hanya menyimpan nama lampiran, teks, dan ID kasus di session storage; kasus backend tidak menyimpan byte gambar. Tampilan pesan di memori belum membatasi akumulasi lampiran selama halaman terbuka. Ini dicatat sebagai temuan performa pada laporan tinjauan.
+Byte gambar berada dalam memori halaman dan permintaan ke Gemini. `writeChat` hanya menyimpan nama lampiran, teks, dan ID kasus di session storage; kasus backend tidak menyimpan byte gambar. `retainChatMessages` membatasi memori tampilan menjadi 100 pesan dan tiga pratinjau foto terbaru; teks/nama foto tetap ada saat pratinjau dilepas. Lampiran yang masih menunggu pengiriman atau retry tetap tersedia terpisah dari batas pratinjau pesan.
 
 RAG menggunakan TF-IDF + cosine similarity, bukan embedding atau vector database. Manual `backend/knowledge/*.md` dipotong berdasarkan heading bagian; indeks juga memuat `case_history`. Sitasi menyebut dokumen dan bagian/ID riwayat. Menyelesaikan WO menambah riwayat untuk pencarian; tidak melatih ulang model secara otomatis.
 

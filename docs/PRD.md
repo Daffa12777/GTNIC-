@@ -129,7 +129,7 @@ Metrik berikut adalah rencana evaluasi, bukan hasil yang sudah dicapai:
 
 Uji frontend memeriksa pemilihan/penutupan panel, perubahan status, navigasi, sesi, cache, dan form. Tes backend memeriksa operasi lewat Prisma pada PGlite terisolasi; suite integrasi memerlukan layanan ML. Uji browser dengan respons API terkontrol memeriksa tampilan dan interaksi, tetapi tidak menggantikan uji login pengguna dan layanan produksi.
 
-Pemeriksaan 8 November 2026 menjalankan ulang 54 tes frontend dan 47 tes backend di luar suite integrasi ML. Kontrak persetujuan berbasis risiko dan penyatuan kasus belum dipenuhi sepenuhnya oleh jalur LLM; lihat [laporan tinjauan](REVIEW_2026-11-08.md). Foto merupakan bukti visual; kemampuan membaca gambar tidak membuktikan ketepatan diagnosis kerusakan fisik.
+Pemeriksaan lanjutan 8 November 2026 menguji pengamanan risiko, persetujuan LLM, penyatuan kasus, anggaran waktu, dan retensi gambar. Hasil serta batas cakupan dicatat pada [validasi agent](AGENT_VALIDATION_2026-11-08.md). Foto merupakan bukti visual; kemampuan membaca gambar tidak membuktikan ketepatan diagnosis kerusakan fisik. Uji lokal tidak menggantikan verifikasi versi yang sudah dideploy.
 
 Laporan lama di `docs/TEST_REPORT_2026-11-01.md` adalah snapshot pada waktunya. Jumlah tes dan hasil harus diperbarui dari eksekusi nyata, bukan diperlakukan sebagai jaminan permanen.
 
