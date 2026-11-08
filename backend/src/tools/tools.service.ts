@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { CONFIG } from '../config';
-import { COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, asObj, now } from '../domain';
+import { assessRisk, COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, FAULT_QUERY, type MaintenancePlan, asObj, now } from '../domain';
 import { DbService } from '../db/db.service';
 import { Analysis, MlService } from '../ml/ml.service';
 import { RagService } from '../rag/rag.service';
 import { SimService } from '../sim/sim.service';
+import { assignmentRequirements, technicianReason, unassignedReason } from './technician-assignment';
 
 const S = { type: 'STRING' }, I = { type: 'INTEGER' }, B = { type: 'BOOLEAN' };
 const obj = (properties: any, required: string[]) => ({ type: 'OBJECT', properties, required });
@@ -117,6 +118,22 @@ export class ToolsService {
     return { pump_id: a.pump_id, label: r.label, confidence: r.confidence, probs: r.probs, components: comps };
   }
 
+  async maintenancePlan(pumpId: string) {
+    const analysis = await this.analyze(pumpId);
+    if ('error' in analysis) return analysis;
+    const validity = await this.check_sensor_validity({ pump_id: pumpId });
+    if (!validity.valid) return { error: 'Sensor perlu diperiksa sebelum merencanakan perbaikan.' };
+    if (analysis.label === 'normal') return { analysis, plan: null };
+    const manual = await this.search_manual({ query: FAULT_QUERY[analysis.label] });
+    const plan: MaintenancePlan = {
+      fault: analysis.label, confidence: analysis.confidence,
+      risk: assessRisk(analysis.label, analysis.components, analysis.flags),
+      citation: manual.results?.[0]?.citation ?? 'belum ada sitasi',
+      advice: manual.results?.[0]?.text?.slice(0, 600) ?? 'Periksa unit bersama teknisi sebelum perbaikan.',
+    };
+    return { analysis, plan };
+  }
+
   // ---------------------------------------------------------- RAG
   async search_manual(a: { query: string; k?: number }) {
     if (!a.query?.trim()) return { error: 'query kosong' };
@@ -155,16 +172,28 @@ export class ToolsService {
     });
   }
 
-  async create_work_order(a: { pump_id: string; title: string; description: string; priority: string; part?: string; case_id?: string; risk?: string; approved?: boolean }) {
+  async create_work_order(a: { pump_id: string; title: string; description: string; priority: string; part?: string; case_id?: string; risk?: string; approved?: boolean }, inspection = false) {
     if (!['rendah', 'sedang', 'tinggi'].includes(a.priority)) return { error: 'priority harus rendah|sedang|tinggi' };
     if (!a.title || !a.description) return { error: 'title dan description wajib' };
+    if (a.risk && !['rendah', 'sedang', 'tinggi'].includes(a.risk)) return { error: 'risk harus rendah|sedang|tinggi' };
     // Tool arguments cannot grant approval: verify the decision persisted by the supervisor endpoint.
     const approvedCase = a.case_id ? await this.db.client.maintenanceCase.findUnique({ where: { id: a.case_id } }) : null;
-    const approval = approvedCase?.state && typeof approvedCase.state === 'object' && !Array.isArray(approvedCase.state) ? approvedCase.state['approved_by'] : null;
-    if ((a.risk ?? 'sedang') === 'tinggi' && !(a.approved && approval)) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+    const state = asObj(approvedCase?.state, {});
+    if (a.case_id && (!approvedCase || approvedCase.pump_id !== a.pump_id || state.pump_id !== a.pump_id)) return { error: 'kasus tidak sesuai dengan unit tindakan' };
+    if (!inspection) {
+      const analysis = await this.analyze(a.pump_id);
+      if ('error' in analysis) return { error: `Tindakan ditunda: ${analysis.error}` };
+      if (!(await this.check_sensor_validity({ pump_id: a.pump_id })).valid) return { error: 'Sensor perlu diperiksa sebelum perbaikan.' };
+      const highRisk = [a.risk, approvedCase?.risk, state.risk, state.plan?.risk, assessRisk(analysis.label, analysis.components, analysis.flags)].includes('tinggi');
+      const approved = a.approved === true && state.approved_by && approvedCase?.status === 'menunggu_persetujuan' && state.plan;
+      if (highRisk && !(approved && state.plan.risk === 'tinggi')) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+      const confidence = state.plan?.confidence ?? analysis.confidence;
+      if (confidence < CONFIG.CONF_ACT && !approved) return { error: 'Keyakinan diagnosis belum cukup untuk perbaikan otomatis. Minta klarifikasi atau eskalasi inspeksi.', requires_clarification: true };
+      if (analysis.label === 'normal') return { error: 'Belum ada diagnosis gangguan untuk perbaikan. Gunakan jalur inspeksi.' };
+    }
     return this.db.transaction(async () => {
       if (!await this.db.one('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [a.pump_id])) return { error: 'unit tidak ditemukan' };
-      const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, title: a.title, status: { notIn: ['selesai', 'dibatalkan'] } } });
+      const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, OR: [{ title: a.title }, ...(a.case_id ? [{ case_id: a.case_id }] : [])], status: { notIn: ['selesai', 'dibatalkan'] } } });
       if (duplicate) return { id: duplicate.id, duplicate: true };
       const id = await this.db.nextId('WO', 'work_orders');
       await this.db.client.workOrder.create({ data: { id, pump_id: a.pump_id, case_id: a.case_id || null, title: a.title, description: a.description, priority: a.priority, status: 'terbuka', part: a.part ?? '', created_at: now() } });
@@ -172,23 +201,60 @@ export class ToolsService {
     });
   }
 
-  async schedule_technician(a: { work_order_id: string; skill: string; senior?: boolean }) {
+  async assignmentOptions(id: string) {
+    const order = await this.db.client.workOrder.findUnique({ where: { id }, include: { case: true } });
+    if (!order) return { error: 'Work order tidak ditemukan.', code: 404 };
+    const needs = assignmentRequirements(order, order.case);
+    const technicians = await this.db.client.technician.findMany({ orderBy: { name: 'asc' } });
+    const active = await this.db.client.workOrder.findMany({ where: { technician_id: { not: null }, id: { not: id }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { technician_id: true } });
+    const busy = new Set(active.map(item => item.technician_id));
+    const candidates = technicians.map(t => {
+      const current = t.id === order.technician_id;
+      const reason = current ? null : technicianReason({ ...t, busy: busy.has(t.id) }, needs);
+      return { id: t.id, name: t.name, skill: t.skill, level: t.level, current, eligible: !reason, reason };
+    });
+    return { work_order_id: id, current_technician_id: order.technician_id, status: order.status, requirements: needs, reason: order.technician_id ? null : unassignedReason(technicians.map(t => ({ ...t, busy: busy.has(t.id) })), needs), technicians: candidates };
+  }
+
+  async assignWorkOrder(id: string, technicianId: string | null, expectedTechnicianId: string | null, actor: string) {
+    return this.db.transaction(async () => {
+      const order = await this.db.client.workOrder.findUnique({ where: { id }, include: { case: true } });
+      if (!order) return { error: 'Work order tidak ditemukan.', code: 404 };
+      const needs = assignmentRequirements(order, order.case);
+      const result = await this.schedule_technician({ work_order_id: id, ...needs }, { technicianId, expectedTechnicianId });
+      if (result.scheduled && !('duplicate' in result && result.duplicate)) {
+        // Audit independent of the case FK avoids reversing the work-order/case lock order.
+        await this.db.client.agentLog.create({ data: { ts: now(), step: 'manual_assignment', tool: 'schedule_technician', input: JSON.stringify({ actor, work_order_id: id, case_id: order.case_id, previous_technician_id: expectedTechnicianId }), output: JSON.stringify(result) } });
+      }
+      return result;
+    });
+  }
+
+  async schedule_technician(a: { work_order_id: string; skill: string; senior?: boolean }, manual?: { technicianId: string | null; expectedTechnicianId: string | null }) {
     return this.db.transaction(async () => {
       await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [a.work_order_id]);
       const wo = await this.db.client.workOrder.findUnique({ where: { id: a.work_order_id }, include: { technician: true } });
       if (!wo || ['selesai', 'dibatalkan'].includes(wo.status ?? '')) return { error: 'work order tidak tersedia', scheduled: false };
-      if (wo.technician) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
-      const candidates = a.senior
-        ? await this.db.q("SELECT * FROM technicians WHERE available=true AND level='senior' AND skill<>'supervisor' ORDER BY (skill=$1) DESC,id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill])
-        : await this.db.q('SELECT * FROM technicians WHERE available=true AND skill=$1 ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED', [a.skill]);
+      if (manual && wo.technician_id !== manual.expectedTechnicianId) return { error: 'Penugasan sudah berubah. Perbarui pilihan sebelum menyimpan.', code: 409, scheduled: false };
+      if (wo.technician && (!manual?.technicianId || manual.technicianId === wo.technician_id)) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
+      const candidates = manual?.technicianId
+        ? await this.db.q('SELECT * FROM technicians WHERE id=$1 FOR UPDATE', [manual.technicianId])
+        : await this.db.q("SELECT * FROM technicians t WHERE available=true AND skill=$1 AND ($2=false OR level='senior') AND NOT EXISTS (SELECT 1 FROM work_orders w WHERE w.technician_id=t.id AND w.status NOT IN ('selesai','dibatalkan')) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill, !!a.senior]);
       const technician = candidates[0];
-      if (!technician) return { error: 'tidak ada teknisi tersedia', scheduled: false };
+      if (!technician) return { error: manual?.technicianId ? 'Teknisi tidak ditemukan.' : `Tidak ada teknisi ${a.senior ? 'senior ' : ''}${a.skill} yang tersedia saat ini. Perbarui pilihan atau coba lagi setelah teknisi tersedia.`, scheduled: false };
+      const active = await this.db.one("SELECT id FROM work_orders WHERE technician_id=$1 AND id<>$2 AND status NOT IN ('selesai','dibatalkan')", [technician.id, wo.id]);
+      const reason = technicianReason({ ...technician, busy: !!active }, { skill: a.skill, senior: !!a.senior });
+      if (reason) return { error: reason, scheduled: false };
       const when = new Date(Date.now() + (wo.priority === 'tinggi' ? 2 * 3600e3 : (wo.priority === 'sedang' ? 1 : 2) * 86400e3));
       if (wo.priority !== 'tinggi') when.setHours(8, 0, 0, 0);
       const pad = (v: number) => String(v).padStart(2, '0');
       const scheduled_at = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
       await this.db.client.technician.update({ where: { id: technician.id }, data: { available: false } });
       await this.db.client.workOrder.update({ where: { id: wo.id }, data: { technician_id: technician.id, scheduled_at, status: 'terjadwal' } });
+      if (wo.technician_id && wo.technician_id !== technician.id) {
+        const remaining = await this.db.client.workOrder.count({ where: { technician_id: wo.technician_id, status: { notIn: ['selesai', 'dibatalkan'] } } });
+        if (!remaining) await this.db.client.technician.update({ where: { id: wo.technician_id }, data: { available: true } });
+      }
       return { scheduled: true, technician: technician.name, technician_id: technician.id, contact: technician.contact, scheduled_at };
     });
   }
@@ -204,7 +270,7 @@ export class ToolsService {
   }
 
   async escalate_to_senior(a: { pump_id: string; summary: string; case_id?: string }) {
-    const wo: any = await this.create_work_order({ pump_id: a.pump_id, title: `Eskalasi diagnosis ${a.pump_id}`, description: a.summary, priority: 'tinggi', case_id: a.case_id, risk: 'sedang' });
+    const wo: any = await this.create_work_order({ pump_id: a.pump_id, title: `Eskalasi diagnosis ${a.pump_id}`, description: `Inspeksi oleh teknisi senior; perbaikan berisiko tetap membutuhkan persetujuan supervisor. ${a.summary}`, priority: 'tinggi', case_id: a.case_id, risk: 'sedang' }, true);
     const sched: any = wo.id ? await this.schedule_technician({ work_order_id: wo.id, skill: 'mekanik', senior: true }) : {};
     const n = await this.send_notification({ recipient: sched.technician ?? 'supervisor', message: `ESKALASI ${a.pump_id}: ${a.summary}` });
     return { work_order: wo, schedule: sched, notification: n };
@@ -219,11 +285,11 @@ export class ToolsService {
   }
 
   // ---------------------------------------------------------- registri
-  async call(name: string, args: any): Promise<any> {
+  async call(name: string, args: any, inspection = false): Promise<any> {
     const fn = (this as any)[name];
     if (!TOOL_SPECS.some((t) => t[0] === name) || typeof fn !== 'function') return { error: `tool tidak dikenal: ${name}` };
     try {
-      const res = await fn.call(this, args || {});
+      const res = await fn.call(this, args || {}, name === 'create_work_order' && inspection);
       if (name === 'get_sensor_data' && res && typeof res === 'object') { const { rows, ...rest } = res; return rest; }
       return res;
     } catch (e: any) {

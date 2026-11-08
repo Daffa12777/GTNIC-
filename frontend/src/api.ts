@@ -2,7 +2,7 @@ import type { Case, CaseContext, Overview, ReadingsResp, Role, WorkOrder, Invent
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
-import type { ServicesStatus, LlmConnectionStatus, ChatImage } from './types';
+import type { ServicesStatus, LlmConnectionStatus, ChatImage, AssignmentOptions, AssignmentResult, ActionSummary } from './types';
 import { invalidateAfterMutation } from './mutationCache';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
@@ -85,12 +85,14 @@ export const api = {
   workOrdersPage: (query: URLSearchParams, signal?: AbortSignal) => req<WorkOrdersPage>(`/records/work-orders?${query}`, { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),
-  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = [], image?: ChatImage) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm, history, image }),
+  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = [], image?: ChatImage) => post<{ reply: string; case: Case | null; llm_error?: string; action_summary?: ActionSummary | null; action_summary_error?: string }>('/chat', { message, case_id, use_llm, history, image }),
   answer: (id: string, text: string) => post<Case>(`/cases/${id}/answer`, { text }),
   approve: (id: string) => post<Case>(`/cases/${id}/approve`),
   reject: (id: string, note: string) => post<Case>(`/cases/${id}/reject`, { note }),
   triage: () => post<{ ranking: unknown[]; cases: { pump_id: string; case_id?: string | null; status?: string }[] }>('/triage'),
   workOrders: (signal?: AbortSignal) => req<WorkOrder[]>('/work-orders', { signal }),
+  assignmentOptions: (id: string, signal?: AbortSignal) => req<AssignmentOptions>(`/work-orders/${encodeURIComponent(id)}/assignment`, { signal }),
+  assignTechnician: (id: string, technician_id: string | null, expected_technician_id: string | null) => post<AssignmentResult>(`/work-orders/${encodeURIComponent(id)}/assign`, { technician_id, expected_technician_id }),
   complete: (id: string, root_cause: string, action: string) => post(`/work-orders/${id}/complete`, { root_cause, action }),
   inventory: (signal?: AbortSignal) => req<InventoryItem[]>('/inventory', { signal }),
   createPart: (data: InventoryItem) => post<InventoryItem>('/inventory', data),

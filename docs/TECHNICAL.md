@@ -49,7 +49,7 @@ Folder `app/`, `data/manuals/`, Dockerfile root, dan `requirements.txt` root mer
 
 Ini adalah polling, bukan streaming WebSocket. Timer simulator default tiga detik tidak berarti browser menerima pembaruan tiap tiga detik. Saat tab berada di latar belakang, polling query tidak dipaksakan berjalan.
 
-Reservasi kasus mencegah lebih dari satu kasus berstatus diproses, menunggu klarifikasi, atau menunggu persetujuan untuk unit yang sama. Monitor otomatis juga melewati unit yang mempunyai work order aktif. Diagnosis manual tetap dapat membuat kasus baru setelah kasus sebelumnya dijalankan atau dieskalasi; daftar kasus terkait dan pekerjaan aktif membantu supervisor memeriksa pengulangan. Pembuatan work order memakai kembali pekerjaan aktif dengan unit dan judul yang sama, tetapi ini bukan penyatuan otomatis semua diagnosis yang mirip.
+Reservasi kasus mengunci baris unit dan memakai kembali kasus terbuka atau kasus yang terkait work order aktif. Monitor juga melewati unit yang masih mempunyai pekerjaan. Work order dideduplikasi berdasarkan unit dan judul atau ID kasus yang sama; perubahan judul dari LLM tidak membuat pekerjaan kedua dalam kasus tersebut. Kelanjutan chat LLM mengklaim kasus dengan row lock agar dua request tidak menjalankan percakapan yang sama bersamaan.
 
 `SIM_ENABLED=false` menonaktifkan timer; ini belum merupakan mode akuisisi sensor fisik. Bootstrap simulator masih dapat membangun pembacaan contoh dari profil. Status, ring buffer, dan indeks RAG berada dalam memori proses, sedangkan pembacaan dan catatan operasional disimpan di database. Beberapa instance backend tidak berbagi simulator/status secara otomatis.
 
@@ -61,10 +61,13 @@ Reservasi kasus mencegah lebih dari satu kasus berstatus diproses, menunggu klar
 | `/units/:id` | Detail/operasional unit, grafik sensor, diagnosis, work order, kontrol demo sesuai izin |
 | `/cases`, `/cases/:id` | Daftar dan detail kasus |
 | `/work-orders` | Pekerjaan dan penyelesaiannya |
+| `/tasks` | Antrean tanggung jawab supervisor: persetujuan, WO aktif tanpa teknisi, dan eskalasi |
 | `/inventory` | Inventaris serta manajemen stok supervisor |
 | `/assistant` | Asisten maintenance |
 | `/profile` | Profil akun yang login |
 | `/3d`, `/3d/:id` | Kompatibilitas tautan lama ke peta; tidak ada menu 3D terpisah |
+
+Login baru mengganti route dengan `/` sebelum workspace ditampilkan; refresh sesi tidak menghapus deep link yang sudah sah. Pada mode non-simulator, bootstrap monitor tidak memanggil inferensi ML. Overview menghitung status sesuai kebutuhan dengan refresh bersama dan maksimal tiga prediksi bersamaan, serta membaca kasus terbuka melalui satu query kelompok. Login/health tetap membutuhkan inisialisasi database, sensor, dan RAG; perubahan ini bukan jaminan cold start nol.
 
 Brand ManualMechanic membawa pengguna kembali ke dashboard dan membersihkan pilihan mesin. Pilihan mesin pada dashboard normal disimpan di state halaman, bukan URL khusus setiap klik.
 
@@ -130,7 +133,19 @@ ML mengembalikan HTTP 503 bila model hilang, rusak, atau scikit-learn tidak komp
 
 Mode policy tersedia tanpa API LLM. Mode Gemini bersifat opsional dan memakai function calling. Tool backend tetap memberlakukan aturan risiko/persetujuan, stok, dan transaksi.
 
-Tinjauan terbaru menemukan bahwa guardrail `create_work_order` masih menggunakan nilai `risk` dari argumen tool, sehingga risiko yang lebih rendah dari kasus tersimpan bisa melewati pemeriksaan persetujuan. Jalur chat LLM juga belum meneruskan `case_id` yang diterima API dan menyimpan state dengan `pump_id: null`; saat membutuhkan persetujuan, `state.plan` belum tersedia. Perilaku dan usulan perbaikannya ada di [laporan tinjauan](REVIEW_2026-11-08.md).
+Supervisor dapat memilih atau mengganti teknisi dari Work order, atau memakai pilihan otomatis. Endpoint khusus supervisor menggunakan penjadwal yang sama dengan agent; pilihan manual tidak diteruskan sebagai argumen tool LLM. Kebutuhan keahlian dan senior diturunkan dari kasus/rencana backend. Penjadwal mengunci pekerjaan dan kandidat teknisi, memeriksa pekerjaan aktif serta ketersediaan, lalu menyimpan pergantian dalam transaksi. Snapshot penanggung jawab lama mencegah form usang menimpa penugasan yang lebih baru. Slot teknisi lama dilepas hanya setelah penggantian berhasil dan tidak ada pekerjaan aktif lain. Audit `manual_assignment` menyimpan akun supervisor serta perubahan; log ini memiliki ID kasus di input, tanpa foreign key kasus agar urutan kunci tidak berbalik dengan penyelesaian pekerjaan. Pemeriksaan ini membatasi kesalahan penugasan, bukan menjamin diagnosis agent selalu benar.
+
+Halaman Tugas saya memakai endpoint daftar yang sudah ada dengan tiga query independen, masing-masing lima entri dan jumlah total. Kegagalan satu antrean tidak menghilangkan antrean lain; query mengikuti invalidasi cache kasus/WO setelah mutasi. Akses tampilan dibatasi peran supervisor; izin baca data tim dan mutasi tetap diperiksa sesuai endpoint masing-masing. Antrean belum memiliki kepemilikan per akun atau relasi akun pengguna ke master teknisi.
+
+Controller chat menambahkan `action_summary` dari `CaseStore.actionSummary`, menggunakan relasi ID kasus yang tepat ke WO dan pengajuan part. Ringkasan berasal dari database setelah jawaban agent, bukan ekstraksi klaim teks LLM. Kegagalan query sekunder mengembalikan `action_summary_error` bersama jawaban yang sudah berhasil. Snapshot berada di memori percakapan; session storage tetap hanya menyimpan teks, nama lampiran, dan referensi kasus. Batas respons: sepuluh WO serta sepuluh pengajuan per WO. Waktu snapshot bukan bukti bahwa tindakan dibuat pada pesan terakhir.
+
+`create_work_order` mempertimbangkan risiko kasus, rencana tersimpan, serta analisis ML terbaru; argumen model hanya dapat memperketat risiko. Persetujuan harus tercatat pada kasus untuk unit yang sama dan masih menunggu keputusan. Loop LLM tidak dapat memberi dirinya flag `approved`. Jalur inspeksi merupakan parameter internal backend, tidak dapat diaktifkan melalui argumen model. Keyakinan untuk tindakan memakai rencana backend, termasuk bukti teknisi yang diproses policy.
+
+Chat meneruskan `case_id`, mengikat satu ID unit yang disebut pengguna, serta memakai reservasi kasus yang sama dengan monitor/policy. LLM membangun `state.plan` dari ML dan manual backend, bukan dari klaim model, sehingga endpoint approve dapat menjalankan rantai stok, WO, jadwal, dan notifikasi yang sudah ada. Kasus pending tidak ditimpa percakapan baru. Hasil pengujian dan batas deployment ada di [validasi agent](AGENT_VALIDATION_2026-11-08.md).
+
+Kasus terkunci tetap mendukung pertanyaan lanjutan. Mode baca saja menyertakan konteks kasus tersimpan, hanya menawarkan tool pembacaan kepada Gemini, dan menolak pemanggilan tool mutasi secara server-side. Loop tersebut tidak menyimpan ulang state/status/rencana kasus; pembacaan tool tetap dicatat pada `agent_logs`. Pertanyaan informasi yang dikenali juga tidak menggantikan pertanyaan klarifikasi. Pada mode policy atau fallback, permintaan stok membaca inventaris dan pertanyaan alasan mengambil bukti dari trace.
+
+Interaksi LLM mempunyai anggaran 45 detik termasuk retry; panggilan Gemini memakai sisa anggaran. Tool baru ditahan bila sisa waktu tidak lebih dari 12 detik. Ini memberi ruang untuk pencatatan kegagalan sebelum batas function Vercel 60 detik, tanpa menjamin latensi seluruh dependency. Progres disimpan setiap tool. Respons kosong atau loop 12 langkah yang tidak selesai menjadi kegagalan, bukan sukses semu.
 
 ### Chat multimodal
 
@@ -138,7 +153,7 @@ Tinjauan terbaru menemukan bahwa guardrail `create_work_order` masih menggunakan
 
 `AgentService.chat` mensyaratkan Mode LLM serta konfigurasi Gemini untuk lampiran. `LlmService.loop` menambahkan `inlineData` pada bagian pesan pengguna yang dikirim ke `generateContent`; gambar yang sama tersedia selama loop permintaan itu. History percakapan berikutnya hanya memuat teks. Kegagalan LLM dengan gambar mengembalikan error untuk pengiriman ulang; jalur teks masih mempunyai fallback policy.
 
-Byte gambar berada dalam memori halaman dan permintaan ke Gemini. `writeChat` hanya menyimpan nama lampiran, teks, dan ID kasus di session storage; kasus backend tidak menyimpan byte gambar. Tampilan pesan di memori belum membatasi akumulasi lampiran selama halaman terbuka. Ini dicatat sebagai temuan performa pada laporan tinjauan.
+Byte gambar berada dalam memori halaman dan permintaan ke Gemini. `writeChat` hanya menyimpan nama lampiran, teks, dan ID kasus di session storage; kasus backend tidak menyimpan byte gambar. `retainChatMessages` membatasi memori tampilan menjadi 100 pesan dan tiga pratinjau foto terbaru; teks/nama foto tetap ada saat pratinjau dilepas. Lampiran yang masih menunggu pengiriman atau retry tetap tersedia terpisah dari batas pratinjau pesan.
 
 RAG menggunakan TF-IDF + cosine similarity, bukan embedding atau vector database. Manual `backend/knowledge/*.md` dipotong berdasarkan heading bagian; indeks juga memuat `case_history`. Sitasi menyebut dokumen dan bagian/ID riwayat. Menyelesaikan WO menambah riwayat untuk pencarian; tidak melatih ulang model secara otomatis.
 

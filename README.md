@@ -36,16 +36,18 @@ Alur mencoba aplikasi:
 - **Dashboard 3D:** enam unit demo memakai model GLB hasil Blender, pencahayaan, bayangan, zona, serta konteks area pabrik. Objek mengikuti daftar unit backend. Klik mesin membuka panel status, dugaan ML, alasan perhatian, kasus, dan work order.
 - **Interaksi peta:** zoom, pan saat diperbesar, fokus ke unit, rotasi 90°, hover/seleksi, dan **Reset tampilan** yang mempertahankan panel. Label bisa diakses dengan keyboard dan tersedia daftar unit alternatif. Denyut berhenti setelah delapan detik atau saat tab tidak aktif; reduced motion mematikannya.
 - **Monitoring dan ML:** validasi sensor, deteksi anomali dengan Isolation Forest, dan klasifikasi kondisi pompa, katup, pendingin, serta akumulator dengan Random Forest.
-- **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi.
+- **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi. Supervisor dapat memilih/mengganti teknisi dari Work order dengan pemeriksaan keahlian, senior, ketersediaan, serta alasan kegagalan yang tetap terlihat.
+- **Tugas saya untuk supervisor:** antrean persetujuan, pekerjaan aktif tanpa teknisi, dan kasus eskalasi. Penugasan dapat dilakukan langsung dari antrean; jumlah total dan tautan daftar lengkap mengikuti data backend.
 - **RAG bersitasi:** pencarian manual Markdown dan riwayat perawatan menggunakan TF-IDF serta cosine similarity.
-- **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran memiliki pratinjau, dapat dihapus, dan dipertahankan untuk dikirim ulang saat permintaan gagal. Gambar dikirim ke Gemini saat pesan dikirim; riwayat sesi menyimpan teks serta nama lampiran, sementara pratinjau berakhir ketika halaman dimuat ulang.
+- **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran dapat dihapus dan dicoba ulang saat permintaan gagal. Riwayat sesi menyimpan teks serta nama lampiran; hanya tiga pratinjau foto terbaru berada di memori sampai halaman dimuat ulang.
+- **Hasil tercatat pada chat:** snapshot status kasus, work order, teknisi/jadwal, dan pengajuan part dibaca dari database untuk memeriksa hasil jawaban agent. Snapshot dapat mencakup pekerjaan yang sudah ada sebelum pesan terakhir.
 - **Operasional:** kasus dan work order dengan filter/paginasi, inventaris beserta riwayat stok, notifikasi, profil pengguna, dan autentikasi sesi.
 - **UX dan ketahanan:** detail unit dengan jalan kembali ke peta, action bar persetujuan, pesan gagal yang menetap, konfirmasi dalam halaman, perlindungan isian, tampilan WO ponsel, serta cache data dengan status offline/kesegaran.
 - **Integrasi opsional:** Gemini untuk function calling dan Telegram untuk pengiriman notifikasi.
 
 Mode policy dapat berjalan tanpa Gemini. Hasil analisis tidak langsung mengendalikan perangkat fisik; tindakan sistem berupa pencatatan dan koordinasi pekerjaan maintenance.
 
-Tinjauan terbaru mencatat celah pada penegakan risiko dan penyatuan kasus di jalur LLM. Batasan serta contoh reproduksinya ada di [laporan tinjauan](docs/REVIEW_2026-11-08.md); perilaku policy dan LLM perlu dibuktikan terpisah.
+Pengamanan risiko, rencana persetujuan LLM, konteks kasus chat, batas waktu, dan retensi foto telah diperbaiki serta diuji. Hasil dan batas verifikasinya ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md). Verifikasi lokal tidak berarti versi production sudah diperbarui.
 
 ## Arsitektur
 
@@ -201,7 +203,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan ulang 8 November 2026 menghasilkan **54 tes frontend dan 47 tes backend lulus**. Backend dijalankan dengan `--testPathIgnorePatterns test/e2e.spec.ts`; suite integrasi penuh serta pytest ML belum dijalankan ulang pada pemeriksaan ini. Angka 101 tersebut adalah cakupan yang terverifikasi dalam tinjauan ini. Lihat [laporan tinjauan](docs/REVIEW_2026-11-08.md) untuk batas bukti dan catatan proposal.
+Pemeriksaan 8 November 2026, termasuk Tugas saya, ringkasan chat, reset navigasi login, dan startup, menghasilkan **68 tes frontend dan 88 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Uji browser headless lokal pada 1440, 768, dan 380 px memeriksa antrean supervisor, penugasan gagal/retry, ringkasan chat, serta batas tampilan teknisi menggunakan API fixture. Pergantian akun dari Profil juga diuji pada desktop/ponsel dan kembali ke dashboard. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, penggunaan fitur baru di production, dan uji pengguna manusia belum diverifikasi. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 
@@ -215,6 +217,7 @@ Untuk proses deploy, lihat [dokumentasi teknis](docs/TECHNICAL.md#deployment) da
 | --- | --- |
 | [PRD](docs/PRD.md) | Masalah, pengguna, ruang lingkup, kebutuhan, dan kriteria penerimaan |
 | [Panduan pengguna](docs/USER_GUIDE.md) | Dashboard 3D, diagnosis, kasus, work order, inventaris, dan akun |
+| [Uji dua peran](docs/USER_TEST.md) | Skenario supervisor/teknisi untuk juri dan lembar hasil uji pengguna; hasil manusia belum dikumpulkan |
 | [Dokumentasi teknis](docs/TECHNICAL.md) | Komponen, data, konfigurasi, setup, 3D, ML, keamanan, dan troubleshooting |
 | [Referensi API](docs/API.md) | Endpoint, hak akses, payload, dan respons penting |
 | [Dataset](docs/DATASET.md) | Asal data, evaluasi, dan batasan generalisasi |
@@ -230,8 +233,8 @@ Dokumen konsep lama [PROJECT_DETAIL.md](docs/PROJECT_DETAIL.md) dipertahankan se
 - Belum ada formulir/API umum untuk mendaftarkan mesin, integrasi sensor MQTT/OPC-UA, ataupun integrasi ERP/CMMS eksternal.
 - Keyakinan ML belum dikalibrasi untuk mesin pabrik pengguna. Dataset satu rig dan data sintetis tidak membuktikan akurasi lapangan.
 - Penambahan riwayat membantu pencarian RAG; model ML tidak otomatis dilatih ulang dari pekerjaan yang selesai.
-- Kasus percakapan LLM belum selalu ditautkan ke ID unit/kasus yang sama. Guardrail risiko pada tool masih perlu diperkuat terhadap argumen risiko yang keliru dari LLM; lihat laporan tinjauan.
-- Lampiran gambar hanya tersedia pada permintaan saat dikirim dan memori halaman. Riwayat setelah reload berisi nama file dan teks, sehingga pemeriksaan visual ulang memerlukan pengunggahan kembali.
+- Konteks chat memakai satu unit per kasus; sebut ID unit lain untuk berpindah. Pertanyaan alasan, stok, dan foto lanjutan tetap dapat dijawab pada kasus yang menunggu keputusan atau sudah dieskalasi, melalui mode baca saja yang tidak mengubah rencana maupun menjalankan tindakan baru.
+- Memori chat dibatasi 100 pesan dan tiga pratinjau foto terbaru. Riwayat setelah reload berisi nama file dan teks; pemeriksaan visual ulang memerlukan pengunggahan kembali.
 - Simulasi, snapshot data, dan koneksi layanan perlu diperiksa sebelum presentasi.
 
 Referensi dataset: Helwig, N., Pignanelli, E., & Schütze, A. (2015), *Condition monitoring of hydraulic systems*, UCI Machine Learning Repository, DOI [10.24432/C5CW21](https://doi.org/10.24432/C5CW21). Ketentuan dataset mengikuti sumbernya. Lisensi penggunaan kode proyek belum ditetapkan dalam repositori.

@@ -6,6 +6,8 @@ Panduan ini menjelaskan website dengan dashboard 3D. Untuk instalasi dan konfigu
 
 Gunakan username dan password dari pengelola instalasi. Akun memiliki peran teknisi atau supervisor. Pada demo tanpa autentikasi, pemilih peran hanya memperagakan batas antarmuka; gunakan login sungguhan untuk pemakaian tim.
 
+Login baru yang berhasil membuka dashboard, termasuk setelah logout dari Profil lalu memakai akun berbeda. Memuat ulang halaman saat sesi masih sah tetap mempertahankan tautan halaman yang sedang dibuka.
+
 ## Dashboard 3D
 
 Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang dipilih secara otomatis.
@@ -55,7 +57,17 @@ Persetujuan dapat membuat atau menggunakan work order aktif, mengajukan pembelia
 
 ## Work order
 
+Supervisor memiliki menu **Tugas saya** (`/tasks`) untuk melihat persetujuan, pekerjaan aktif tanpa teknisi, dan kasus eskalasi. Antrean ini berlaku untuk tanggung jawab peran supervisor dalam tim. Setiap bagian menampilkan maksimal lima entri beserta jumlah total dan tautan ke daftar lengkap. Tombol **Tinjau keputusan** membuka kasus; **Tugaskan WO-…** membuka form penugasan pada halaman tersebut. Teknisi menggunakan daftar Work order dan filter teknisi.
+
 Cari/filter pekerjaan berdasarkan data yang tersedia, termasuk unit, status, prioritas, dan teknisi. Tinjau judul, instruksi, part, jadwal, serta kasus terkait.
+
+Untuk menugaskan atau mengganti teknisi, login sebagai **supervisor**:
+
+1. Buka **Work order**, lalu klik **Tugaskan teknisi** atau **Ubah teknisi** pada pekerjaan aktif.
+2. Pilih nama teknisi yang tersedia dan sesuai keahlian, atau **Pilih otomatis** untuk pekerjaan tanpa penanggung jawab. Pekerjaan berisiko tinggi dan inspeksi eskalasi memerlukan teknisi senior. Pilihan otomatis pada pekerjaan yang sudah ditugaskan mempertahankan teknisi saat ini.
+3. Klik **Simpan penugasan**. Nama, status terjadwal, dan jadwal pekerjaan diperbarui setelah berhasil. Jadwal mengikuti aturan prioritas yang sudah digunakan agent; form ini tidak menyediakan kalender shift.
+
+Teknisi yang sibuk, tidak tersedia, atau tidak memenuhi keahlian ditampilkan beserta alasannya. Jika penyimpanan gagal, pesan tetap terlihat dalam form dan penugasan lama tetap berlaku. Klik **Perbarui pilihan** jika penugasan atau ketersediaan berubah. Dropdown **Teknisi** pada bagian filter hanya menyaring daftar, bukan menugaskan pekerjaan.
 
 Saat pekerjaan benar-benar selesai, isi akar masalah, tindakan, dan durasi. Penyelesaian memperbarui catatan pekerjaan/kasus serta riwayat; riwayat dapat ditemukan oleh pencarian berikutnya. Ini tidak otomatis melatih ulang model ML.
 
@@ -68,6 +80,12 @@ Isi alasan perubahan stok secara jelas. Jika saldo sudah berubah sejak form dibu
 Pengajuan pembelian dibuat oleh alur tool saat dibutuhkan. Aplikasi belum terintegrasi dengan pemesanan vendor atau ERP eksternal.
 
 ## Asisten dan mode agent
+
+Pertanyaan stok teks dibaca langsung dari inventaris walaupun Mode LLM aktif, sehingga tidak menunggu provider untuk pencarian stok sederhana. Kasus percakapan tetap dipertahankan. Foto dan pertanyaan analisis/penjelasan lainnya tetap dapat membutuhkan layanan LLM. Riwayat jawaban lama tidak diperbarui otomatis setelah aplikasi diperbaiki; gunakan Percakapan baru untuk memulai sesi bersih bila diperlukan.
+
+Jawaban yang terhubung ke kasus menampilkan **Hasil tercatat**: snapshot status kasus, maksimal sepuluh work order terkait, penugasan/jadwal, serta pengajuan part yang tersimpan. Snapshot dapat mencakup pekerjaan sebelum pesan terakhir; jangan menyimpulkan pekerjaan baru dibuat hanya karena muncul di blok ini. Buka **Periksa jejak kasus** untuk memeriksa bukti terkini. Snapshot tambahan hanya berada pada percakapan yang masih terbuka; setelah refresh, teks riwayat dan tautan kasus tetap tersedia. Bila pembacaan ringkasan gagal, jawaban chat tetap ditampilkan disertai pemberitahuan agar tindakan yang sudah berhasil tidak diulang.
+
+Skenario pengujian dua peran tersedia di [panduan uji pengguna](USER_TEST.md).
 
 Masukkan ID unit dan gejala yang jelas, misalnya: “Pump-02 oli panas dan respons aktuator melambat.” Asisten dapat menanyakan klarifikasi atau menghubungkan percakapan dengan kasus.
 

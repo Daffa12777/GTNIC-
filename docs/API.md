@@ -94,7 +94,7 @@ Lampiran opsional memakai field `image` dengan `{mimeType, data}`. `mimeType` ha
 
 Body JSON `/api/chat` dibatasi 3 MiB; endpoint lain tetap 128 KiB. Jika hanya gambar yang dipilih, frontend mengisi pesan permintaan penjelasan secara otomatis. Gambar ada pada pesan saat ini; history API memuat teks saja. Isi gambar tidak disimpan dalam state kasus oleh alur ini. Gagal membaca gambar lewat LLM menghasilkan error dan tidak dialihkan diam-diam ke diagnosis teks.
 
-Catatan review: `case_id` sudah diterima controller, tetapi jalur chat LLM belum meneruskannya ke layanan LLM. Kasus LLM yang menunggu persetujuan juga belum menyimpan `state.plan` yang dibutuhkan endpoint approve. Lihat [laporan tinjauan](REVIEW_2026-11-08.md) sebelum menganggap kontrak kasus policy dan LLM setara.
+`case_id` diteruskan ke LLM dan mempertahankan unit serta jejak percakapan. ID unit lain yang disebut eksplisit memindahkan konteks; permintaan beberapa unit sekaligus meminta pengguna memilih satu. Kasus pending atau pekerjaan aktif dipakai kembali. Rencana persetujuan LLM berasal dari analisis/manual backend dan disimpan sesuai kontrak approve. Pertanyaan informasi dan foto lanjutan pada kasus yang dikunci dijawab lewat tool baca saja; keputusan, rencana, dan status kasus tidak ditimpa. Pertanyaan stok juga tidak dianggap sebagai jawaban klarifikasi. Lihat [validasi agent](AGENT_VALIDATION_2026-11-08.md).
 
 ## Kasus dan work order
 
@@ -108,10 +108,18 @@ Catatan review: `case_id` sudah diterima controller, tetapi jalur chat LLM belum
 | POST | `/cases/:id/reject` | `{note}` maksimal 2000 karakter; supervisor saja; alasan tidak boleh kosong untuk risiko tinggi |
 | GET | `/work-orders` | Maksimal 60 pekerjaan terbaru |
 | POST | `/work-orders/:id/complete` | `{root_cause, action, duration_min?}` |
+| GET | `/work-orders/:id/assignment` | Supervisor: kebutuhan keahlian/senior, penugasan saat ini, kandidat dan alasan tidak memenuhi syarat |
+| POST | `/work-orders/:id/assign` | Supervisor: `{technician_id: string atau null, expected_technician_id: string atau null}`; `null` memilih otomatis atau mempertahankan penugasan saat ini |
 | GET | `/records/cases` | Daftar berpaginasi, keputusan tertunda diutamakan, dengan hitungan filter berdasarkan pencarian saat ini |
 | GET | `/records/work-orders` | Daftar berpaginasi + pilihan teknisi/unit |
 | GET | `/technicians` | Daftar teknisi |
 | GET | `/purchase-requests` | Maksimal 40 pengajuan pembelian terbaru |
+
+`expected_technician_id` wajib dikirim sesuai snapshot form, termasuk `null` untuk pekerjaan tanpa penanggung jawab. Penugasan yang sudah berubah, pekerjaan ditutup, atau teknisi tidak memenuhi syarat menghasilkan HTTP 409 dengan `detail` yang dapat ditampilkan. Backend memeriksa ulang ketersediaan dan pekerjaan aktif dalam transaksi; kegagalan penggantian tidak melepas teknisi sebelumnya. `/records/work-orders` menyertakan `assignment_reason` untuk pekerjaan aktif yang belum ditugaskan. Penugasan manual dicatat pada `agent_logs` dengan langkah `manual_assignment`, termasuk akun supervisor dan ID pekerjaan.
+
+`GET /records/work-orders?technician=unassigned&status=group:active` menyaring pekerjaan tanpa penanggung jawab dengan status selain selesai/dibatalkan. Halaman Tugas saya menggabungkan query ini dengan kasus `group:keputusan` dan `group:eskalasi`, masing-masing lima entri. Endpoint daftar tetap mengikuti izin baca tim yang sudah ada; mutasi penugasan dan keputusan memerlukan supervisor.
+
+Respons `POST /chat` dapat menambah `action_summary` ketika jawaban memiliki kasus terkait: `{case_id, status, checked_at, order_count, orders}`. Data dibaca dari database berdasarkan ID kasus tepat; setiap order menyertakan status, nama teknisi, jadwal, dan maksimal sepuluh pengajuan part. Maksimal sepuluh order terbaru dikirim, total tersedia pada `order_count`. Ini snapshot hasil tersimpan, bukan daftar tindakan baru per pesan. Tanpa kasus tidak ada ringkasan. Jika query ringkasan gagal setelah chat berhasil, `action_summary_error` dikirim bersama jawaban sukses agar klien tidak mencoba ulang tindakan yang sudah terjadi.
 
 Penyelesaian WO memerlukan `root_cause` dan `action` yang tidak kosong, masing-masing maksimal 2000 karakter; durasi opsional 0–100000 menit, default backend 60. Tidak ada endpoint umum untuk membuat WO manual melalui controller ini; pembuatan terjadi melalui alur tool agent.
 

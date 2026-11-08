@@ -15,6 +15,7 @@ export class MonitorService implements OnApplicationBootstrap, OnModuleDestroy {
   private log = new Logger('Monitor');
   private timer: NodeJS.Timeout | null = null;
   private busy = false;
+  private refreshing: Promise<void> | null = null;
 
   constructor(private db: DbService, private sim: SimService, private tools: ToolsService, private agent: AgentService,
     private cases: CaseStore, private rag: RagService, private status: StatusStore) {}
@@ -28,7 +29,8 @@ export class MonitorService implements OnApplicationBootstrap, OnModuleDestroy {
       this.log.log('Skenario demo aktif: pendingin Pump-02 dan kebocoran Pump-03.');
     }
     await this.rag.build();
-    await this.refreshStatus();
+    // Serverless auth/startup must not wait for remote ML; overview loads status on demand.
+    if (CONFIG.SIM_ENABLED) await this.refreshStatus();
     if (CONFIG.SIM_ENABLED) {
       this.timer = setInterval(() => this.tick().catch((e) => this.log.error(e)), CONFIG.TICK_SECONDS * 1000);
       this.log.log(`Simulator aktif, siklus tiap ${CONFIG.TICK_SECONDS} dtk`);
@@ -56,8 +58,16 @@ export class MonitorService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   async refreshStatus() {
+    if (this.refreshing) return this.refreshing;
+    this.refreshing = this.updateStatus();
+    try { await this.refreshing; } finally { this.refreshing = null; }
+  }
+
+  private async updateStatus() {
     const pumps = await this.db.q('SELECT id FROM pumps ORDER BY id');
-    for (const p of pumps) this.status.map[p.id] = await this.computeStatus(p.id);
+    for (let i = 0; i < pumps.length; i += 3) {
+      await Promise.all(pumps.slice(i, i + 3).map(async p => { this.status.map[p.id] = await this.computeStatus(p.id); }));
+    }
   }
 
   async hasOpenWork(pumpId: string) {

@@ -24,6 +24,12 @@ const SUP = { 'x-role': 'supervisor' };
 
 const api = () => request(app.getHttpServer());
 const tick = async (n = 1) => { for (let i = 0; i < n; i++) await api().post('/api/scenario/tick').set(SUP); };
+const closeFixtureWork = async (pumpId: string) => {
+  const orders = (await api().get('/api/work-orders')).body;
+  for (const order of orders.filter((o: { pump_id: string; status: string }) => o.pump_id === pumpId && !['selesai', 'dibatalkan'].includes(o.status))) {
+    await api().post(`/api/work-orders/${order.id}/complete`).send({ root_cause: 'Inspeksi fixture selesai', action: 'Verifikasi sebelum skenario berikutnya' }).expect(201);
+  }
+};
 
 beforeAll(async () => {
   try { mlUp = (await realFetch(`${CONFIG.ML_URL}/health`)).ok; } catch { mlUp = false; }
@@ -151,6 +157,7 @@ describe('ManualMechanic end-to-end', () => {
   };
 
   run('keyakinan menengah: agent bertanya balik, jawaban teknisi memperbarui hipotesis', async () => {
+    await closeFixtureWork('Pump-01');
     await api().post('/api/scenario/reset').set(SUP);
     await tick(5);
     const tools = app.get(ToolsService);
@@ -166,6 +173,7 @@ describe('ManualMechanic end-to-end', () => {
   });
 
   run('keyakinan rendah (<50%): eskalasi ke teknisi senior', async () => {
+    await closeFixtureWork('Pump-04');
     const tools = app.get(ToolsService);
     const spy = jest.spyOn(tools, 'analyze').mockResolvedValue(fake({ pump: 0.4, valve: 0.35, cooler: 0.25 }) as any);
     const c = (await api().post('/api/diagnose').send({ pump_id: 'Pump-04' })).body;
@@ -180,15 +188,15 @@ describe('ManualMechanic end-to-end', () => {
       if (String(url).includes('generativelanguage.googleapis.com')) {
         n++;
         const body = n === 1
-          ? { candidates: [{ content: { parts: [{ functionCall: { name: 'get_sensor_data', args: { pump_id: 'Pump-01' } } }] } }] }
-          : { candidates: [{ content: { parts: [{ text: 'Pump-01 normal.' }] } }] };
+          ? { candidates: [{ content: { parts: [{ functionCall: { name: 'get_sensor_data', args: { pump_id: 'Pump-06' } } }] } }] }
+          : { candidates: [{ content: { parts: [{ text: 'Pump-06 normal.' }] } }] };
         return new Response(JSON.stringify(body), { status: 200 });
       }
       return realFetch(url, init);
     }) as any;
-    const r = (await api().post('/api/chat').send({ message: 'cek Pump-01', use_llm: true })).body;
+    const r = (await api().post('/api/chat').send({ message: 'cek Pump-06', use_llm: true })).body;
     global.fetch = realFetch;
-    expect(r.reply).toBe('Pump-01 normal.');
+    expect(r.reply).toBe('Pump-06 normal.');
     expect(r.case.mode).toBe('llm');
     expect(r.case.trace.some((t: any) => t.tool === 'get_sensor_data')).toBe(true);
   });
@@ -208,7 +216,7 @@ describe('ManualMechanic end-to-end', () => {
     const tools = app.get(ToolsService) as import('../src/tools/tools.service').ToolsService;
     await db.client.pump.create({ data: { id: 'Pump-Test', name: 'Concurrency fixture' } });
     await db.client.technician.create({ data: { id: 'T-Test', name: 'Fixture', skill: 'fixture', available: true } });
-    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: 'Pump-Test', title: 'Idempotency fixture', description: 'fixture', priority: 'rendah' })));
+    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: 'Pump-Test', title: 'Idempotency fixture', description: 'fixture', priority: 'rendah' }, true)));
     const [first, second] = orders;
     if (!('id' in first) || !('id' in second)) throw new Error('Fixture orders failed');
     expect(first.id).toBe(second.id);

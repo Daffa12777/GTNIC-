@@ -7,6 +7,7 @@ import type { AuthUser } from './types';
 import { errorMessage, RequestState, usePolling } from './usePolling';
 import { clearPrivateCache, queryClient } from './queryClient';
 import { publishSessionChange, subscribeSessionChange } from './sessionSync';
+import { writeLocation } from './location';
 
 export default function SessionGate({ children }: { children: (user: AuthUser | null, logout: (serverAlreadyClosed?: boolean) => Promise<void>, loggingOut: boolean) => ReactNode }) {
   const identity = useRef<string | null>(null);
@@ -49,7 +50,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
   return <main className="login-page"><form className="card card-b login-form" onSubmit={async (e) => {
     e.preventDefault(); if (submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
-    try { await queryClient.cancelQueries({ queryKey: ['session'] }); const value = await api.login(username.trim(), password); clearPrivateCache(); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); publishSessionChange(); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
+    try { await queryClient.cancelQueries({ queryKey: ['session'] }); const value = await api.login(username.trim(), password); clearPrivateCache(); writeLocation('/', true); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); publishSessionChange(); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
   }}>
     <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola.</p>
     <RequestState {...session} retry={session.refresh} showUpdated={false} />

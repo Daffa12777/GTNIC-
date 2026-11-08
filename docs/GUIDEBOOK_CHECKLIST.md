@@ -7,12 +7,12 @@ Acuan tinjauan 8 November 2026. Status tersedia menunjukkan keberadaan implement
 |---|---|---|
 | Bukan ChatGPT wrapper (reasoning, tool calling, atau RAG) | Siap | 12 tool bertipe di `backend/src/tools`, RAG di `backend/src/rag`, ML di `ml/`, loop function calling Gemini di `backend/src/agent/llm.service.ts` |
 | Menjalankan tindakan operasional | Tersedia | Work order, jadwal, pembelian, dan notifikasi tercatat di PostgreSQL. Pengiriman Telegram nyata memerlukan konfigurasi dan bukti terpisah. |
-| Otonomi dengan batas yang jelas | Perlu perbaikan alur LLM | Policy memiliki aturan keyakinan/risiko. Guardrail tool, rencana persetujuan LLM, dan penyatuan kasus masih mempunyai temuan 1–3 pada laporan tinjauan. |
+| Otonomi dengan batas yang jelas | Diuji lokal; production menyusul | Risiko tepercaya, rencana persetujuan, konteks kasus, dan monitor otomatis diuji pada database terisolasi; lihat validasi agent. Timer production tetap membutuhkan backend persisten. |
 | UI publik yang dapat diakses | Terverifikasi 8 November | Domain utama merespons; dua akun demo dapat login dengan peran yang sesuai. |
 | Repo GitHub publik | Anda | Push repo ini; pastikan `.env` tidak ikut dan API key lama dicabut |
 | Video demo 3–5 menit, akses publik | Anda | Ikuti `docs/DEMO_SCRIPT.md` |
 | Surat Pernyataan Keaslian | Anda | Template di `docs/Surat_Pernyataan_Keaslian_Karya_TEMPLATE.md`, sesuaikan dengan lampiran resmi |
-| Proposal PDF sesuai format panitia | Perlu revisi isi | Proposal CPESS yang ditinjau berisi 12 halaman A4 dan logo di sampul. Koreksi fitur foto, deployment, klaim LLM, dan bukti tes ada pada laporan tinjauan; format akhir tetap perlu dicocokkan dengan panduan resmi. |
+| Proposal PDF sesuai format panitia | Revisi 14 halaman tersedia | A4, Times New Roman 12 pada isi, spasi 1,5, margin kiri 4 cm/lainnya 3 cm, serta logo di sampul. Memuat hasil 131 tes dan membedakan verifikasi lokal dari production; tautan video masih perlu dilengkapi. |
 | Nama file `GTNIC2026_AIAgent_NamaTim.pdf` | Anda | Ganti NamaTim |
 
 ## Pemetaan ke kriteria penilaian
@@ -21,7 +21,7 @@ Acuan tinjauan 8 November 2026. Status tersedia menunjukkan keberadaan implement
 | Kapabilitas dan otonomi agent (25) | Rantai tindakan otomatis, tanya balik, eskalasi, persetujuan; dua jalur masuk (sensor dan laporan teknisi) menuju kasus yang sama; pemicu otomatis oleh monitor |
 | Penalaran, perencanaan, keputusan (15) | Jejak tool dan keputusan, probabilitas komponen, keluhan dengan negasi, riwayat, serta gangguan majemuk. Jumlah langkah mengikuti kasus dan mode. |
 | Penggunaan alat dan eksekusi (15) | 12 tool dengan validasi parameter, pencegahan duplikasi work order, error dikembalikan ke agent |
-| Arsitektur teknis (15) | React + NestJS + PostgreSQL + FastAPI; RAG bersitasi; chat multimodal. Pemeriksaan ulang mengonfirmasi 54 tes frontend dan 47 tes backend di luar E2E ML. |
+| Arsitektur teknis (15) | React + NestJS + PostgreSQL + FastAPI; RAG bersitasi; chat multimodal. Sebanyak 57 tes frontend dan 76 backend lulus, termasuk integrasi ML; lihat `AGENT_VALIDATION_2026-11-08.md`. |
 | Inovasi dan orisinalitas (10) | Sensor dan keluhan lapangan disatukan; guardrail di lapisan tool; riwayat pekerjaan yang ditutup masuk kembali ke indeks RAG |
 | Dampak dan relevansi (10) | Tema Enterprise Productivity: otomatisasi koordinasi maintenance dan triase. Estimasi waktu hemat harus diberi label asumsi, bukan hasil ukur |
 | UX (5) | Peta 3D interaktif, fokus/rotasi, panel unit, konfirmasi persetujuan, chat gambar, serta peran Teknisi/Supervisor. Uji pengguna lapangan masih diperlukan. |

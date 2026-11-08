@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, ServiceUnavailableException } 
 import { ChatImageDto, validateChatImage } from '../api/chat.dto';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
-import { FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
+import { asksForInformation, assessRisk, FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
 import { StatusStore } from '../monitor/status.store';
 import { SimService } from '../sim/sim.service';
 import { ToolsService } from '../tools/tools.service';
@@ -37,14 +37,6 @@ export function applyEvidence(probs: Record<string, number>, text: string): [Rec
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(p)) out[k] = Math.round((v / s) * 10000) / 10000;
   return [out, notes];
-}
-
-export function assessRisk(label: string, comps: any, flags: string[]): 'rendah' | 'sedang' | 'tinggi' {
-  if (flags.length) return 'tinggi';
-  const sev = comps?.[label]?.severity ?? 0;
-  if (sev >= 1) return 'tinggi';
-  if (sev >= 0.5) return 'sedang';
-  return label === 'normal' ? 'rendah' : 'rendah';
 }
 
 @Injectable()
@@ -149,6 +141,7 @@ export class AgentService {
 
     if (conf >= CONFIG.CONF_ACT && risk !== 'tinggi') {
       trace.add('decision', 'Eksekusi otomatis', 'Keyakinan tinggi dan risiko tidak tinggi, agent menjalankan rantai tindakan tanpa menunggu manusia.');
+      await this.cases.save(caseId, trace, 'diproses', state, { fault: label, conf, risk });
       const { result, ok } = await this.execute(caseId, trace, state, false);
       return [ok ? 'selesai_otomatis' : 'gagal', this.summaryAfter(state, result)];
     }
@@ -239,7 +232,7 @@ export class AgentService {
         pump_id: pumpId, title: `Periksa sensor ${bad} pada ${pumpId}`,
         description: `Sensor ${bad} mengirim nilai nol. Verifikasi kabel dan sensor, bandingkan dengan pengukuran manual (panduan bagian 1.5).`,
         priority: 'sedang', part: 'Sensor getaran VS1', case_id: caseId, risk: 'sedang',
-      });
+      }, true);
       if (wo.id) {
         const sched = await trace.tool('schedule_technician', { work_order_id: wo.id, skill: 'listrik' });
         if (sched.scheduled) await trace.tool('send_notification', { recipient: sched.technician, message: `${wo.id}: periksa sensor ${bad} pada ${pumpId}. Jadwal ${sched.scheduled_at}.` });
@@ -276,7 +269,7 @@ export class AgentService {
       let summary = `Tidak ada gangguan terdeteksi pada ${pumpId}. Semua komponen dalam kondisi sehat.`;
       if (complaint) {
         summary += ' Karena ada keluhan, disarankan inspeksi fisik untuk memastikan.';
-        await trace.tool('create_work_order', { pump_id: pumpId, title: `Inspeksi visual ${pumpId}`, description: `Keluhan teknisi: ${complaint}. Sensor normal, lakukan inspeksi fisik.`, priority: 'rendah', case_id: caseId, risk: 'rendah' });
+        await trace.tool('create_work_order', { pump_id: pumpId, title: `Inspeksi visual ${pumpId}`, description: `Keluhan teknisi: ${complaint}. Sensor normal, lakukan inspeksi fisik.`, priority: 'rendah', case_id: caseId, risk: 'rendah' }, true);
       }
       trace.add('decision', 'Tidak ada tindakan korektif', summary);
       await this.cases.save(caseId, trace, 'tidak_ada_gangguan', state, { fault: 'normal', conf: an.confidence, risk: 'rendah', summary });
@@ -376,7 +369,7 @@ export class AgentService {
       pump_id: wo.pump_id, symptoms: (c?.summary || wo.title).slice(0, 200), fault: c?.fault || 'normal',
       root_cause: rootCause || 'Sesuai diagnosis agent', action: action || String(wo.description).slice(0, 200), duration_min: durationMin,
     } });
-    if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi'].includes(c.status)) {
+    if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi', 'selesai_llm'].includes(c.status)) {
       const trace = this.cases.trace(c.id, c.trace);
       trace.add('action', 'Pekerjaan selesai', `${woId} ditutup. Hasil disimpan ke riwayat kasus dan indeks pengetahuan diperbarui.`);
       await this.cases.save(c.id, trace, 'selesai', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: c.summary });
@@ -413,8 +406,22 @@ export class AgentService {
   async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = [], image?: ChatImageDto): Promise<any> {
     const attachment = validateChatImage(image);
     if (attachment && (!useLlm || !this.llm.enabled)) throw new BadRequestException('Aktifkan Mode LLM yang sudah dikonfigurasi untuk membaca gambar.');
+    if (caseId && !attachment) {
+      const current = await this.cases.get(caseId);
+      const explicit = message.match(/\b(?:pump|pompa|unit)[\s-]*0*(\d+)\b/i);
+      const sameUnit = !explicit || current?.pump_id === `Pump-${explicit[1].padStart(2, '0')}`;
+      if (!sameUnit) caseId = null;
+      if (sameUnit && caseId && !asksForInformation(message) && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
+        const result = await this.continueCase(caseId, message);
+        return { reply: result.summary || 'Jawaban diterima.', case: result };
+      }
+    }
+    if (!attachment && /^(?:(?:cek|lihat|berapa)\s+)?(?:stok|stock|persediaan)\b/i.test(message.trim())) {
+      const result = await this.chatPolicy(message, caseId);
+      return { ...result, case: caseId ? await this.cases.get(caseId) : null };
+    }
     if (useLlm && this.llm.enabled && (message || '').trim()) {
-      try { return await this.llm.chat(message.trim(), history, attachment); }
+      try { return await this.llm.chat(message.trim(), history, attachment, caseId); }
       catch (e: any) {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);
@@ -428,14 +435,24 @@ export class AgentService {
   private async chatPolicy(message: string, caseId?: string | null): Promise<any> {
     const msg = (message || '').trim();
     if (!msg) return { reply: 'Tulis pertanyaan atau keluhan, misalnya: "Unit 3 oli cepat panas dan tekanan sulit naik".', case: null };
+    const low = msg.toLowerCase();
+    if (['stok', 'stock', 'persediaan'].some((w) => low.includes(w))) {
+      const items = await this.db.q('SELECT * FROM inventory');
+      const toks = low.match(/[a-z0-9]{4,}/g) || [];
+      const hit = items.filter((i: any) => toks.some((t) => i.name.toLowerCase().includes(t)));
+      return { reply: 'Stok: ' + (hit.length ? hit : items).map((i: any) => `${i.name} = ${i.stock}`).join('; '), case: null };
+    }
     if (caseId) {
       const c = await this.cases.get(caseId);
-      if (c && c.status === 'menunggu_klarifikasi') {
+      if (c && /^(?:kenapa|mengapa|jelaskan|apa alasan(?:nya)?)\b/i.test(msg)) {
+        const reasons = c.trace.filter((item: { kind: string; title: string; detail: string }) => item.kind === 'reasoning' && item.title !== 'Pemicu analisis').slice(-3).map((item: { detail: string }) => item.detail);
+        return { reply: `${c.summary || 'Keputusan mengikuti bukti pada kasus ini.'}\n\nDasar keputusan:\n${reasons.length ? reasons.join('\n') : 'Bukti terperinci belum tersedia; buka jejak kasus untuk memeriksa diagnosis dan rencana.'}`, case: c };
+      }
+      if (c && c.status === 'menunggu_klarifikasi' && !asksForInformation(msg)) {
         const r = await this.continueCase(caseId, msg);
         return { reply: r.summary || 'Jawaban diterima.', case: r };
       }
     }
-    const low = msg.toLowerCase();
     const m = low.match(/(?:pompa|pump|unit)[\s-]*0?(\d)/);
     if (m) {
       const pid = `Pump-0${m[1]}`;
@@ -447,12 +464,6 @@ export class AgentService {
       const t = await this.triage();
       if (!t.ranking.length) return { reply: 'Semua unit dalam kondisi normal.', case: null };
       return { reply: 'Urutan prioritas penanganan:\n' + t.ranking.map((r, i) => `${i + 1}. ${r.pump_id} (${r.state}, ${FAULT_LABEL[r.label] ?? r.label})`).join('\n'), case: null };
-    }
-    if (['stok', 'stock', 'persediaan'].some((w) => low.includes(w))) {
-      const items = await this.db.q('SELECT * FROM inventory');
-      const toks = low.match(/[a-z0-9]{4,}/g) || [];
-      const hit = items.filter((i: any) => toks.some((t) => i.name.toLowerCase().includes(t)));
-      return { reply: 'Stok: ' + (hit.length ? hit : items).map((i: any) => `${i.name} = ${i.stock}`).join('; '), case: null };
     }
     if (low.includes('work order') || /\bwo\b/.test(low)) {
       const wos = await this.db.q("SELECT * FROM work_orders WHERE status<>'selesai' ORDER BY created_at DESC LIMIT 8");
