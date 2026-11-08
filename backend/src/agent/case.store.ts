@@ -61,6 +61,8 @@ export class CaseStore {
       await this.db.q('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [pumpId]);
       const existing = await this.db.client.maintenanceCase.findFirst({ where: { pump_id: pumpId, status: { in: OPEN_STATUSES } } });
       if (existing) return { id: existing.id, existing: true };
+      const activeOrder = await this.db.client.workOrder.findFirst({ where: { pump_id: pumpId, case_id: { not: null }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { case_id: true } });
+      if (activeOrder?.case_id) return { id: activeOrder.case_id, existing: true };
       const id = await this.db.nextId('C', 'cases');
       await this.db.client.maintenanceCase.create({ data: { id, pump_id: pumpId, status: 'diproses', state: { pump_id: pumpId, complaint }, trace: [], created_at: now(), updated_at: now(), mode: 'policy' } });
       return { id, existing: false };
@@ -77,8 +79,8 @@ export class CaseStore {
         [caseId, state?.pump_id ?? null, status, o.fault ?? null, o.conf ?? null, o.risk ?? null, o.summary ?? null,
           JSON.stringify(trace.items), JSON.stringify(state ?? {}), t, t, o.mode ?? 'policy']);
     } else {
-      await this.db.x('UPDATE cases SET status=$1, fault=$2, confidence=$3, risk=$4, summary=$5, trace=$6::jsonb, state=$7::jsonb, updated_at=$8 WHERE id=$9',
-        [status, o.fault ?? null, o.conf ?? null, o.risk ?? null, o.summary ?? null, JSON.stringify(trace.items), JSON.stringify(state ?? {}), t, caseId]);
+      await this.db.x('UPDATE cases SET status=$1, fault=$2, confidence=$3, risk=$4, summary=$5, trace=$6::jsonb, state=$7::jsonb, updated_at=$8, pump_id=$10, mode=COALESCE($11,mode) WHERE id=$9',
+        [status, o.fault ?? null, o.conf ?? null, o.risk ?? null, o.summary ?? null, JSON.stringify(trace.items), JSON.stringify(state ?? {}), t, caseId, state?.pump_id ?? null, o.mode ?? null]);
     }
   }
 

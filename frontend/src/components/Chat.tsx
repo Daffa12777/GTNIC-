@@ -65,7 +65,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
       setAttachment(null); setImageError('');
       const warn = r.llm_error ? `\n\n[Mode LLM gagal: ${r.llm_error}. Jawaban ini dari mode biasa.]` : '';
       setMsgs((x) => [...x, { from: 'agent', text: r.reply + warn, case: r.case }]);
-      setOpenCase(r.case && r.case.status === 'menunggu_klarifikasi' ? r.case.id : null);
+      setOpenCase(r.case?.id ?? openCase);
       onChanged();
     } catch (e: unknown) {
       setText(m);
@@ -105,7 +105,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
         <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
           <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Unggah gambar" aria-describedby="chat-image-help" hidden disabled={busy || readingImage || !useLlm} onChange={chooseImage} />
           <button type="button" className="btn" disabled={busy || readingImage || !useLlm} onClick={() => fileInput.current?.click()}>Tambah gambar</button>
-          <input className="input" aria-label="Pesan untuk asisten" maxLength={8000} disabled={busy} placeholder={openCase ? 'Jawab pertanyaan agent…' : 'Tulis keluhan atau pertanyaan…'} value={text} onChange={(e) => setText(e.target.value)} />
+          <input className="input" aria-label="Pesan untuk asisten" maxLength={8000} disabled={busy} placeholder="Tulis keluhan atau pertanyaan lanjutan…" value={text} onChange={(e) => setText(e.target.value)} />
           <button className="btn primary" disabled={busy || readingImage || (!text.trim() && !attachment) || (!!attachment && !useLlm)}>Kirim</button>
         </form>
       </div>

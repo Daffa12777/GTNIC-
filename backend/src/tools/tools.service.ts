@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CONFIG } from '../config';
-import { assessRisk, COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, asObj, now } from '../domain';
+import { assessRisk, COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, FAULT_QUERY, type MaintenancePlan, asObj, now } from '../domain';
 import { DbService } from '../db/db.service';
 import { Analysis, MlService } from '../ml/ml.service';
 import { RagService } from '../rag/rag.service';
@@ -117,6 +117,22 @@ export class ToolsService {
     return { pump_id: a.pump_id, label: r.label, confidence: r.confidence, probs: r.probs, components: comps };
   }
 
+  async maintenancePlan(pumpId: string) {
+    const analysis = await this.analyze(pumpId);
+    if ('error' in analysis) return analysis;
+    const validity = await this.check_sensor_validity({ pump_id: pumpId });
+    if (!validity.valid) return { error: 'Sensor perlu diperiksa sebelum merencanakan perbaikan.' };
+    if (analysis.label === 'normal') return { analysis, plan: null };
+    const manual = await this.search_manual({ query: FAULT_QUERY[analysis.label] });
+    const plan: MaintenancePlan = {
+      fault: analysis.label, confidence: analysis.confidence,
+      risk: assessRisk(analysis.label, analysis.components, analysis.flags),
+      citation: manual.results?.[0]?.citation ?? 'belum ada sitasi',
+      advice: manual.results?.[0]?.text?.slice(0, 600) ?? 'Periksa unit bersama teknisi sebelum perbaikan.',
+    };
+    return { analysis, plan };
+  }
+
   // ---------------------------------------------------------- RAG
   async search_manual(a: { query: string; k?: number }) {
     if (!a.query?.trim()) return { error: 'query kosong' };
@@ -166,13 +182,16 @@ export class ToolsService {
     if (!inspection) {
       const analysis = await this.analyze(a.pump_id);
       if ('error' in analysis) return { error: `Tindakan ditunda: ${analysis.error}` };
+      if (!(await this.check_sensor_validity({ pump_id: a.pump_id })).valid) return { error: 'Sensor perlu diperiksa sebelum perbaikan.' };
       const highRisk = [a.risk, approvedCase?.risk, state.risk, state.plan?.risk, assessRisk(analysis.label, analysis.components, analysis.flags)].includes('tinggi');
-      const approved = a.approved === true && state.approved_by && approvedCase?.status === 'menunggu_persetujuan' && state.plan?.risk === 'tinggi';
-      if (highRisk && !approved) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+      const approved = a.approved === true && state.approved_by && approvedCase?.status === 'menunggu_persetujuan' && state.plan;
+      if (highRisk && !(approved && state.plan.risk === 'tinggi')) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+      if (analysis.confidence < CONFIG.CONF_ACT && !approved) return { error: 'Keyakinan diagnosis belum cukup untuk perbaikan otomatis. Minta klarifikasi atau eskalasi inspeksi.', requires_clarification: true };
+      if (analysis.label === 'normal') return { error: 'Belum ada diagnosis gangguan untuk perbaikan. Gunakan jalur inspeksi.' };
     }
     return this.db.transaction(async () => {
       if (!await this.db.one('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [a.pump_id])) return { error: 'unit tidak ditemukan' };
-      const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, title: a.title, status: { notIn: ['selesai', 'dibatalkan'] } } });
+      const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, OR: [{ title: a.title }, ...(a.case_id ? [{ case_id: a.case_id }] : [])], status: { notIn: ['selesai', 'dibatalkan'] } } });
       if (duplicate) return { id: duplicate.id, duplicate: true };
       const id = await this.db.nextId('WO', 'work_orders');
       await this.db.client.workOrder.create({ data: { id, pump_id: a.pump_id, case_id: a.case_id || null, title: a.title, description: a.description, priority: a.priority, status: 'terbuka', part: a.part ?? '', created_at: now() } });

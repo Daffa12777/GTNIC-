@@ -12,6 +12,7 @@ function fixture() {
   const tools = new ToolsService(db as never, {} as never, {} as never, {} as never);
   const analysis = { label: 'pump', components: { pump: { severity: 1 } }, flags: [] } as unknown as Analysis;
   jest.spyOn(tools, 'analyze').mockResolvedValue(analysis);
+  jest.spyOn(tools, 'check_sensor_validity').mockResolvedValue({ valid: true, suspect_sensors: [] });
   return { tools, order, state, stored, db, analysis };
 }
 

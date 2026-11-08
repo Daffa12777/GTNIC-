@@ -4,8 +4,16 @@ import { DbService } from '../db/db.service';
 import { TOOL_SPECS, ToolsService } from '../tools/tools.service';
 import { CaseStore, Trace } from './case.store';
 import type { ChatImageDto } from '../api/chat.dto';
+import type { MaintenancePlan, Risk } from '../domain';
 
 const MAX_STEPS = 12;
+interface LlmCaseState {
+  pump_id: string | null;
+  plan?: MaintenancePlan | null;
+  probs?: Record<string, number>;
+  risk?: Risk;
+  question?: string;
+}
 export interface LlmConnectionStatus {
   state: 'unconfigured' | 'unchecked' | 'ready' | 'error';
   checkedAt: number | null;
@@ -107,7 +115,7 @@ export class LlmService {
     throw lastErr;
   }
 
-  private async loop(task: string, trace: Trace, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
+  private async loop(task: string, trace: Trace, state: LlmCaseState, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
     const contents: any[] = history.slice(-8).filter((h) => h.text).map((h) => ({ role: h.from === 'user' ? 'user' : 'model', parts: [{ text: String(h.text).slice(0, 1500) }] }));
     while (contents.length && contents[0].role !== 'user') contents.shift();
     contents.push({ role: 'user', parts: [...(image ? [{ inlineData: { mimeType: image.mimeType, data: image.data } }] : []), { text: task }] });
@@ -123,45 +131,84 @@ export class LlmService {
       const responses: any[] = [];
       for (const fc of calls) {
         const args = fc.name === 'create_work_order' ? { ...fc.args, approved: false } : fc.args || {};
-        const res = await trace.tool(fc.name, args);
+        let error: string | undefined;
+        if (args.pump_id && args.pump_id !== state.pump_id) error = 'Pilih satu unit secara eksplisit; tool tidak boleh berpindah dari unit kasus.';
+        if (['classify_fault', 'create_work_order'].includes(fc.name) && !error) {
+          if (!state.pump_id) error = 'Sebutkan ID unit sebelum menganalisis atau membuat tindakan.';
+          else {
+            const prepared = await this.tools.maintenancePlan(state.pump_id);
+            if ('error' in prepared) error = prepared.error;
+            else {
+              if (prepared.plan && [state.risk, state.plan?.risk, args.risk].includes('tinggi')) prepared.plan.risk = 'tinggi';
+              state.plan = prepared.plan;
+              state.probs = prepared.analysis.probs;
+              if (prepared.plan) state.risk = prepared.plan.risk;
+              await this.cases.save(trace.caseId, trace, 'diproses', state, { mode: 'llm', risk: state.risk, fault: state.plan?.fault, conf: state.plan?.confidence });
+            }
+          }
+        }
+        if (['schedule_technician', 'create_purchase_request'].includes(fc.name) && !error) {
+          const order = args.work_order_id ? await this.db.one('SELECT case_id, pump_id FROM work_orders WHERE id=$1', [args.work_order_id]) : null;
+          if (!order || order.case_id !== trace.caseId || order.pump_id !== state.pump_id) error = 'Tindakan hanya boleh memakai work order dari unit dan kasus ini.';
+          else if (state.plan?.risk === 'tinggi') error = 'Rencana berisiko tinggi menunggu persetujuan supervisor.';
+        }
+        const res = error ? { error } : await trace.tool(fc.name, args);
+        if (error) trace.add('decision', 'Tool ditahan', error);
         if (res?.requires_approval) needs = true;
         responses.push({ functionResponse: { name: fc.name, response: { result: res } } });
       }
       contents.push({ role: 'user', parts: responses });
     }
-    return { final: final || 'Analisis selesai.', needs };
+    return { final: final || 'Agent belum menyelesaikan jawaban. Periksa jejak kasus sebelum mencoba ulang.', needs: needs || state.plan?.risk === 'tinggi' };
   }
 
   async diagnose(pumpId: string, complaint = '') {
-    const reservation = await this.cases.reserve(pumpId, complaint);
-    if (reservation.existing) return this.cases.get(reservation.id);
-    const id = reservation.id;
-    const trace = this.cases.trace(id);
-    trace.add('reasoning', 'Mode LLM', `Model ${CONFIG.GEMINI_MODEL} menjalankan loop function calling.`);
-    let result: { final: string; needs: boolean };
-    try { result = await this.loop(`Diagnosis dan tindak lanjut untuk ${pumpId}.${complaint ? ` Keluhan teknisi: ${complaint}` : ''}`, trace); }
-    catch (error: unknown) { await this.cases.save(id, trace, 'gagal', { pump_id: pumpId }, { mode: 'llm', summary: 'Layanan LLM gagal. Diagnosis dapat diulang.' }); throw error; }
-    const { final, needs } = result;
-    await this.cases.save(id, trace, needs ? 'menunggu_persetujuan' : 'selesai_llm', { pump_id: pumpId, probs: null }, { summary: final, mode: 'llm' });
-    return this.cases.get(id);
+    return (await this.respond(`Diagnosis dan tindak lanjut untuk ${pumpId}. ${complaint}`, pumpId)).case;
   }
 
-  async chat(message: string, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
-    const id = await this.db.nextId('C', 'cases');
-    const trace = this.cases.trace(id);
-    await this.cases.save(id, trace, 'diproses', { pump_id: null }, { mode: 'llm' });
+  async chat(message: string, history: { from: string; text: string }[] = [], image?: ChatImageDto, caseId?: string | null) {
+    const units = [...message.matchAll(/\b(?:pump|pompa|unit)[\s-]*0*(\d+)\b/gi)].map((m) => `Pump-${m[1].padStart(2, '0')}`);
+    if (new Set(units).size > 1) return { reply: 'Pilih satu unit dahulu agar diagnosis dan tindakannya tetap berada pada kasus yang tepat.', case: null };
+    const current = caseId ? await this.cases.get(caseId) : null;
+    const pumpId: string | null = units[0] ?? current?.pump_id ?? null;
+    if (pumpId && !(await this.tools.getPump(pumpId))) return { reply: `${pumpId} tidak terdaftar.`, case: null };
+    return this.respond(message, pumpId, current?.pump_id === pumpId ? current : null, history, image);
+  }
+
+  private async respond(task: string, pumpId: string | null, current: Awaited<ReturnType<CaseStore['get']>> = null, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
+    let id: string;
+    if (current) id = current.id;
+    else if (pumpId) {
+      const reservation = await this.cases.reserve(pumpId, task);
+      id = reservation.id;
+      if (reservation.existing) current = await this.cases.get(id);
+    } else id = await this.db.nextId('C', 'cases');
+    if (current) {
+      const claimed = await this.db.transaction(async () => {
+        await this.db.q('SELECT id FROM cases WHERE id=$1 FOR UPDATE', [id]);
+        current = await this.cases.get(id);
+        if (current?.mode !== 'llm' || !['menunggu_klarifikasi', 'selesai_llm', 'gagal'].includes(current.status)) return false;
+        await this.db.x("UPDATE cases SET status='diproses' WHERE id=$1", [id]);
+        return true;
+      });
+      if (!claimed) return { reply: current?.summary || 'Kasus ini sedang diproses atau menunggu keputusan. Buka jejak kasus untuk melanjutkan.', case: current };
+    }
+    const state: LlmCaseState = { ...current?.state, pump_id: pumpId };
+    const trace = this.cases.trace(id, current?.trace ?? []);
+    const metadata = () => ({ mode: 'llm', fault: state.plan?.fault, conf: state.plan?.confidence, risk: state.risk });
+    await this.cases.save(id, trace, 'diproses', state, metadata());
     let result: { final: string; needs: boolean };
-    try { result = await this.loop(message, trace, history, image); }
+    try { result = await this.loop(pumpId ? `Konteks kasus ${id}, unit ${pumpId}. ${task}` : task, trace, state, history, image); }
     catch (error: unknown) {
-      await this.cases.save(id, trace, 'gagal', { pump_id: null }, { mode: 'llm', summary: 'Layanan LLM gagal. Pesan dapat dikirim ulang.' });
+      await this.cases.save(id, trace, state.plan?.risk === 'tinggi' ? 'menunggu_persetujuan' : 'gagal', state, { ...metadata(), summary: 'Layanan LLM gagal. Periksa rencana dan jejak tindakan sebelum mencoba ulang.' });
       throw error;
     }
     const { final, needs } = result;
-    let c = null;
-    await this.cases.save(id, trace, needs ? 'menunggu_persetujuan' : 'selesai_llm', { pump_id: null }, { summary: final, mode: 'llm' });
-    if (trace.items.some((i) => i.kind === 'tool')) {
-      c = await this.cases.get(id);
-    }
-    return { reply: final, case: c };
+    const clarify = !needs && state.plan && state.plan.confidence < CONFIG.CONF_ACT;
+    const status = needs ? state.plan ? 'menunggu_persetujuan' : 'gagal' : clarify ? 'menunggu_klarifikasi' : 'selesai_llm';
+    const reply = needs ? state.plan ? `${final}\n\nRencana tindakan menunggu persetujuan supervisor di kasus ${id}.` : 'Tindakan ditahan karena belum ada rencana diagnosis yang valid. Periksa sensor dan ulangi analisis.' : final;
+    if (clarify) state.question = final;
+    await this.cases.save(id, trace, status, state, { ...metadata(), summary: reply });
+    return { reply, case: pumpId || current || trace.items.some((i) => i.kind === 'tool') ? await this.cases.get(id) : null };
   }
 }

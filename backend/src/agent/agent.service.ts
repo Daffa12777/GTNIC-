@@ -368,7 +368,7 @@ export class AgentService {
       pump_id: wo.pump_id, symptoms: (c?.summary || wo.title).slice(0, 200), fault: c?.fault || 'normal',
       root_cause: rootCause || 'Sesuai diagnosis agent', action: action || String(wo.description).slice(0, 200), duration_min: durationMin,
     } });
-    if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi'].includes(c.status)) {
+    if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi', 'selesai_llm'].includes(c.status)) {
       const trace = this.cases.trace(c.id, c.trace);
       trace.add('action', 'Pekerjaan selesai', `${woId} ditutup. Hasil disimpan ke riwayat kasus dan indeks pengetahuan diperbarui.`);
       await this.cases.save(c.id, trace, 'selesai', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: c.summary });
@@ -405,8 +405,17 @@ export class AgentService {
   async chat(message: string, caseId?: string | null, useLlm = false, history: { from: string; text: string }[] = [], image?: ChatImageDto): Promise<any> {
     const attachment = validateChatImage(image);
     if (attachment && (!useLlm || !this.llm.enabled)) throw new BadRequestException('Aktifkan Mode LLM yang sudah dikonfigurasi untuk membaca gambar.');
+    if (caseId && !attachment) {
+      const current = await this.cases.get(caseId);
+      const explicit = message.match(/\b(?:pump|pompa|unit)[\s-]*0*(\d+)\b/i);
+      const sameUnit = !explicit || current?.pump_id === `Pump-${explicit[1].padStart(2, '0')}`;
+      if (sameUnit && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
+        const result = await this.continueCase(caseId, message);
+        return { reply: result.summary || 'Jawaban diterima.', case: result };
+      }
+    }
     if (useLlm && this.llm.enabled && (message || '').trim()) {
-      try { return await this.llm.chat(message.trim(), history, attachment); }
+      try { return await this.llm.chat(message.trim(), history, attachment, caseId); }
       catch (e: any) {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);
