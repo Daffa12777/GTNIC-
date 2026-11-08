@@ -134,6 +134,8 @@ Mode policy tersedia tanpa API LLM. Mode Gemini bersifat opsional dan memakai fu
 
 Chat meneruskan `case_id`, mengikat satu ID unit yang disebut pengguna, serta memakai reservasi kasus yang sama dengan monitor/policy. LLM membangun `state.plan` dari ML dan manual backend, bukan dari klaim model, sehingga endpoint approve dapat menjalankan rantai stok, WO, jadwal, dan notifikasi yang sudah ada. Kasus pending tidak ditimpa percakapan baru. Hasil pengujian dan batas deployment ada di [validasi agent](AGENT_VALIDATION_2026-11-08.md).
 
+Kasus terkunci tetap mendukung pertanyaan lanjutan. Mode baca saja menyertakan konteks kasus tersimpan, hanya menawarkan tool pembacaan kepada Gemini, dan menolak pemanggilan tool mutasi secara server-side. Loop tersebut tidak menyimpan ulang state/status/rencana kasus; pembacaan tool tetap dicatat pada `agent_logs`. Pertanyaan informasi yang dikenali juga tidak menggantikan pertanyaan klarifikasi. Pada mode policy atau fallback, permintaan stok membaca inventaris dan pertanyaan alasan mengambil bukti dari trace.
+
 Interaksi LLM mempunyai anggaran 45 detik termasuk retry; panggilan Gemini memakai sisa anggaran. Tool baru ditahan bila sisa waktu tidak lebih dari 12 detik. Ini memberi ruang untuk pencatatan kegagalan sebelum batas function Vercel 60 detik, tanpa menjamin latensi seluruh dependency. Progres disimpan setiap tool. Respons kosong atau loop 12 langkah yang tidak selesai menjadi kegagalan, bukan sukses semu.
 
 ### Chat multimodal

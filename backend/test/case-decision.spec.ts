@@ -33,3 +33,14 @@ it('switches units explicitly instead of treating a new unit report as an answer
   expect(continueCase).not.toHaveBeenCalled();
   expect(diagnose).toHaveBeenCalledWith('Pump-02', 'Pump-02 panas');
 });
+
+it('answers information requests without consuming a pending clarification in policy mode', async () => {
+  const current = { id: 'C-1', pump_id: 'Pump-01', mode: 'policy', status: 'menunggu_klarifikasi', summary: 'Perlu pemeriksaan.', trace: [{ kind: 'reasoning', title: 'Bukti sensor', detail: 'Tekanan turun dan suhu naik.' }] };
+  const db = { q: jest.fn().mockResolvedValue([{ name: 'Seal kit pompa', stock: 3 }]) };
+  const cases = { get: jest.fn().mockResolvedValue(current) };
+  const agent = new AgentService(db as never, {} as never, cases as never, {} as never, {} as never, {} as never);
+  const continuation = jest.spyOn(agent, 'continueCase');
+  expect((await agent.chat('Stok seal kit pompa', 'C-1')).reply).toContain('Seal kit pompa = 3');
+  expect((await agent.chat('kenapa gitu?', 'C-1')).reply).toContain('Tekanan turun dan suhu naik');
+  expect(continuation).not.toHaveBeenCalled();
+});

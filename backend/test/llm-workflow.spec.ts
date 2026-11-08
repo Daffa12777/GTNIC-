@@ -54,21 +54,23 @@ async function fixture(work: () => Promise<void>) {
 it('holds forged low-risk/approved arguments and persists an executable plan for supervisor approval', async () => fixture(async () => {
   const fetch = jest.spyOn(global, 'fetch')
     .mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' }), call('create_work_order', order)]))
-    .mockResolvedValueOnce(response([{ text: 'Perbaikan memerlukan persetujuan.' }]));
+    .mockResolvedValueOnce(response([{ text: 'Perbaikan memerlukan persetujuan.' }]))
+    .mockResolvedValueOnce(response([{ text: 'Foto tambahan dapat dijelaskan, keputusan tetap menunggu supervisor.' }]));
   const result = await agent.chat('Pump-91 oli panas', null, true);
   expect(result.case).toMatchObject({ pump_id: 'Pump-91', status: 'menunggu_persetujuan', mode: 'llm', plan: { fault: 'pump', risk: 'tinggi' } });
   expect(result.case.plan.citation).not.toBe('belum ada sitasi');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
   const image = { mimeType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5lEAAAAASUVORK5CYII=' };
   const pendingPhoto = await agent.chat('Periksa foto tambahan', result.case.id, true, [], image);
-  expect(pendingPhoto.reply).toContain('Foto ini belum dianalisis');
+  expect(pendingPhoto.reply).toContain('Foto tambahan dapat dijelaskan');
+  expect(pendingPhoto.case).toEqual(result.case);
   const api = new ApiController(db, agent, cases, llm, {} as never, tools as never, {} as never, {} as never);
   await expect(api.approve(result.case.id, 'teknisi')).rejects.toMatchObject({ status: 403 });
   const approved = await api.approve(result.case.id, 'supervisor');
   expect(approved).toMatchObject({ status: 'disetujui_dijalankan', mode: 'llm' });
   expect(await db.client.workOrder.count({ where: { case_id: result.case.id } })).toBe(1);
   await expect(api.approve(result.case.id, 'supervisor')).rejects.toMatchObject({ status: 400 });
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch).toHaveBeenCalledTimes(3);
 }));
 
 it('creates a low-risk order, schedules it, and keeps the same case on a follow-up', async () => fixture(async () => {
@@ -100,21 +102,53 @@ it('creates a low-risk order, schedules it, and keeps the same case on a follow-
 it('reuses a sensor/policy case without overwriting its pending decision', async () => fixture(async () => {
   const reserved = await cases.reserve('Pump-91');
   await cases.save(reserved.id, cases.trace(reserved.id), 'menunggu_persetujuan', { pump_id: 'Pump-91', plan: { fault: 'pump', risk: 'tinggi' } }, { summary: 'Menunggu supervisor', mode: 'policy' });
-  const fetch = jest.spyOn(global, 'fetch');
+  const before = await cases.get(reserved.id);
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('create_work_order', order), call('check_inventory', { part_name: 'Seal kit pompa' })]))
+    .mockResolvedValueOnce(response([{ text: 'Stok seal kit sudah dibaca; rencana tetap menunggu supervisor.' }]));
   const result = await agent.chat('Pump-91 masih panas', null, true);
   expect(result.case).toMatchObject({ id: reserved.id, mode: 'policy', status: 'menunggu_persetujuan' });
-  expect(fetch).not.toHaveBeenCalled();
+  expect(result.reply).toContain('Stok seal kit');
+  expect(await cases.get(reserved.id)).toEqual(before);
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+  const payload = JSON.parse(String(fetch.mock.calls[0][1]?.body));
+  expect(payload.tools[0].function_declarations.map((tool: { name: string }) => tool.name)).not.toContain('create_work_order');
   expect(await db.client.maintenanceCase.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
 }));
 
 it('does not duplicate a pending case and can reject it without creating work', async () => fixture(async () => {
-  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' })])).mockResolvedValueOnce(response([{ text: 'Tinjau rencana.' }]));
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' })])).mockResolvedValueOnce(response([{ text: 'Tinjau rencana.' }]))
+    .mockResolvedValueOnce(response([{ text: 'Panas masih perlu pemeriksaan; persetujuan tetap melalui supervisor.' }]));
   const first = await agent.chat('Pump-91 rusak', null, true);
   const next = await agent.chat('Pump-91 masih panas', null, true);
   expect(next.case.id).toBe(first.case.id);
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(next.reply).toContain('Panas masih perlu pemeriksaan');
+  expect(fetch).toHaveBeenCalledTimes(3);
   await agent.reject(first.case.id, 'Perlu verifikasi lapangan');
   expect((await cases.get(first.case.id)).status).toBe('ditolak');
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+}));
+
+it('answers why and stock questions on an escalated policy case without repeating or changing its decision', async () => fixture(async () => {
+  const reserved = await cases.reserve('Pump-91');
+  const trace = cases.trace(reserved.id);
+  trace.add('reasoning', 'Gangguan majemuk', 'Pompa dan pendingin sama-sama menurun; inspeksi senior diperlukan.');
+  await cases.save(reserved.id, trace, 'dieskalasi', { pump_id: 'Pump-91', probs: { pump: 0.5, cooler: 0.5 } }, { summary: 'Kasus dieskalasi ke senior.', risk: 'tinggi', mode: 'policy' });
+  const before = await cases.get(reserved.id);
+  jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([{ text: 'Karena pompa dan pendingin sama-sama menurun, teknisi senior perlu memeriksa langsung.' }]))
+    .mockResolvedValueOnce(response([call('check_inventory', { part_name: 'Seal kit pompa' })]))
+    .mockImplementationOnce(async (_url, options) => {
+      const payload = JSON.parse(String(options?.body));
+      const result = payload.contents.at(-1).parts[0].functionResponse.response.result;
+      return response([{ text: `Stok ${result.name}: ${result.stock}.` }]);
+    });
+  const why = await agent.chat('kenapa gitu?', reserved.id, true);
+  expect(why.reply).toContain('pompa dan pendingin');
+  expect(why.reply).not.toBe(before.summary);
+  const stock = await agent.chat('Stok seal kit pompa', reserved.id, true);
+  expect(stock.reply).toMatch(/^Stok .*Seal kit.*: \d+/i);
+  expect(why.case.id).toBe(reserved.id);
+  expect(stock.case.id).toBe(reserved.id);
+  expect(await cases.get(reserved.id)).toEqual(before);
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
 }));
 
@@ -132,12 +166,17 @@ it('binds an explicit new unit to a different case and rejects a cross-unit tool
 it('requires clarification instead of repairing a low-confidence diagnosis', async () => fixture(async () => {
   diagnosis.confidence = 0.6; diagnosis.components.pump.severity = 0.5;
   jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('create_work_order', order)])).mockResolvedValueOnce(response([{ text: 'Apakah ada kebocoran yang terlihat?' }]))
+    .mockResolvedValueOnce(response([call('check_inventory', { part_name: 'Seal kit pompa' })]))
+    .mockResolvedValueOnce(response([{ text: 'Stok seal kit telah dibaca.' }]))
     .mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' }), call('escalate_to_senior', { pump_id: 'Pump-91', summary: 'Diagnosis belum cukup yakin; perlu inspeksi.' })]))
     .mockResolvedValueOnce(response([{ text: 'Inspeksi teknisi senior dijadwalkan.' }]));
   const result = await agent.chat('Pump-91 panas', null, true);
   expect(result.case.status).toBe('menunggu_klarifikasi');
   expect(result.case.question).toContain('kebocoran');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+  const stock = await agent.chat('Stok seal kit pompa', result.case.id, true);
+  expect(stock.reply).toContain('Stok seal kit');
+  expect(stock.case).toEqual(result.case);
   diagnosis.confidence = 0.4;
   const escalated = await agent.chat('Gejalanya belum jelas', result.case.id, true);
   expect(escalated.case.status).toBe('dieskalasi');

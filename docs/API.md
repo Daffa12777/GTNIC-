@@ -94,7 +94,7 @@ Lampiran opsional memakai field `image` dengan `{mimeType, data}`. `mimeType` ha
 
 Body JSON `/api/chat` dibatasi 3 MiB; endpoint lain tetap 128 KiB. Jika hanya gambar yang dipilih, frontend mengisi pesan permintaan penjelasan secara otomatis. Gambar ada pada pesan saat ini; history API memuat teks saja. Isi gambar tidak disimpan dalam state kasus oleh alur ini. Gagal membaca gambar lewat LLM menghasilkan error dan tidak dialihkan diam-diam ke diagnosis teks.
 
-`case_id` diteruskan ke LLM dan mempertahankan unit serta jejak percakapan. ID unit lain yang disebut eksplisit memindahkan konteks; permintaan beberapa unit sekaligus meminta pengguna memilih satu. Kasus pending atau pekerjaan aktif dipakai kembali. Rencana persetujuan LLM berasal dari analisis/manual backend dan disimpan sesuai kontrak approve. Foto pada kasus yang masih diproses atau menunggu keputusan dikembalikan dengan penjelasan bahwa foto belum dianalisis. Lihat [validasi agent](AGENT_VALIDATION_2026-11-08.md).
+`case_id` diteruskan ke LLM dan mempertahankan unit serta jejak percakapan. ID unit lain yang disebut eksplisit memindahkan konteks; permintaan beberapa unit sekaligus meminta pengguna memilih satu. Kasus pending atau pekerjaan aktif dipakai kembali. Rencana persetujuan LLM berasal dari analisis/manual backend dan disimpan sesuai kontrak approve. Pertanyaan informasi dan foto lanjutan pada kasus yang dikunci dijawab lewat tool baca saja; keputusan, rencana, dan status kasus tidak ditimpa. Pertanyaan stok juga tidak dianggap sebagai jawaban klarifikasi. Lihat [validasi agent](AGENT_VALIDATION_2026-11-08.md).
 
 ## Kasus dan work order
 

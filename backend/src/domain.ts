@@ -1,6 +1,7 @@
 export type Fault = 'normal' | 'pump' | 'valve' | 'cooler' | 'accumulator';
 export type Risk = 'rendah' | 'sedang' | 'tinggi';
 export interface MaintenancePlan { fault: Fault; confidence: number; risk: Risk; citation: string; advice: string }
+export const asksForInformation = (message: string) => /^(?:kenapa|mengapa|jelaskan|apa alasan(?:nya)?|(?:cek |lihat |berapa )?(?:stok|stock|persediaan)|work order|status)\b/i.test(message.trim());
 export function assessRisk(label: string, components: Record<string, { severity: number }>, flags: string[]): Risk {
   if (flags.length || (components[label]?.severity ?? 0) >= 1) return 'tinggi';
   return (components[label]?.severity ?? 0) >= 0.5 ? 'sedang' : 'rendah';

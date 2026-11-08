@@ -1,8 +1,8 @@
 # Perbaikan dan validasi agent — 8 November 2026
 
-Laporan ini menjelaskan perubahan setelah tinjauan awal. Perubahan diuji pada checkout lokal; push, merge, dan deployment bukan bagian dari hasil verifikasi ini. Google Docs dan PDF proposal telah diselaraskan dengan bukti ini, dengan keterangan bahwa perbaikan belum diverifikasi pada deployment publik.
+Laporan ini menjelaskan perubahan setelah tinjauan awal. Perubahan diuji pada checkout lokal; push, merge, dan deployment bukan bagian dari hasil verifikasi ini. Google Docs dan PDF proposal merupakan snapshot perbaikan awal dengan 131 tes. Regresi pertanyaan lanjutan yang ditemukan sesudahnya, hasil 133 tes, dan smoke Gemini live dicatat pada laporan ini.
 
-Acuan kode yang divalidasi: `8e11389` beserta rangkaian commit perbaikannya.
+Acuan perbaikan awal: `8e11389` beserta rangkaian commit-nya; perbaikan percakapan baca saja dan regresinya merupakan tindak lanjut setelah snapshot tersebut.
 
 ## Perubahan dan dampak
 
@@ -24,7 +24,7 @@ Tes memakai PostgreSQL-compatible PGlite lokal terisolasi. Pada `llm-workflow.sp
 | --- | --- |
 | Risiko tinggi dengan `risk=rendah`, `approved=true`, dan argumen inspeksi palsu | Belum ada WO sebelum persetujuan sah; rencana risiko tinggi tersimpan. |
 | Teknisi mencoba approve, supervisor menyetujui, approve diulang | Teknisi ditolak, supervisor berhasil, hanya satu WO dibuat. |
-| Foto tambahan saat kasus menunggu keputusan | Sistem menyatakan foto belum dianalisis; rencana pending tidak ditimpa. |
+| Pertanyaan alasan, stok, atau foto pada kasus pending/dieskalasi | Gemini menjawab lewat tool baca saja; tool mutasi ditolak dan rencana/status kasus dipertahankan. Pertanyaan stok tidak menghapus pertanyaan klarifikasi. |
 | Diagnosis risiko sedang berkeyakinan tinggi | WO tersimpan dan teknisi terjadwal; pertanyaan berikutnya memakai kasus yang sama. |
 | Percakapan baru untuk unit dengan WO aktif, judul WO berubah | Kasus dan WO aktif digunakan kembali; tidak ada WO tambahan. |
 | Kasus sensor/policy telah menunggu persetujuan | Chat LLM mempertahankan keputusan dan kasus policy tersebut. |
@@ -37,11 +37,13 @@ Tes memakai PostgreSQL-compatible PGlite lokal terisolasi. Pada `llm-workflow.sp
 ## Pemeriksaan yang dijalankan
 
 - Frontend: `npm.cmd test` — **57 tes lulus**.
-- Backend: `npm.cmd test`, dengan `ML_URL` menunjuk layanan ML proyek — **74 tes lulus**, termasuk 14 tes integrasi aplikasi dan 9 tes alur agent/monitor.
+- Backend: `npm.cmd test`, dengan `ML_URL` menunjuk layanan ML proyek — **76 tes lulus**, termasuk 14 tes integrasi aplikasi dan 10 tes alur agent/monitor.
 - Build frontend: `npm.cmd run build` — lulus; peringatan ukuran chunk 3D masih ada.
 - Build backend biasa dan Vercel diuji; build Vercel memakai `npm.cmd run build:vercel`.
 
 Suite integrasi melakukan inferensi terhadap layanan ML proyek, termasuk profil sehat dan pendingin. Kasus policy tertentu memakai diagnosis fixture agar percabangan keputusan deterministik. Tes Gemini menggunakan respons terkontrol; hasil ini bukan klaim validasi Gemini live atau akurasi foto kerusakan.
+
+Smoke terpisah dengan Gemini live mereproduksi urutan screenshot: kasus policy berstatus `dieskalasi`, pertanyaan “kenapa gitu?”, lalu “Stok seal kit pompa”. Pada database uji lokal, Gemini memberikan penjelasan, memanggil `check_inventory`, serta menyebut stok fixture; kasus tetap sama dan tidak ada work order baru. Ini satu smoke percakapan, bukan validasi menyeluruh seluruh tindakan Gemini atau foto kerusakan.
 
 ## Reproduksi (PowerShell)
 

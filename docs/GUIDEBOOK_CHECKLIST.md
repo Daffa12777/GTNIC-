@@ -21,7 +21,7 @@ Acuan tinjauan 8 November 2026. Status tersedia menunjukkan keberadaan implement
 | Kapabilitas dan otonomi agent (25) | Rantai tindakan otomatis, tanya balik, eskalasi, persetujuan; dua jalur masuk (sensor dan laporan teknisi) menuju kasus yang sama; pemicu otomatis oleh monitor |
 | Penalaran, perencanaan, keputusan (15) | Jejak tool dan keputusan, probabilitas komponen, keluhan dengan negasi, riwayat, serta gangguan majemuk. Jumlah langkah mengikuti kasus dan mode. |
 | Penggunaan alat dan eksekusi (15) | 12 tool dengan validasi parameter, pencegahan duplikasi work order, error dikembalikan ke agent |
-| Arsitektur teknis (15) | React + NestJS + PostgreSQL + FastAPI; RAG bersitasi; chat multimodal. Sebanyak 57 tes frontend dan 74 backend lulus, termasuk integrasi ML; lihat `AGENT_VALIDATION_2026-11-08.md`. |
+| Arsitektur teknis (15) | React + NestJS + PostgreSQL + FastAPI; RAG bersitasi; chat multimodal. Sebanyak 57 tes frontend dan 76 backend lulus, termasuk integrasi ML; lihat `AGENT_VALIDATION_2026-11-08.md`. |
 | Inovasi dan orisinalitas (10) | Sensor dan keluhan lapangan disatukan; guardrail di lapisan tool; riwayat pekerjaan yang ditutup masuk kembali ke indeks RAG |
 | Dampak dan relevansi (10) | Tema Enterprise Productivity: otomatisasi koordinasi maintenance dan triase. Estimasi waktu hemat harus diberi label asumsi, bukan hasil ukur |
 | UX (5) | Peta 3D interaktif, fokus/rotasi, panel unit, konfirmasi persetujuan, chat gambar, serta peran Teknisi/Supervisor. Uji pengguna lapangan masih diperlukan. |

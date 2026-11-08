@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, ServiceUnavailableException } 
 import { ChatImageDto, validateChatImage } from '../api/chat.dto';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
-import { assessRisk, FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
+import { asksForInformation, assessRisk, FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
 import { StatusStore } from '../monitor/status.store';
 import { SimService } from '../sim/sim.service';
 import { ToolsService } from '../tools/tools.service';
@@ -411,7 +411,7 @@ export class AgentService {
       const explicit = message.match(/\b(?:pump|pompa|unit)[\s-]*0*(\d+)\b/i);
       const sameUnit = !explicit || current?.pump_id === `Pump-${explicit[1].padStart(2, '0')}`;
       if (!sameUnit) caseId = null;
-      if (sameUnit && caseId && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
+      if (sameUnit && caseId && !asksForInformation(message) && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
         const result = await this.continueCase(caseId, message);
         return { reply: result.summary || 'Jawaban diterima.', case: result };
       }
@@ -431,14 +431,24 @@ export class AgentService {
   private async chatPolicy(message: string, caseId?: string | null): Promise<any> {
     const msg = (message || '').trim();
     if (!msg) return { reply: 'Tulis pertanyaan atau keluhan, misalnya: "Unit 3 oli cepat panas dan tekanan sulit naik".', case: null };
+    const low = msg.toLowerCase();
+    if (['stok', 'stock', 'persediaan'].some((w) => low.includes(w))) {
+      const items = await this.db.q('SELECT * FROM inventory');
+      const toks = low.match(/[a-z0-9]{4,}/g) || [];
+      const hit = items.filter((i: any) => toks.some((t) => i.name.toLowerCase().includes(t)));
+      return { reply: 'Stok: ' + (hit.length ? hit : items).map((i: any) => `${i.name} = ${i.stock}`).join('; '), case: null };
+    }
     if (caseId) {
       const c = await this.cases.get(caseId);
-      if (c && c.status === 'menunggu_klarifikasi') {
+      if (c && /^(?:kenapa|mengapa|jelaskan|apa alasan(?:nya)?)\b/i.test(msg)) {
+        const reasons = c.trace.filter((item: { kind: string; title: string; detail: string }) => item.kind === 'reasoning' && item.title !== 'Pemicu analisis').slice(-3).map((item: { detail: string }) => item.detail);
+        return { reply: `${c.summary || 'Keputusan mengikuti bukti pada kasus ini.'}\n\nDasar keputusan:\n${reasons.length ? reasons.join('\n') : 'Bukti terperinci belum tersedia; buka jejak kasus untuk memeriksa diagnosis dan rencana.'}`, case: c };
+      }
+      if (c && c.status === 'menunggu_klarifikasi' && !asksForInformation(msg)) {
         const r = await this.continueCase(caseId, msg);
         return { reply: r.summary || 'Jawaban diterima.', case: r };
       }
     }
-    const low = msg.toLowerCase();
     const m = low.match(/(?:pompa|pump|unit)[\s-]*0?(\d)/);
     if (m) {
       const pid = `Pump-0${m[1]}`;
@@ -450,12 +460,6 @@ export class AgentService {
       const t = await this.triage();
       if (!t.ranking.length) return { reply: 'Semua unit dalam kondisi normal.', case: null };
       return { reply: 'Urutan prioritas penanganan:\n' + t.ranking.map((r, i) => `${i + 1}. ${r.pump_id} (${r.state}, ${FAULT_LABEL[r.label] ?? r.label})`).join('\n'), case: null };
-    }
-    if (['stok', 'stock', 'persediaan'].some((w) => low.includes(w))) {
-      const items = await this.db.q('SELECT * FROM inventory');
-      const toks = low.match(/[a-z0-9]{4,}/g) || [];
-      const hit = items.filter((i: any) => toks.some((t) => i.name.toLowerCase().includes(t)));
-      return { reply: 'Stok: ' + (hit.length ? hit : items).map((i: any) => `${i.name} = ${i.stock}`).join('; '), case: null };
     }
     if (low.includes('work order') || /\bwo\b/.test(low)) {
       const wos = await this.db.q("SELECT * FROM work_orders WHERE status<>'selesai' ORDER BY created_at DESC LIMIT 8");

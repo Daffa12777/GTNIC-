@@ -201,7 +201,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan 8 November 2026 menghasilkan **57 tes frontend dan 74 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi LLM memakai respons Gemini terkontrol dan database lokal terisolasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
+Pemeriksaan 8 November 2026 menghasilkan **57 tes frontend dan 76 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Smoke tambahan dengan Gemini live memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 
@@ -230,7 +230,7 @@ Dokumen konsep lama [PROJECT_DETAIL.md](docs/PROJECT_DETAIL.md) dipertahankan se
 - Belum ada formulir/API umum untuk mendaftarkan mesin, integrasi sensor MQTT/OPC-UA, ataupun integrasi ERP/CMMS eksternal.
 - Keyakinan ML belum dikalibrasi untuk mesin pabrik pengguna. Dataset satu rig dan data sintetis tidak membuktikan akurasi lapangan.
 - Penambahan riwayat membantu pencarian RAG; model ML tidak otomatis dilatih ulang dari pekerjaan yang selesai.
-- Konteks chat memakai satu unit per kasus; sebut ID unit lain untuk berpindah. Kasus yang menunggu keputusan dipertahankan agar rencana tidak ditimpa. Foto tambahan pada kasus tersebut dinyatakan belum dianalisis.
+- Konteks chat memakai satu unit per kasus; sebut ID unit lain untuk berpindah. Pertanyaan alasan, stok, dan foto lanjutan tetap dapat dijawab pada kasus yang menunggu keputusan atau sudah dieskalasi, melalui mode baca saja yang tidak mengubah rencana maupun menjalankan tindakan baru.
 - Memori chat dibatasi 100 pesan dan tiga pratinjau foto terbaru. Riwayat setelah reload berisi nama file dan teks; pemeriksaan visual ulang memerlukan pengunggahan kembali.
 - Simulasi, snapshot data, dan koneksi layanan perlu diperiksa sebelum presentasi.
 
