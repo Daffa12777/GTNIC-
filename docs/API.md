@@ -1,6 +1,6 @@
 # Referensi API — ManualMechanic
 
-Tanggal acuan: 1 November 2026. Referensi berdasarkan controller dan DTO backend saat dokumentasi disusun. Belum ada spesifikasi OpenAPI yang dihasilkan otomatis; kode controller/DTO tetap menjadi kontrak utama.
+Tanggal acuan: 8 November 2026. Referensi berdasarkan controller dan DTO backend, termasuk lampiran gambar pada chat. Kode controller/DTO menjadi kontrak utama.
 
 ## Konvensi
 
@@ -89,6 +89,12 @@ Contoh request chat:
 ```
 
 Pesan 1–8000 karakter. Maksimal delapan entri history, masing-masing `{from: 'user' | 'agent', text}` dengan teks 1–1500 karakter. Respons chat memuat jawaban/kasus dan dapat menyertakan error LLM; tinjau isi respons, bukan hanya status HTTP.
+
+Lampiran opsional memakai field `image` dengan `{mimeType, data}`. `mimeType` harus `image/jpeg`, `image/png`, atau `image/webp`; `data` adalah base64 murni tanpa awalan data URL. Ukuran setelah decoding maksimal 2 MiB, encoding harus kanonik, dan signature file harus sesuai MIME. `use_llm` harus `true` serta Gemini harus dikonfigurasi. Validasi signature tidak merupakan validasi menyeluruh terhadap seluruh struktur file gambar.
+
+Body JSON `/api/chat` dibatasi 3 MiB; endpoint lain tetap 128 KiB. Jika hanya gambar yang dipilih, frontend mengisi pesan permintaan penjelasan secara otomatis. Gambar ada pada pesan saat ini; history API memuat teks saja. Isi gambar tidak disimpan dalam state kasus oleh alur ini. Gagal membaca gambar lewat LLM menghasilkan error dan tidak dialihkan diam-diam ke diagnosis teks.
+
+Catatan review: `case_id` sudah diterima controller, tetapi jalur chat LLM belum meneruskannya ke layanan LLM. Kasus LLM yang menunggu persetujuan juga belum menyimpan `state.plan` yang dibutuhkan endpoint approve. Lihat [laporan tinjauan](REVIEW_2026-11-08.md) sebelum menganggap kontrak kasus policy dan LLM setara.
 
 ## Kasus dan work order
 

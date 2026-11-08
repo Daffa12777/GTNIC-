@@ -1,6 +1,6 @@
 # Dokumentasi teknis — ManualMechanic
 
-Tanggal acuan: 1 November 2026. Dokumen ini mengikuti kode web React + backend NestJS + layanan ML pada checkout saat penyusunan. Konfigurasi hosting dan data runtime dapat berubah.
+Tanggal acuan: 8 November 2026. Dokumen ini mengikuti kode web React + backend NestJS + layanan ML, termasuk chat gambar serta tinjauan kasus LLM. Konfigurasi hosting dan data runtime dapat berubah.
 
 ## Struktur proyek
 
@@ -130,6 +130,16 @@ ML mengembalikan HTTP 503 bila model hilang, rusak, atau scikit-learn tidak komp
 
 Mode policy tersedia tanpa API LLM. Mode Gemini bersifat opsional dan memakai function calling. Tool backend tetap memberlakukan aturan risiko/persetujuan, stok, dan transaksi.
 
+Tinjauan terbaru menemukan bahwa guardrail `create_work_order` masih menggunakan nilai `risk` dari argumen tool, sehingga risiko yang lebih rendah dari kasus tersimpan bisa melewati pemeriksaan persetujuan. Jalur chat LLM juga belum meneruskan `case_id` yang diterima API dan menyimpan state dengan `pump_id: null`; saat membutuhkan persetujuan, `state.plan` belum tersedia. Perilaku dan usulan perbaikannya ada di [laporan tinjauan](REVIEW_2026-11-08.md).
+
+### Chat multimodal
+
+`Chat.tsx` membaca satu gambar JPG/PNG/WebP maksimal 2 MiB dan membuat pratinjau data URL. `api.chat` mengirim `{mimeType, data}` lewat field `image`. `ChatImageDto` serta `validateChatImage` memeriksa field, ukuran decoding, base64 kanonik, dan signature format. Parser hanya menaikkan batas JSON `/api/chat` menjadi 3 MiB; batas endpoint lain tetap 128 KiB.
+
+`AgentService.chat` mensyaratkan Mode LLM serta konfigurasi Gemini untuk lampiran. `LlmService.loop` menambahkan `inlineData` pada bagian pesan pengguna yang dikirim ke `generateContent`; gambar yang sama tersedia selama loop permintaan itu. History percakapan berikutnya hanya memuat teks. Kegagalan LLM dengan gambar mengembalikan error untuk pengiriman ulang; jalur teks masih mempunyai fallback policy.
+
+Byte gambar berada dalam memori halaman dan permintaan ke Gemini. `writeChat` hanya menyimpan nama lampiran, teks, dan ID kasus di session storage; kasus backend tidak menyimpan byte gambar. Tampilan pesan di memori belum membatasi akumulasi lampiran selama halaman terbuka. Ini dicatat sebagai temuan performa pada laporan tinjauan.
+
 RAG menggunakan TF-IDF + cosine similarity, bukan embedding atau vector database. Manual `backend/knowledge/*.md` dipotong berdasarkan heading bagian; indeks juga memuat `case_history`. Sitasi menyebut dokumen dan bagian/ID riwayat. Menyelesaikan WO menambah riwayat untuk pencarian; tidak melatih ulang model secara otomatis.
 
 Panduan maintenance adalah pengetahuan teknik umum yang ditulis untuk prototipe. Penggunaan lapangan memerlukan penyesuaian terhadap manual produsen dan prosedur perusahaan.
@@ -232,9 +242,9 @@ Backend persisten diperlukan untuk timer simulasi yang terus bergerak. Gunakan h
 
 ### Backend serverless Vercel
 
-`backend/vercel.json` menonaktifkan `SIM_ENABLED`, `AUTO_AGENT`, `DEMO_SCENARIO`, `SCENARIO_CONTROLS_ENABLED`, dan `SEED_DEMO_DATA`. Simulator/monitor dalam memori proses bukan worker terdistribusi. Jangan mengharapkan kondisi mesin bergerak terus di antara request serverless.
+`backend/vercel.json` menetapkan `SIM_ENABLED=false`, `AUTO_AGENT=false`, `DEMO_SCENARIO=false`, `SCENARIO_CONTROLS_ENABLED=false`, `SEED_DEMO_DATA=false`, serta `DB_POOL_MAX=2`. Nilai yang sama juga dipasang pada environment Production project `manualmechanic-api` setelah kejadian simulator aktif saat redeploy. Simulator/monitor dalam memori proses memerlukan backend persisten untuk berjalan terus.
 
-Detail build/rewrite tersedia di [VERCEL_WEB.md](VERCEL_WEB.md). Jalankan smoke login, refresh, overview, ML melalui backend, dan alur kasus setelah deploy; status READY tidak cukup. Deployment tidak dilakukan sebagai bagian penyusunan dokumentasi ini.
+Detail build/rewrite tersedia di [VERCEL_WEB.md](VERCEL_WEB.md). Jalankan smoke login, refresh, overview, ML melalui backend, dan alur kasus setelah deploy. Pemeriksaan dokumentasi 8 November 2026 memverifikasi login kedua peran, overview enam unit, serta metadata ML `uci_real` melalui frontend; alur mutasi operasional tidak dijalankan ulang pada pemeriksaan ini.
 
 ## Pengujian
 

@@ -75,6 +75,18 @@ Buka **Pengaturan agent** di navbar untuk mengubah peran demo atau mode yang ter
 
 Riwayat/draft Asisten disimpan dalam sesi browser per username dan dibersihkan saat logout. Riwayat tidak disinkronkan antarperangkat.
 
+### Mengirim gambar
+
+1. Aktifkan **Mode LLM** di **Pengaturan agent**.
+2. Klik **Tambah gambar**, lalu pilih satu JPG, PNG, atau WebP maksimal 2 MB.
+3. Periksa pratinjau. Gunakan **Hapus gambar** untuk membatalkan lampiran, atau tambahkan pesan yang menyebut ID mesin dan bagian yang ingin diperiksa.
+4. Klik **Kirim**. Gambar beserta pesan dikirim ke Gemini. Pesan tanpa teks memperoleh permintaan penjelasan bawaan.
+5. Jika permintaan gagal, lampiran dan pesan tetap tersedia untuk dicoba ulang. Periksa hasil tindakan pada jejak kasus sebelum mengulang permintaan yang dapat membuat pekerjaan.
+
+Gambar berfungsi sebagai bukti visual. Pemeriksaan fisik dan pembacaan sensor tetap diperlukan untuk memastikan kerusakan. Isi gambar tidak masuk ke riwayat sesi yang disimpan; setelah reload, yang tersisa adalah nama lampiran dan teks percakapan. Unggah ulang gambar untuk pemeriksaan visual berikutnya.
+
+Tinjauan 8 November 2026 menemukan keterbatasan pada penyatuan kasus chat LLM serta rencana persetujuannya. Jika kasus LLM menunggu persetujuan tetapi tidak memiliki rencana, alur approve akan menolak. Rincian dan tindak lanjut ada di [laporan tinjauan](REVIEW_2026-11-08.md).
+
 ## Notifikasi dan profil
 
 Lonceng menampilkan notifikasi operasional. Pada akun yang login, lonceng juga menampilkan persetujuan dan penanda dibaca berlaku untuk akun tersebut; daftar ini merupakan informasi tim, bukan kotak pesan pribadi teknisi. Pada mode demo notifikasi hanya dapat dilihat dan status dibaca tidak disimpan.
