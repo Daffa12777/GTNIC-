@@ -12,6 +12,23 @@ Frontend mem-proxy `/api/*` ke API sehingga cookie tetap pada origin frontend.
 
 ## Redeploy perbaikan agent — 8 November 2026
 
+### Rilis terbaru: supervisor, chat, dan sesi
+
+Branch `farras` berhasil digabung ke `main` melalui `fed2402`. Source backend production adalah commit tersebut; frontend final memakai `974575c`, termasuk perbaikan sinkronisasi sesi `49e0be2` dan pengaman login saat cleanup logout masih berjalan. Kedua branch kemudian diselaraskan. Rilis memakai checkout terpisah agar edit chat lokal dan penghapusan model lokal tidak ikut terpublikasi.
+
+| Project | Deployment terbaru | Hasil |
+| --- | --- | --- |
+| API | `dpl_4UjZ8od2VoJnTB9vCM45a4bM9W3r` | READY, alias `manualmechanic-api.vercel.app` |
+| Frontend | `dpl_HckCTmok52j5dJEv5iicAbcn6Q8u` | READY, alias `manualmechanic-gtnic.vercel.app` |
+
+Verifikasi HTTP production melalui domain frontend berhasil: `/`, `/tasks`, `/assistant`, `/profile`, health, model GLB, login/logout kedua peran, sesi, layanan database, overview enam unit dengan ML `uci_real`, antrean supervisor, dan penolakan akses endpoint penugasan bagi teknisi. Simulator dan agent otomatis tetap nonaktif. Satu pertanyaan stok dalam Mode LLM menjawab langsung dari inventaris sekitar 2,48 detik, membawa `action_summary`, tanpa fallback LLM, tanpa perubahan kasus atau penambahan WO. Pengujian ini tidak memberi persetujuan atau mengganti penugasan pekerjaan production.
+
+Uji browser production final benar-benar login sebagai supervisor, membuka Profil dan logout, lalu login sebagai teknisi: keduanya kembali ke `/` dengan dashboard tampil; kedua sesi diakhiri dan tidak ada exception JavaScript. Waktu login sampai dashboard tampil dalam satu run sekitar 10,9 dan 5,9 detik. Ini mencakup pembacaan data dan pemuatan/render UI; bukan benchmark cold start atau jaminan latensi. Pada percobaan awal sebelum fix sesi, terdapat request dibatalkan serta respons 500/503; log runtime mencatat kode database `P2039` yang disanitasi. Penyebab internal kode tersebut belum dipastikan dan kestabilan database tetap perlu dipantau. Smoke final yang berhasil bukan uji beban.
+
+Bug tambahan yang ditemukan saat smoke: publisher BroadcastChannel memakai objek channel berbeda sehingga tab yang sama menerima pemberitahuannya sendiri dan menghapus cache saat login. Pesan sekarang membawa penanda sumber tab, dan penerima mengabaikan sumbernya sendiri. Perubahan dari tab lain tetap diterima. Tombol Masuk juga menunggu cleanup logout selesai. Validasi frontend akhir: 69 tes lulus, build lokal/cloud lulus. Backend terakhir: 88 tes serta build Node/Vercel lulus.
+
+### Rilis sebelumnya
+
 Source aplikasi yang dideploy: `7b11c9b` pada checkout `farras`, melalui Vercel CLI.
 
 | Project | Deployment | Hasil |

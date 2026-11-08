@@ -6,6 +6,8 @@ Acuan perbaikan awal: `8e11389` beserta rangkaian commit-nya; perbaikan percakap
 
 ## Tindak lanjut: Tugas saya, ringkasan chat, dan uji dua peran
 
+**Pembaruan deployment:** fitur-fitur pada laporan ini sudah masuk ke `main` dan production; rincian deployment serta smoke live tersedia di [VERCEL_WEB.md](VERCEL_WEB.md). Saat pemeriksaan production ditemukan dan diperbaiki penerimaan broadcast sesi oleh tab pengirim sendiri serta tombol login yang dapat ditekan ketika cleanup logout belum selesai. Setelahnya 69 tes frontend lulus. Browser production memverifikasi pergantian supervisor ke teknisi dengan dashboard `/` tampil dan kedua sesi logout. Angka/status "belum di-push/deploy" di bagian historis berikut menjelaskan kondisi pada saat tahap tersebut dicatat.
+
 - Commit penugasan supervisor `6fc9386` sudah di-push ke `origin/farras`. Perubahan sesudahnya dalam bagian ini belum di-push atau di-deploy pada saat pencatatan.
 - Menu `/tasks` hanya ditampilkan untuk supervisor. Tiga antrean memakai data kasus/WO yang sudah ada: persetujuan, pekerjaan aktif tanpa teknisi, dan eskalasi. Masing-masing lima entri, total sebenarnya, tautan daftar lengkap, serta retry independen. Penugasan memakai form dan endpoint supervisor yang sama.
 - Controller chat menambahkan snapshot hasil dari database: status kasus, jumlah/daftar WO, teknisi/jadwal, dan pengajuan part. Snapshot dibatasi ID kasus tepat dan ditandai dapat mencakup pekerjaan lama. Kegagalan pembacaan ringkasan mempertahankan jawaban chat yang sudah berhasil. Snapshot tidak disimpan dalam riwayat session storage.
