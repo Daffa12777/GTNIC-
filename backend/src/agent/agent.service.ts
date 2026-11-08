@@ -416,6 +416,10 @@ export class AgentService {
         return { reply: result.summary || 'Jawaban diterima.', case: result };
       }
     }
+    if (!attachment && /^(?:(?:cek|lihat|berapa)\s+)?(?:stok|stock|persediaan)\b/i.test(message.trim())) {
+      const result = await this.chatPolicy(message, caseId);
+      return { ...result, case: caseId ? await this.cases.get(caseId) : null };
+    }
     if (useLlm && this.llm.enabled && (message || '').trim()) {
       try { return await this.llm.chat(message.trim(), history, attachment, caseId); }
       catch (e: any) {

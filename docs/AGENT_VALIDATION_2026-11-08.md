@@ -17,6 +17,16 @@ Browser headless lokal memeriksa lebar **1440, 768, dan 380 px** dengan API fixt
 
 ## Perubahan dan dampak
 
+### Reset login, latensi startup, dan pertanyaan stok
+
+- Sebelumnya URL `/profile` bertahan setelah logout sehingga akun berikutnya membuka profil. Login yang berhasil sekarang mengganti URL menjadi `/` dan membuang query/hash lama sebelum workspace akun baru ditampilkan. Login ditolak mempertahankan halaman login, dan refresh sesi yang sudah sah tetap mendukung tautan langsung.
+- Saat `SIM_ENABLED=false`, bootstrap monitor memuat sensor/RAG tanpa menunggu inferensi ML. Endpoint overview memuat status saat dibutuhkan; refresh bersama menggunakan satu proses dan maksimal tiga prediksi bersamaan. Pembacaan kasus terbuka pada overview berubah dari satu query per mesin menjadi satu query kelompok. Status tetap berasal dari model, bukan diubah menjadi normal untuk mempercepat halaman.
+- Pertanyaan stok teks yang diawali stok/stock/persediaan (opsional cek/lihat/berapa) dibaca langsung dari inventaris, termasuk saat Mode LLM aktif. Referensi kasus dipertahankan; rencana, klarifikasi, dan keputusan kasus tidak berubah. Lampiran gambar tetap memakai jalur LLM. Ini menghindari timeout provider untuk pembacaan stok sederhana; tidak menjamin semua pertanyaan LLM bebas timeout.
+
+Hasil akhir: **88 tes backend (15 suite) dan 68 tes frontend (26 file) lulus**, termasuk layanan ML pada 14 tes integrasi. Build Node, Vercel, serta frontend lulus. Dua tes monitor memeriksa tidak adanya ML pada startup non-simulator dan batas tiga prediksi serta deduplikasi refresh. Regresi login menguji pergantian akun dan penolakan login. Browser headless lokal dengan API fixture memeriksa supervisor ke teknisi dan sebaliknya pada 1440/380 px: setiap login baru membuka `/` tanpa exception JavaScript. Skenario LLM lama diperbarui untuk memeriksa pembacaan stok tanpa request provider dan tanpa perubahan kasus.
+
+Pengukuran read-only production sebelum patch: homepage 200 sekitar 0,27 detik, health backend 200 sekitar 9,84 detik, lalu sesi publik 200 sekitar 0,77 detik. Ini satu sampel, bukan benchmark representatif; tidak membuktikan setiap delay berasal dari cold start. Patch belum di-deploy, sehingga tidak ada angka peningkatan production. Cold start database/function, layanan ML/Gemini, jaringan, dan pemuatan WebGL masih dapat menambah waktu tunggu. Riwayat chat lama tidak dihapus otomatis; jawaban lama yang berulang tetap terlihat sampai pengguna memulai percakapan baru.
+
 ### Tindak lanjut: penugasan oleh supervisor
 
 Supervisor kini dapat menugaskan atau mengganti teknisi pada pekerjaan aktif melalui menu Work order. Form menawarkan pilihan manual atau otomatis, menampilkan kebutuhan keahlian/senior serta alasan kandidat tidak tersedia. Kegagalan tetap tampil inline dan tidak melepas penugasan lama. Pemilihan otomatis tetap tersedia pada agent; fitur ini bukan perubahan menjadi persetujuan wajib untuk seluruh tindakan otomatis.

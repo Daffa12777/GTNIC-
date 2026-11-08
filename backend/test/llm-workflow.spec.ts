@@ -136,18 +136,13 @@ it('answers why and stock questions on an escalated policy case without repeatin
   trace.add('reasoning', 'Gangguan majemuk', 'Pompa dan pendingin sama-sama menurun; inspeksi senior diperlukan.');
   await cases.save(reserved.id, trace, 'dieskalasi', { pump_id: 'Pump-91', probs: { pump: 0.5, cooler: 0.5 } }, { summary: 'Kasus dieskalasi ke senior.', risk: 'tinggi', mode: 'policy' });
   const before = await cases.get(reserved.id);
-  jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([{ text: 'Karena pompa dan pendingin sama-sama menurun, teknisi senior perlu memeriksa langsung.' }]))
-    .mockResolvedValueOnce(response([call('check_inventory', { part_name: 'Seal kit pompa' })]))
-    .mockImplementationOnce(async (_url, options) => {
-      const payload = JSON.parse(String(options?.body));
-      const result = payload.contents.at(-1).parts[0].functionResponse.response.result;
-      return response([{ text: `Stok ${result.name}: ${result.stock}.` }]);
-    });
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([{ text: 'Karena pompa dan pendingin sama-sama menurun, teknisi senior perlu memeriksa langsung.' }]));
   const why = await agent.chat('kenapa gitu?', reserved.id, true);
   expect(why.reply).toContain('pompa dan pendingin');
   expect(why.reply).not.toBe(before.summary);
   const stock = await agent.chat('Stok seal kit pompa', reserved.id, true);
-  expect(stock.reply).toMatch(/^Stok .*Seal kit.*: \d+/i);
+  expect(stock.reply).toMatch(/^Stok: .*Seal kit.* = \d+/i);
+  expect(fetch).toHaveBeenCalledTimes(1);
   expect(why.case.id).toBe(reserved.id);
   expect(stock.case.id).toBe(reserved.id);
   expect(await cases.get(reserved.id)).toEqual(before);
@@ -168,8 +163,6 @@ it('binds an explicit new unit to a different case and rejects a cross-unit tool
 it('requires clarification instead of repairing a low-confidence diagnosis', async () => fixture(async () => {
   diagnosis.confidence = 0.6; diagnosis.components.pump.severity = 0.5;
   jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('create_work_order', order)])).mockResolvedValueOnce(response([{ text: 'Apakah ada kebocoran yang terlihat?' }]))
-    .mockResolvedValueOnce(response([call('check_inventory', { part_name: 'Seal kit pompa' })]))
-    .mockResolvedValueOnce(response([{ text: 'Stok seal kit telah dibaca.' }]))
     .mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' }), call('escalate_to_senior', { pump_id: 'Pump-91', summary: 'Diagnosis belum cukup yakin; perlu inspeksi.' })]))
     .mockResolvedValueOnce(response([{ text: 'Inspeksi teknisi senior dijadwalkan.' }]));
   const result = await agent.chat('Pump-91 panas', null, true);
@@ -177,7 +170,7 @@ it('requires clarification instead of repairing a low-confidence diagnosis', asy
   expect(result.case.question).toContain('kebocoran');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
   const stock = await agent.chat('Stok seal kit pompa', result.case.id, true);
-  expect(stock.reply).toContain('Stok seal kit');
+  expect(stock.reply).toMatch(/^Stok: Seal kit pompa hidrolik = \d+/);
   expect(stock.case).toEqual(result.case);
   diagnosis.confidence = 0.4;
   const escalated = await agent.chat('Gejalanya belum jelas', result.case.id, true);

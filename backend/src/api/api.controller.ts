@@ -42,15 +42,19 @@ export class ApiController {
 
   @Get('overview')
   async overview() {
-    const pumps = await this.db.q('SELECT * FROM pumps ORDER BY id');
-    const wos = await this.db.q("SELECT pump_id, COUNT(*) AS n FROM work_orders WHERE status NOT IN ('selesai','dibatalkan') GROUP BY pump_id");
+    const [pumps, wos, openCases, meta] = await Promise.all([
+      this.db.q('SELECT * FROM pumps ORDER BY id'),
+      this.db.q("SELECT pump_id, COUNT(*) AS n FROM work_orders WHERE status NOT IN ('selesai','dibatalkan') GROUP BY pump_id"),
+      this.db.q("SELECT DISTINCT ON (pump_id) id, pump_id FROM cases WHERE status IN ('diproses','menunggu_klarifikasi','menunggu_persetujuan') ORDER BY pump_id, created_at DESC, id DESC"),
+      this.ml.meta(),
+      CONFIG.SIM_ENABLED ? Promise.resolve() : this.monitor.refreshStatus(),
+    ]);
     const wmap = Object.fromEntries(wos.map((w: any) => [w.pump_id, Number(w.n)]));
     const out: any[] = [];
     for (const p of pumps) {
-      const oc = await this.cases.openFor(p.id);
+      const oc = openCases.find(c => c.pump_id === p.id);
       out.push({ ...p, status: this.status.map[p.id] ?? { state: 'tidak ada data' }, open_work_orders: wmap[p.id] ?? 0, open_case: oc?.id ?? null });
     }
-    const meta = await this.ml.meta();
     return {
       pumps: out, auto: this.status.auto.enabled, llm_available: this.llm.enabled, llm_model: this.llm.enabled ? CONFIG.GEMINI_MODEL : null,
       db: this.db.mode, tick_seconds: CONFIG.TICK_SECONDS, simulator: CONFIG.SIM_ENABLED,

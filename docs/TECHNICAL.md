@@ -67,6 +67,8 @@ Reservasi kasus mengunci baris unit dan memakai kembali kasus terbuka atau kasus
 | `/profile` | Profil akun yang login |
 | `/3d`, `/3d/:id` | Kompatibilitas tautan lama ke peta; tidak ada menu 3D terpisah |
 
+Login baru mengganti route dengan `/` sebelum workspace ditampilkan; refresh sesi tidak menghapus deep link yang sudah sah. Pada mode non-simulator, bootstrap monitor tidak memanggil inferensi ML. Overview menghitung status sesuai kebutuhan dengan refresh bersama dan maksimal tiga prediksi bersamaan, serta membaca kasus terbuka melalui satu query kelompok. Login/health tetap membutuhkan inisialisasi database, sensor, dan RAG; perubahan ini bukan jaminan cold start nol.
+
 Brand ManualMechanic membawa pengguna kembali ke dashboard dan membersihkan pilihan mesin. Pilihan mesin pada dashboard normal disimpan di state halaman, bukan URL khusus setiap klik.
 
 `FacilityScene` membuat satu objek untuk setiap ID yang dikirim backend. Landasan dan zona disusun secara ilustratif berdasarkan jumlah unit; dinding rendah, rak, tangki, palet, drum, jalur kabel, dan marka merupakan dekorasi statis, bukan mesin tambahan atau denah fisik. Posisi dekorasi disaring agar tidak bertabrakan dengan landasan dan jalur utama. Kamera menyesuaikan skala terhadap jumlah unit dan ukuran kanvas. Semua unit memakai model hidrolik yang sama, bukan model yang dipilih berdasarkan field `model`.

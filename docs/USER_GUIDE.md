@@ -6,6 +6,8 @@ Panduan ini menjelaskan website dengan dashboard 3D. Untuk instalasi dan konfigu
 
 Gunakan username dan password dari pengelola instalasi. Akun memiliki peran teknisi atau supervisor. Pada demo tanpa autentikasi, pemilih peran hanya memperagakan batas antarmuka; gunakan login sungguhan untuk pemakaian tim.
 
+Login baru yang berhasil membuka dashboard, termasuk setelah logout dari Profil lalu memakai akun berbeda. Memuat ulang halaman saat sesi masih sah tetap mempertahankan tautan halaman yang sedang dibuka.
+
 ## Dashboard 3D
 
 Halaman awal menampilkan seluruh unit yang dikirim backend. Tidak ada mesin yang dipilih secara otomatis.
@@ -78,6 +80,8 @@ Isi alasan perubahan stok secara jelas. Jika saldo sudah berubah sejak form dibu
 Pengajuan pembelian dibuat oleh alur tool saat dibutuhkan. Aplikasi belum terintegrasi dengan pemesanan vendor atau ERP eksternal.
 
 ## Asisten dan mode agent
+
+Pertanyaan stok teks dibaca langsung dari inventaris walaupun Mode LLM aktif, sehingga tidak menunggu provider untuk pencarian stok sederhana. Kasus percakapan tetap dipertahankan. Foto dan pertanyaan analisis/penjelasan lainnya tetap dapat membutuhkan layanan LLM. Riwayat jawaban lama tidak diperbarui otomatis setelah aplikasi diperbaiki; gunakan Percakapan baru untuk memulai sesi bersih bila diperlukan.
 
 Jawaban yang terhubung ke kasus menampilkan **Hasil tercatat**: snapshot status kasus, maksimal sepuluh work order terkait, penugasan/jadwal, serta pengajuan part yang tersimpan. Snapshot dapat mencakup pekerjaan sebelum pesan terakhir; jangan menyimpulkan pekerjaan baru dibuat hanya karena muncul di blok ini. Buka **Periksa jejak kasus** untuk memeriksa bukti terkini. Snapshot tambahan hanya berada pada percakapan yang masih terbuka; setelah refresh, teks riwayat dan tautan kasus tetap tersedia. Bila pembacaan ringkasan gagal, jawaban chat tetap ditampilkan disertai pemberitahuan agar tindakan yang sudah berhasil tidak diulang.
 
