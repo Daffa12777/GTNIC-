@@ -186,7 +186,8 @@ export class ToolsService {
       const highRisk = [a.risk, approvedCase?.risk, state.risk, state.plan?.risk, assessRisk(analysis.label, analysis.components, analysis.flags)].includes('tinggi');
       const approved = a.approved === true && state.approved_by && approvedCase?.status === 'menunggu_persetujuan' && state.plan;
       if (highRisk && !(approved && state.plan.risk === 'tinggi')) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
-      if (analysis.confidence < CONFIG.CONF_ACT && !approved) return { error: 'Keyakinan diagnosis belum cukup untuk perbaikan otomatis. Minta klarifikasi atau eskalasi inspeksi.', requires_clarification: true };
+      const confidence = state.plan?.confidence ?? analysis.confidence;
+      if (confidence < CONFIG.CONF_ACT && !approved) return { error: 'Keyakinan diagnosis belum cukup untuk perbaikan otomatis. Minta klarifikasi atau eskalasi inspeksi.', requires_clarification: true };
       if (analysis.label === 'normal') return { error: 'Belum ada diagnosis gangguan untuk perbaikan. Gunakan jalur inspeksi.' };
     }
     return this.db.transaction(async () => {

@@ -168,7 +168,10 @@ export class LlmService {
         }
         const res = error ? { error } : await trace.tool(fc.name, args);
         if (error) trace.add('decision', 'Tool ditahan', error);
-        if (res?.requires_approval) needs = true;
+        if (res?.requires_approval) {
+          needs = true;
+          if (state.plan) state.plan.risk = state.risk = 'tinggi';
+        }
         await this.cases.save(trace.caseId, trace, 'diproses', state, { mode: 'llm', risk: state.risk, fault: state.plan?.fault, conf: state.plan?.confidence });
         responses.push({ functionResponse: { name: fc.name, response: { result: res } } });
       }
@@ -208,7 +211,7 @@ export class LlmService {
         await this.db.x("UPDATE cases SET status='diproses' WHERE id=$1", [id]);
         return true;
       });
-      if (!claimed) return { reply: current?.summary || 'Kasus ini sedang diproses atau menunggu keputusan. Buka jejak kasus untuk melanjutkan.', case: current };
+      if (!claimed) return { reply: `${image ? 'Foto ini belum dianalisis karena kasus masih diproses atau menunggu keputusan. ' : ''}${current?.summary || 'Buka jejak kasus untuk melanjutkan.'}`, case: current };
     }
     const state: LlmCaseState = { ...current?.state, pump_id: pumpId };
     const trace = this.cases.trace(id, current?.trace ?? []);

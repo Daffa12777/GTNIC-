@@ -141,6 +141,7 @@ export class AgentService {
 
     if (conf >= CONFIG.CONF_ACT && risk !== 'tinggi') {
       trace.add('decision', 'Eksekusi otomatis', 'Keyakinan tinggi dan risiko tidak tinggi, agent menjalankan rantai tindakan tanpa menunggu manusia.');
+      await this.cases.save(caseId, trace, 'diproses', state, { fault: label, conf, risk });
       const { result, ok } = await this.execute(caseId, trace, state, false);
       return [ok ? 'selesai_otomatis' : 'gagal', this.summaryAfter(state, result)];
     }
@@ -409,7 +410,8 @@ export class AgentService {
       const current = await this.cases.get(caseId);
       const explicit = message.match(/\b(?:pump|pompa|unit)[\s-]*0*(\d+)\b/i);
       const sameUnit = !explicit || current?.pump_id === `Pump-${explicit[1].padStart(2, '0')}`;
-      if (sameUnit && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
+      if (!sameUnit) caseId = null;
+      if (sameUnit && caseId && current?.mode !== 'llm' && current?.status === 'menunggu_klarifikasi') {
         const result = await this.continueCase(caseId, message);
         return { reply: result.summary || 'Jawaban diterima.', case: result };
       }

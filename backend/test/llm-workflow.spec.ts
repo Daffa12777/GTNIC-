@@ -7,6 +7,7 @@ import { ApiController } from '../src/api/api.controller';
 import { DbService } from '../src/db/db.service';
 import { MlService, type Analysis } from '../src/ml/ml.service';
 import { StatusStore } from '../src/monitor/status.store';
+import { MonitorService } from '../src/monitor/monitor.service';
 import { RagService } from '../src/rag/rag.service';
 import { SimService } from '../src/sim/sim.service';
 import { ToolsService } from '../src/tools/tools.service';
@@ -58,6 +59,9 @@ it('holds forged low-risk/approved arguments and persists an executable plan for
   expect(result.case).toMatchObject({ pump_id: 'Pump-91', status: 'menunggu_persetujuan', mode: 'llm', plan: { fault: 'pump', risk: 'tinggi' } });
   expect(result.case.plan.citation).not.toBe('belum ada sitasi');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+  const image = { mimeType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5lEAAAAASUVORK5CYII=' };
+  const pendingPhoto = await agent.chat('Periksa foto tambahan', result.case.id, true, [], image);
+  expect(pendingPhoto.reply).toContain('Foto ini belum dianalisis');
   const api = new ApiController(db, agent, cases, llm, {} as never, tools as never, {} as never, {} as never);
   await expect(api.approve(result.case.id, 'teknisi')).rejects.toMatchObject({ status: 403 });
   const approved = await api.approve(result.case.id, 'supervisor');
@@ -77,7 +81,9 @@ it('creates a low-risk order, schedules it, and keeps the same case on a follow-
       return response([call('schedule_technician', { work_order_id: id, skill: 'mekanik' })]);
     })
     .mockResolvedValueOnce(response([{ text: 'Work order dan jadwal tersimpan.' }]))
-    .mockResolvedValueOnce(response([{ text: 'Penjelasan lanjutan untuk unit yang sama.' }]));
+    .mockResolvedValueOnce(response([{ text: 'Penjelasan lanjutan untuk unit yang sama.' }]))
+    .mockResolvedValueOnce(response([call('create_work_order', { ...order, title: 'Judul lain untuk pekerjaan yang sama' })]))
+    .mockResolvedValueOnce(response([{ text: 'Pekerjaan aktif digunakan kembali.' }]));
   const first = await agent.chat('Pump-91 oli panas', null, true);
   const saved = await db.client.workOrder.findFirst({ where: { case_id: first.case.id } });
   expect(saved).toMatchObject({ pump_id: 'Pump-91', status: 'terjadwal' });
@@ -86,6 +92,19 @@ it('creates a low-risk order, schedules it, and keeps the same case on a follow-
   expect(await db.client.maintenanceCase.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
   expect(await db.client.workOrder.count({ where: { case_id: first.case.id } })).toBe(1);
   expect(JSON.stringify(fetch.mock.calls[3][1]?.body)).toContain('Pump-91');
+  const fresh = await agent.chat('Pump-91 masih perlu ditangani', null, true);
+  expect(fresh.case.id).toBe(first.case.id);
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
+}));
+
+it('reuses a sensor/policy case without overwriting its pending decision', async () => fixture(async () => {
+  const reserved = await cases.reserve('Pump-91');
+  await cases.save(reserved.id, cases.trace(reserved.id), 'menunggu_persetujuan', { pump_id: 'Pump-91', plan: { fault: 'pump', risk: 'tinggi' } }, { summary: 'Menunggu supervisor', mode: 'policy' });
+  const fetch = jest.spyOn(global, 'fetch');
+  const result = await agent.chat('Pump-91 masih panas', null, true);
+  expect(result.case).toMatchObject({ id: reserved.id, mode: 'policy', status: 'menunggu_persetujuan' });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(await db.client.maintenanceCase.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
 }));
 
 it('does not duplicate a pending case and can reject it without creating work', async () => fixture(async () => {
@@ -138,4 +157,22 @@ it('does not report success for an empty response or an exhausted tool loop', as
   fetch.mockImplementation(async () => response([call('unknown_tool', {})]));
   await expect(llm.chat('Pump-92 periksa')).rejects.toThrow('Batas langkah');
   expect(await db.client.workOrder.count({ where: { pump_id: { in: ['Pump-91', 'Pump-92'] } } })).toBe(0);
+}));
+
+it('runs the autonomous monitor workflow without a chat request and skips the next tick once work exists', async () => fixture(async () => {
+  diagnosis.components.pump.severity = 0.5;
+  const sim = testModule.get(SimService), status = testModule.get(StatusStore);
+  await sim.init(['Pump-91']);
+  status.auto.enabled = true;
+  const monitor = new MonitorService(db, sim, tools, agent, cases, testModule.get(RagService), status);
+  const fetch = jest.spyOn(global, 'fetch');
+  await monitor.tick();
+  const stored = await db.client.maintenanceCase.findFirst({ where: { pump_id: 'Pump-91' } });
+  expect(stored).toMatchObject({ status: 'selesai_otomatis' });
+  expect((await cases.get(stored!.id)).trace).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Pemicu analisis', detail: expect.stringContaining('Otomatis oleh monitor') })]));
+  expect(await db.client.workOrder.findFirst({ where: { pump_id: 'Pump-91' } })).toMatchObject({ status: 'terjadwal' });
+  await monitor.tick();
+  expect(await db.client.maintenanceCase.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(1);
+  expect(fetch).not.toHaveBeenCalled();
 }));

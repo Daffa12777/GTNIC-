@@ -22,3 +22,14 @@ it('builds a read-only preview using the same fault mapping, stock and active or
   expect(context.preview).toMatchObject({ title: 'Kebocoran internal pompa pada Pump-01', part: 'Seal kit pompa hidrolik', stock: 0, senior: true, existing_order: 'WO-1' });
   expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ pump_id: 'Pump-01', title: 'Kebocoran internal pompa pada Pump-01' }) }));
 });
+
+it('switches units explicitly instead of treating a new unit report as an answer to the old case', async () => {
+  const cases = { get: jest.fn().mockResolvedValue({ pump_id: 'Pump-01', mode: 'policy', status: 'menunggu_klarifikasi' }) };
+  const tools = { getPump: jest.fn().mockResolvedValue({ id: 'Pump-02' }) };
+  const agent = new AgentService({} as never, tools as never, cases as never, {} as never, {} as never, {} as never);
+  const continueCase = jest.spyOn(agent, 'continueCase');
+  const diagnose = jest.spyOn(agent, 'diagnose').mockResolvedValue({ id: 'C-2', summary: 'Unit baru' });
+  expect(await agent.chat('Pump-02 panas', 'C-1')).toMatchObject({ case: { id: 'C-2' } });
+  expect(continueCase).not.toHaveBeenCalled();
+  expect(diagnose).toHaveBeenCalledWith('Pump-02', 'Pump-02 panas');
+});
