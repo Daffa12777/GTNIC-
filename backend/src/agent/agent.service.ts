@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, ServiceUnavailableException } 
 import { ChatImageDto, validateChatImage } from '../api/chat.dto';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
-import { FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
+import { assessRisk, FAULT_LABEL, FAULT_PART, FAULT_QUERY, FAULT_SKILL, KEYWORDS, NEGATORS, QUESTION, now } from '../domain';
 import { StatusStore } from '../monitor/status.store';
 import { SimService } from '../sim/sim.service';
 import { ToolsService } from '../tools/tools.service';
@@ -37,14 +37,6 @@ export function applyEvidence(probs: Record<string, number>, text: string): [Rec
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(p)) out[k] = Math.round((v / s) * 10000) / 10000;
   return [out, notes];
-}
-
-export function assessRisk(label: string, comps: any, flags: string[]): 'rendah' | 'sedang' | 'tinggi' {
-  if (flags.length) return 'tinggi';
-  const sev = comps?.[label]?.severity ?? 0;
-  if (sev >= 1) return 'tinggi';
-  if (sev >= 0.5) return 'sedang';
-  return label === 'normal' ? 'rendah' : 'rendah';
 }
 
 @Injectable()
@@ -239,7 +231,7 @@ export class AgentService {
         pump_id: pumpId, title: `Periksa sensor ${bad} pada ${pumpId}`,
         description: `Sensor ${bad} mengirim nilai nol. Verifikasi kabel dan sensor, bandingkan dengan pengukuran manual (panduan bagian 1.5).`,
         priority: 'sedang', part: 'Sensor getaran VS1', case_id: caseId, risk: 'sedang',
-      });
+      }, true);
       if (wo.id) {
         const sched = await trace.tool('schedule_technician', { work_order_id: wo.id, skill: 'listrik' });
         if (sched.scheduled) await trace.tool('send_notification', { recipient: sched.technician, message: `${wo.id}: periksa sensor ${bad} pada ${pumpId}. Jadwal ${sched.scheduled_at}.` });
@@ -276,7 +268,7 @@ export class AgentService {
       let summary = `Tidak ada gangguan terdeteksi pada ${pumpId}. Semua komponen dalam kondisi sehat.`;
       if (complaint) {
         summary += ' Karena ada keluhan, disarankan inspeksi fisik untuk memastikan.';
-        await trace.tool('create_work_order', { pump_id: pumpId, title: `Inspeksi visual ${pumpId}`, description: `Keluhan teknisi: ${complaint}. Sensor normal, lakukan inspeksi fisik.`, priority: 'rendah', case_id: caseId, risk: 'rendah' });
+        await trace.tool('create_work_order', { pump_id: pumpId, title: `Inspeksi visual ${pumpId}`, description: `Keluhan teknisi: ${complaint}. Sensor normal, lakukan inspeksi fisik.`, priority: 'rendah', case_id: caseId, risk: 'rendah' }, true);
       }
       trace.add('decision', 'Tidak ada tindakan korektif', summary);
       await this.cases.save(caseId, trace, 'tidak_ada_gangguan', state, { fault: 'normal', conf: an.confidence, risk: 'rendah', summary });

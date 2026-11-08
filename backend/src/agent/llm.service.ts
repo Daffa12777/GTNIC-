@@ -122,7 +122,8 @@ export class LlmService {
       if (!calls.length) { final = texts.join('\n').trim(); break; }
       const responses: any[] = [];
       for (const fc of calls) {
-        const res = await trace.tool(fc.name, fc.args || {});
+        const args = fc.name === 'create_work_order' ? { ...fc.args, approved: false } : fc.args || {};
+        const res = await trace.tool(fc.name, args);
         if (res?.requires_approval) needs = true;
         responses.push({ functionResponse: { name: fc.name, response: { result: res } } });
       }

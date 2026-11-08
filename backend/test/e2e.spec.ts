@@ -208,7 +208,7 @@ describe('ManualMechanic end-to-end', () => {
     const tools = app.get(ToolsService) as import('../src/tools/tools.service').ToolsService;
     await db.client.pump.create({ data: { id: 'Pump-Test', name: 'Concurrency fixture' } });
     await db.client.technician.create({ data: { id: 'T-Test', name: 'Fixture', skill: 'fixture', available: true } });
-    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: 'Pump-Test', title: 'Idempotency fixture', description: 'fixture', priority: 'rendah' })));
+    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: 'Pump-Test', title: 'Idempotency fixture', description: 'fixture', priority: 'rendah' }, true)));
     const [first, second] = orders;
     if (!('id' in first) || !('id' in second)) throw new Error('Fixture orders failed');
     expect(first.id).toBe(second.id);

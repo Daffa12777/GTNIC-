@@ -14,7 +14,7 @@ async function main() {
     const tools = new ToolsService(db, new MlService(), new SimService(db), new RagService(db));
     await db.client.pump.create({ data: { id: fixture, name: 'Disposable verification fixture' } });
     await db.client.technician.create({ data: { id: fixture, name: 'Disposable fixture', skill: fixture, available: true } });
-    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: fixture, title: fixture, description: fixture, priority: 'rendah' })));
+    const orders = await Promise.all([0, 1].map(() => tools.create_work_order({ pump_id: fixture, title: fixture, description: fixture, priority: 'rendah' }, true)));
     const [first, second] = orders;
     if (!('id' in first) || !('id' in second) || !first.id || first.id !== second.id) throw new Error('Concurrent work order idempotency failed');
     const orderId = first.id;

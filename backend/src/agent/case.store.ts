@@ -42,9 +42,9 @@ export class Trace {
     return it;
   }
 
-  async tool(name: string, args: any = {}): Promise<any> {
+  async tool(name: string, args: any = {}, inspection = false): Promise<any> {
     if (['create_work_order', 'escalate_to_senior'].includes(name)) args = { ...args, case_id: this.caseId };
-    const res = await this.tools.call(name, args);
+    const res = await this.tools.call(name, args, inspection);
     this.add('tool', `Memanggil ${name}`, short(name, res), name, args, res);
     await this.db.x('INSERT INTO agent_logs (ts, case_id, step, tool, input, output) VALUES ($1,$2,$3,$4,$5,$6)',
       [now(), this.caseId, `step${this.items.length}`, name, JSON.stringify(args), JSON.stringify(res).slice(0, 2000)]);

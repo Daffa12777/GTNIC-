@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CONFIG } from '../config';
-import { COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, asObj, now } from '../domain';
+import { assessRisk, COMP_KEYS, DISPLAY_SENSORS, FAULT_LABEL, asObj, now } from '../domain';
 import { DbService } from '../db/db.service';
 import { Analysis, MlService } from '../ml/ml.service';
 import { RagService } from '../rag/rag.service';
@@ -155,13 +155,21 @@ export class ToolsService {
     });
   }
 
-  async create_work_order(a: { pump_id: string; title: string; description: string; priority: string; part?: string; case_id?: string; risk?: string; approved?: boolean }) {
+  async create_work_order(a: { pump_id: string; title: string; description: string; priority: string; part?: string; case_id?: string; risk?: string; approved?: boolean }, inspection = false) {
     if (!['rendah', 'sedang', 'tinggi'].includes(a.priority)) return { error: 'priority harus rendah|sedang|tinggi' };
     if (!a.title || !a.description) return { error: 'title dan description wajib' };
+    if (a.risk && !['rendah', 'sedang', 'tinggi'].includes(a.risk)) return { error: 'risk harus rendah|sedang|tinggi' };
     // Tool arguments cannot grant approval: verify the decision persisted by the supervisor endpoint.
     const approvedCase = a.case_id ? await this.db.client.maintenanceCase.findUnique({ where: { id: a.case_id } }) : null;
-    const approval = approvedCase?.state && typeof approvedCase.state === 'object' && !Array.isArray(approvedCase.state) ? approvedCase.state['approved_by'] : null;
-    if ((a.risk ?? 'sedang') === 'tinggi' && !(a.approved && approval)) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+    const state = asObj(approvedCase?.state, {});
+    if (a.case_id && (!approvedCase || approvedCase.pump_id !== a.pump_id || state.pump_id !== a.pump_id)) return { error: 'kasus tidak sesuai dengan unit tindakan' };
+    if (!inspection) {
+      const analysis = await this.analyze(a.pump_id);
+      if ('error' in analysis) return { error: `Tindakan ditunda: ${analysis.error}` };
+      const highRisk = [a.risk, approvedCase?.risk, state.risk, state.plan?.risk, assessRisk(analysis.label, analysis.components, analysis.flags)].includes('tinggi');
+      const approved = a.approved === true && state.approved_by && approvedCase?.status === 'menunggu_persetujuan' && state.plan?.risk === 'tinggi';
+      if (highRisk && !approved) return { error: 'tindakan berisiko tinggi membutuhkan persetujuan manusia', requires_approval: true };
+    }
     return this.db.transaction(async () => {
       if (!await this.db.one('SELECT id FROM pumps WHERE id=$1 FOR UPDATE', [a.pump_id])) return { error: 'unit tidak ditemukan' };
       const duplicate = await this.db.client.workOrder.findFirst({ where: { pump_id: a.pump_id, title: a.title, status: { notIn: ['selesai', 'dibatalkan'] } } });
@@ -204,7 +212,7 @@ export class ToolsService {
   }
 
   async escalate_to_senior(a: { pump_id: string; summary: string; case_id?: string }) {
-    const wo: any = await this.create_work_order({ pump_id: a.pump_id, title: `Eskalasi diagnosis ${a.pump_id}`, description: a.summary, priority: 'tinggi', case_id: a.case_id, risk: 'sedang' });
+    const wo: any = await this.create_work_order({ pump_id: a.pump_id, title: `Eskalasi diagnosis ${a.pump_id}`, description: `Inspeksi oleh teknisi senior; perbaikan berisiko tetap membutuhkan persetujuan supervisor. ${a.summary}`, priority: 'tinggi', case_id: a.case_id, risk: 'sedang' }, true);
     const sched: any = wo.id ? await this.schedule_technician({ work_order_id: wo.id, skill: 'mekanik', senior: true }) : {};
     const n = await this.send_notification({ recipient: sched.technician ?? 'supervisor', message: `ESKALASI ${a.pump_id}: ${a.summary}` });
     return { work_order: wo, schedule: sched, notification: n };
@@ -219,11 +227,11 @@ export class ToolsService {
   }
 
   // ---------------------------------------------------------- registri
-  async call(name: string, args: any): Promise<any> {
+  async call(name: string, args: any, inspection = false): Promise<any> {
     const fn = (this as any)[name];
     if (!TOOL_SPECS.some((t) => t[0] === name) || typeof fn !== 'function') return { error: `tool tidak dikenal: ${name}` };
     try {
-      const res = await fn.call(this, args || {});
+      const res = await fn.call(this, args || {}, name === 'create_work_order' && inspection);
       if (name === 'get_sensor_data' && res && typeof res === 'object') { const { rows, ...rest } = res; return rest; }
       return res;
     } catch (e: any) {
