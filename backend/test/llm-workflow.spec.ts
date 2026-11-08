@@ -131,11 +131,17 @@ it('binds an explicit new unit to a different case and rejects a cross-unit tool
 
 it('requires clarification instead of repairing a low-confidence diagnosis', async () => fixture(async () => {
   diagnosis.confidence = 0.6; diagnosis.components.pump.severity = 0.5;
-  jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('create_work_order', order)])).mockResolvedValueOnce(response([{ text: 'Apakah ada kebocoran yang terlihat?' }]));
+  jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([call('create_work_order', order)])).mockResolvedValueOnce(response([{ text: 'Apakah ada kebocoran yang terlihat?' }]))
+    .mockResolvedValueOnce(response([call('classify_fault', { pump_id: 'Pump-91' }), call('escalate_to_senior', { pump_id: 'Pump-91', summary: 'Diagnosis belum cukup yakin; perlu inspeksi.' })]))
+    .mockResolvedValueOnce(response([{ text: 'Inspeksi teknisi senior dijadwalkan.' }]));
   const result = await agent.chat('Pump-91 panas', null, true);
   expect(result.case.status).toBe('menunggu_klarifikasi');
   expect(result.case.question).toContain('kebocoran');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+  diagnosis.confidence = 0.4;
+  const escalated = await agent.chat('Gejalanya belum jelas', result.case.id, true);
+  expect(escalated.case.status).toBe('dieskalasi');
+  expect(await db.client.workOrder.findFirst({ where: { case_id: result.case.id } })).toMatchObject({ title: 'Eskalasi diagnosis Pump-91', status: 'terjadwal' });
 }));
 
 it('stops before starting an action when the total deadline has passed and keeps the failed case', async () => fixture(async () => {

@@ -128,7 +128,7 @@ export class LlmService {
     const contents: any[] = history.slice(-8).filter((h) => h.text).map((h) => ({ role: h.from === 'user' ? 'user' : 'model', parts: [{ text: String(h.text).slice(0, 1500) }] }));
     while (contents.length && contents[0].role !== 'user') contents.shift();
     contents.push({ role: 'user', parts: [...(image ? [{ inlineData: { mimeType: image.mimeType, data: image.data } }] : []), { text: task }] });
-    let final = '', needs = false;
+    let final = '', needs = false, escalated = false;
     for (let i = 0; i < MAX_STEPS; i++) {
       const data = await this.call(contents, deadline);
       const parts = data.candidates?.[0]?.content?.parts ?? [];
@@ -172,13 +172,14 @@ export class LlmService {
           needs = true;
           if (state.plan) state.plan.risk = state.risk = 'tinggi';
         }
+        if (fc.name === 'escalate_to_senior' && res?.work_order?.id) escalated = true;
         await this.cases.save(trace.caseId, trace, 'diproses', state, { mode: 'llm', risk: state.risk, fault: state.plan?.fault, conf: state.plan?.confidence });
         responses.push({ functionResponse: { name: fc.name, response: { result: res } } });
       }
       contents.push({ role: 'user', parts: responses });
     }
     if (!final) throw new Error('Batas langkah agent tercapai. Periksa jejak sebelum mencoba ulang.');
-    return { final, needs: needs || state.plan?.risk === 'tinggi' };
+    return { final, needs: needs || state.plan?.risk === 'tinggi', escalated };
   }
 
   async diagnose(pumpId: string, complaint = '') {
@@ -217,15 +218,15 @@ export class LlmService {
     const trace = this.cases.trace(id, current?.trace ?? []);
     const metadata = () => ({ mode: 'llm', fault: state.plan?.fault, conf: state.plan?.confidence, risk: state.risk });
     await this.cases.save(id, trace, 'diproses', state, metadata());
-    let result: { final: string; needs: boolean };
+    let result: { final: string; needs: boolean; escalated: boolean };
     try { result = await this.loop(pumpId ? `Konteks kasus ${id}, unit ${pumpId}. ${task}` : task, trace, state, deadline, history, image); }
     catch (error: unknown) {
       await this.cases.save(id, trace, state.plan?.risk === 'tinggi' ? 'menunggu_persetujuan' : 'gagal', state, { ...metadata(), summary: 'Layanan LLM gagal. Periksa rencana dan jejak tindakan sebelum mencoba ulang.' });
       throw error;
     }
-    const { final, needs } = result;
-    const clarify = !needs && state.plan && state.plan.confidence < CONFIG.CONF_ACT;
-    const status = needs ? state.plan ? 'menunggu_persetujuan' : 'gagal' : clarify ? 'menunggu_klarifikasi' : 'selesai_llm';
+    const { final, needs, escalated } = result;
+    const clarify = !needs && !escalated && state.plan && state.plan.confidence < CONFIG.CONF_ACT;
+    const status = needs ? state.plan ? 'menunggu_persetujuan' : 'gagal' : escalated ? 'dieskalasi' : clarify ? 'menunggu_klarifikasi' : 'selesai_llm';
     const reply = needs ? state.plan ? `${final}\n\nRencana tindakan menunggu persetujuan supervisor di kasus ${id}.` : 'Tindakan ditahan karena belum ada rencana diagnosis yang valid. Periksa sensor dan ulangi analisis.' : final;
     if (clarify) state.question = final;
     await this.cases.save(id, trace, status, state, { ...metadata(), summary: reply });
