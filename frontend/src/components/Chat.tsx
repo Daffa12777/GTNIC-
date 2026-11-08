@@ -7,6 +7,7 @@ import Markdown from 'react-markdown';
 import { readChat, retainChatMessages, writeChat } from '../chatSession';
 import { useUnsavedChanges } from '../useUnsavedChanges';
 import ConfirmDialog from './ConfirmDialog';
+import ChatActionSummary from './ChatActionSummary';
 
 const SUGGEST = ['Pump-03 oli cepat panas dan tekanan sulit naik', 'Pump-02 gerak aktuator tersendat', 'Urutan prioritas penanganan', 'Stok seal kit pompa'];
 
@@ -65,7 +66,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
       const r = await api.chat(m, openCase, useLlm, msgs.slice(-8).map((item) => ({ from: item.from, text: item.text.slice(0, 1500) })), sentAttachment?.image);
       setAttachment(null); setImageError('');
       const warn = r.llm_error ? `\n\n[Mode LLM gagal: ${r.llm_error}. Jawaban ini dari mode biasa.]` : '';
-      appendMessage({ from: 'agent', text: r.reply + warn, case: r.case });
+      appendMessage({ from: 'agent', text: r.reply + warn, case: r.case, actionSummary: r.action_summary, actionSummaryError: r.action_summary_error });
       setOpenCase(r.case?.id ?? openCase);
       onChanged();
     } catch (e: unknown) {
@@ -86,10 +87,12 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
               {m.image && <img className="chat-image" src={`data:${m.image.mimeType};base64,${m.image.data}`} alt={`Lampiran ${m.imageName ?? 'gambar'}`} />}
               {m.imageName && <span className="chat-image-name">{m.imageName}{!m.image && ' · Pratinjau tidak lagi disimpan'}</span>}
               {m.from === 'agent' ? <div className="markdown"><Markdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>{m.text}</Markdown></div> : m.text}
+              {m.actionSummary && <ChatActionSummary summary={m.actionSummary} onOpenCase={onOpenCase} />}
+              {m.actionSummaryError && <p className="notice warn" role="status">{m.actionSummaryError}</p>}
               {(m.case || m.caseId) && (
                 <div style={{ marginTop: 8 }} className="row wrap">
-                  {m.case && <><CaseBadge status={m.case.status} /><RiskBadge risk={m.case.risk} /></>}
-                  <button className="btn sm" onClick={() => onOpenCase((m.case?.id ?? m.caseId)!)}>Lihat jejak {m.case?.id ?? m.caseId}</button>
+                  {m.case && <>{!m.actionSummary && <CaseBadge status={m.case.status} />}<RiskBadge risk={m.case.risk} /></>}
+                  {!m.actionSummary && <button className="btn sm" onClick={() => onOpenCase((m.case?.id ?? m.caseId)!)}>Lihat jejak {m.case?.id ?? m.caseId}</button>}
                 </div>
               )}
             </div>

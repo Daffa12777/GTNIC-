@@ -12,6 +12,7 @@ function View() {
     <button onClick={() => change({ page: 2 })}>Next</button>
     <button onClick={() => route.navigate('kasus', 'C-1')}>Detail</button>
     <button onClick={() => route.navigate('tampilan3d', 'Pump-02')}>3D</button>
+    <button onClick={() => route.navigate('tugas')}>Tugas saya</button>
     <span data-testid="tab">{route.tab}:{route.pumpId}</span>
   </>;
 }
@@ -32,6 +33,15 @@ it('restores shared URL filters, keeps them on details and follows Back', async 
   view.unmount();
   render(<View />);
   expect(screen.getByRole('status').textContent).toContain('"status":"selesai"');
+});
+
+it('restores the supervisor task page from its route', () => {
+  const view = render(<View />);
+  fireEvent.click(screen.getByText('Tugas saya'));
+  expect(window.location.pathname).toBe('/tasks');
+  view.unmount();
+  render(<View />);
+  expect(screen.getByTestId('tab').textContent).toBe('tugas:');
 });
 
 it('opens a unit in the 3D page and restores it from the URL', () => {

@@ -45,6 +45,8 @@ async function fixture(work: () => Promise<void>) {
   try {
     await db.transaction(async () => {
       await db.client.pump.createMany({ data: [{ id: 'Pump-91' }, { id: 'Pump-92' }] });
+      // Scheduling must not depend on seed technicians consumed by other integration suites.
+      await db.client.technician.create({ data: { id: 'llm-fixture-senior', name: 'Teknisi fixture LLM', skill: 'mekanik', level: 'senior', available: true } });
       await work();
       throw rollback;
     });

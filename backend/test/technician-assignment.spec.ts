@@ -17,7 +17,7 @@ let app: INestApplication, db: DbService, supervisor: string, technician: string
 const password = randomBytes(20).toString('hex'), prefix = 'assignment-test';
 const keys = ['AUTH_ENABLED', 'JWT_SECRET', 'AUTH_TECHNICIAN_USERNAME', 'AUTH_TECHNICIAN_PASSWORD_HASH', 'AUTH_SUPERVISOR_USERNAME', 'AUTH_SUPERVISOR_PASSWORD_HASH'];
 const previous = keys.map(key => process.env[key]);
-let availability: { id: string; available: boolean | null }[];
+let availability: { id: string; available: boolean | null }[] = [];
 const api = () => request(app.getHttpServer());
 const send = (id: string, body: object, cookie = supervisor) => api().post(`/api/work-orders/${id}/assign`).set('x-mm-client', 'web').set('Cookie', cookie).send(body);
 const cookies = (headers: Record<string, unknown>) => [...new Map((headers['set-cookie'] as string[]).map(line => { const value = line.split(';')[0], at = value.indexOf('='); return [value.slice(0, at), value.slice(at + 1)] as const; })).entries()].map(([k, v]) => `${k}=${v}`).join('; ');
@@ -37,6 +37,11 @@ beforeAll(async () => {
   }
   const testModule = await Test.createTestingModule({ imports: [DbModule, AuthModule], controllers: [WorkOrderAssignmentController, RecordsController], providers: [ToolsService, MlService, SimService, RagService] }).compile();
   app = testModule.createNestApplication(); app.setGlobalPrefix('api'); await app.init(); db = app.get(DbService);
+  // Bootstrap intentionally skips nonempty installations; create only this suite's accounts.
+  for (const [key, role] of [['TECHNICIAN', 'teknisi'], ['SUPERVISOR', 'supervisor']] as const) {
+    const username = `${prefix}-${key.toLowerCase()}`, passwordHash = process.env[`AUTH_${key}_PASSWORD_HASH`]!;
+    await db.client.user.upsert({ where: { username }, create: { username, passwordHash, role }, update: { passwordHash, role, active: true } });
+  }
   supervisor = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: `${prefix}-supervisor`, password }).expect(201)).headers);
   technician = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: `${prefix}-technician`, password }).expect(201)).headers);
 });
@@ -68,6 +73,15 @@ it('requires a real supervisor session and rejects forged roles and malformed as
   await api().get(`/api/work-orders/${id}/assignment`).set('Cookie', technician).expect(403);
   await send(id, {}).expect(400);
   await send(id, { expected_technician_id: null, approved: true }).expect(400);
+});
+
+it('filters supervisor assignment tasks to active unassigned work orders', async () => {
+  const active = await order('queue-active'), closed = await order('queue-closed'), assigned = await order('queue-assigned');
+  await db.client.workOrder.update({ where: { id: closed }, data: { status: 'selesai' } });
+  await db.client.workOrder.update({ where: { id: assigned }, data: { status: 'terjadwal', technician_id: `${prefix}-A` } });
+  const response = await api().get('/api/records/work-orders').set('Cookie', supervisor).query({ status: 'group:active', technician: 'unassigned', q: prefix, pageSize: 5 }).expect(200);
+  expect(response.body.total).toBe(1);
+  expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([active]);
 });
 
 it('assigns manually, reserves availability, audits the actor and rejects a stale repeat', async () => {

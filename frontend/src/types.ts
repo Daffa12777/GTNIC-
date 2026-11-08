@@ -53,7 +53,11 @@ export interface AssignmentOptions {
 }
 export interface AssignmentResult { scheduled: true; technician: string; technician_id: string; scheduled_at: string | null; duplicate?: boolean }
 export interface ChatImage { mimeType: string; data: string }
-export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string; image?: ChatImage; imageName?: string }
+export interface ActionSummary {
+  case_id: string; status: string | null; checked_at: number; order_count: number;
+  orders: { id: string; status: string | null; technician: string | null; scheduled_at: string | null; purchases: { id: string; part_name: string | null; qty: number | null; status: string | null }[] }[];
+}
+export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string; image?: ChatImage; imageName?: string; actionSummary?: ActionSummary | null; actionSummaryError?: string }
 export interface InventoryItem { part_id: string; name: string; stock: number; location: string; min_stock: number }
 export interface Technician { id: string; name: string; skill: string; level: string; available: boolean }
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }

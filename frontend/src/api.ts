@@ -2,7 +2,7 @@ import type { Case, CaseContext, Overview, ReadingsResp, Role, WorkOrder, Invent
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
-import type { ServicesStatus, LlmConnectionStatus, ChatImage, AssignmentOptions, AssignmentResult } from './types';
+import type { ServicesStatus, LlmConnectionStatus, ChatImage, AssignmentOptions, AssignmentResult, ActionSummary } from './types';
 import { invalidateAfterMutation } from './mutationCache';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
@@ -85,7 +85,7 @@ export const api = {
   workOrdersPage: (query: URLSearchParams, signal?: AbortSignal) => req<WorkOrdersPage>(`/records/work-orders?${query}`, { signal }),
   getCase: (id: string, signal?: AbortSignal) => req<Case>(`/cases/${encodeURIComponent(id)}`, { signal }),
   diagnose: (pump_id: string, complaint: string, use_llm: boolean) => post<Case>('/diagnose', { pump_id, complaint, use_llm }),
-  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = [], image?: ChatImage) => post<{ reply: string; case: Case | null; llm_error?: string }>('/chat', { message, case_id, use_llm, history, image }),
+  chat: (message: string, case_id: string | null, use_llm: boolean, history: { from: string; text: string }[] = [], image?: ChatImage) => post<{ reply: string; case: Case | null; llm_error?: string; action_summary?: ActionSummary | null; action_summary_error?: string }>('/chat', { message, case_id, use_llm, history, image }),
   answer: (id: string, text: string) => post<Case>(`/cases/${id}/answer`, { text }),
   approve: (id: string) => post<Case>(`/cases/${id}/approve`),
   reject: (id: string, note: string) => post<Case>(`/cases/${id}/reject`, { note }),

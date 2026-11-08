@@ -96,6 +96,13 @@ export class CaseStore {
     return rows.map((r: any) => ({ ...r, confidence: r.confidence == null ? null : Number(r.confidence), created_at: Number(r.created_at) }));
   }
 
+  async actionSummary(caseId: string) {
+    const current = await this.db.client.maintenanceCase.findUnique({ where: { id: caseId }, select: { id: true, status: true, _count: { select: { orders: true } } } });
+    if (!current) return null;
+    const orders = await this.db.client.workOrder.findMany({ where: { case_id: caseId }, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], take: 10, select: { id: true, status: true, technician: { select: { name: true } }, scheduled_at: true, purchases: { select: { id: true, part_name: true, qty: true, status: true }, orderBy: { id: 'asc' }, take: 10 } } });
+    return { case_id: current.id, status: current.status, checked_at: now(), order_count: current._count.orders, orders: orders.map(({ technician, ...order }) => ({ ...order, technician: technician?.name ?? null })) };
+  }
+
   openFor(pumpId: string) {
     return this.db.one("SELECT id FROM cases WHERE pump_id=$1 AND status IN ('diproses','menunggu_klarifikasi','menunggu_persetujuan') ORDER BY created_at DESC", [pumpId]);
   }

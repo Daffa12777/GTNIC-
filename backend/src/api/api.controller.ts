@@ -82,7 +82,13 @@ export class ApiController {
   @Post('chat')
   @RatePolicy('ai')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-  chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history, b.image); }
+  async chat(@Body() b: ChatDto) {
+    const result = await this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history, b.image);
+    if (!result.case?.id) return result;
+    try { return { ...result, action_summary: await this.cases.actionSummary(result.case.id) }; }
+    // A summary read failure must not encourage retrying an action that already succeeded.
+    catch { return { ...result, action_summary_error: 'Ringkasan hasil belum dapat dimuat. Periksa jejak kasus sebelum mengulang tindakan.' }; }
+  }
 
   @Post('triage')
   @RatePolicy('ai')

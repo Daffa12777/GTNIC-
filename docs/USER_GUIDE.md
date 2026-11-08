@@ -55,6 +55,8 @@ Persetujuan dapat membuat atau menggunakan work order aktif, mengajukan pembelia
 
 ## Work order
 
+Supervisor memiliki menu **Tugas saya** (`/tasks`) untuk melihat persetujuan, pekerjaan aktif tanpa teknisi, dan kasus eskalasi. Antrean ini berlaku untuk tanggung jawab peran supervisor dalam tim. Setiap bagian menampilkan maksimal lima entri beserta jumlah total dan tautan ke daftar lengkap. Tombol **Tinjau keputusan** membuka kasus; **Tugaskan WO-…** membuka form penugasan pada halaman tersebut. Teknisi menggunakan daftar Work order dan filter teknisi.
+
 Cari/filter pekerjaan berdasarkan data yang tersedia, termasuk unit, status, prioritas, dan teknisi. Tinjau judul, instruksi, part, jadwal, serta kasus terkait.
 
 Untuk menugaskan atau mengganti teknisi, login sebagai **supervisor**:
@@ -76,6 +78,10 @@ Isi alasan perubahan stok secara jelas. Jika saldo sudah berubah sejak form dibu
 Pengajuan pembelian dibuat oleh alur tool saat dibutuhkan. Aplikasi belum terintegrasi dengan pemesanan vendor atau ERP eksternal.
 
 ## Asisten dan mode agent
+
+Jawaban yang terhubung ke kasus menampilkan **Hasil tercatat**: snapshot status kasus, maksimal sepuluh work order terkait, penugasan/jadwal, serta pengajuan part yang tersimpan. Snapshot dapat mencakup pekerjaan sebelum pesan terakhir; jangan menyimpulkan pekerjaan baru dibuat hanya karena muncul di blok ini. Buka **Periksa jejak kasus** untuk memeriksa bukti terkini. Snapshot tambahan hanya berada pada percakapan yang masih terbuka; setelah refresh, teks riwayat dan tautan kasus tetap tersedia. Bila pembacaan ringkasan gagal, jawaban chat tetap ditampilkan disertai pemberitahuan agar tindakan yang sudah berhasil tidak diulang.
+
+Skenario pengujian dua peran tersedia di [panduan uji pengguna](USER_TEST.md).
 
 Masukkan ID unit dan gejala yang jelas, misalnya: “Pump-02 oli panas dan respons aktuator melambat.” Asisten dapat menanyakan klarifikasi atau menghubungkan percakapan dengan kasus.
 

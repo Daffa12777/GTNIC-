@@ -4,6 +4,17 @@ Laporan ini menjelaskan perubahan setelah tinjauan awal. Perubahan diuji pada ch
 
 Acuan perbaikan awal: `8e11389` beserta rangkaian commit-nya; perbaikan percakapan baca saja dan regresinya merupakan tindak lanjut setelah snapshot tersebut.
 
+## Tindak lanjut: Tugas saya, ringkasan chat, dan uji dua peran
+
+- Commit penugasan supervisor `6fc9386` sudah di-push ke `origin/farras`. Perubahan sesudahnya dalam bagian ini belum di-push atau di-deploy pada saat pencatatan.
+- Menu `/tasks` hanya ditampilkan untuk supervisor. Tiga antrean memakai data kasus/WO yang sudah ada: persetujuan, pekerjaan aktif tanpa teknisi, dan eskalasi. Masing-masing lima entri, total sebenarnya, tautan daftar lengkap, serta retry independen. Penugasan memakai form dan endpoint supervisor yang sama.
+- Controller chat menambahkan snapshot hasil dari database: status kasus, jumlah/daftar WO, teknisi/jadwal, dan pengajuan part. Snapshot dibatasi ID kasus tepat dan ditandai dapat mencakup pekerjaan lama. Kegagalan pembacaan ringkasan mempertahankan jawaban chat yang sudah berhasil. Snapshot tidak disimpan dalam riwayat session storage.
+- Panduan [uji dua peran](USER_TEST.md) memuat tujuh skenario, tanda keberhasilan, dan lembar hasil untuk juri. **Belum ada peserta atau hasil uji pengguna manusia.**
+
+Validasi akhir: **86 tes backend pada 14 suite dan 66 tes frontend pada 26 file lulus**. Build frontend, backend Node, serta backend Vercel lulus. Tes tambahan memeriksa filter pekerjaan aktif tanpa teknisi, pemisahan data ringkasan berdasarkan kasus, kegagalan query ringkasan tanpa menjalankan ulang agent, pembatasan tampilan, error/retry antrean, navigasi `/tasks`, serta ringkasan frontend. Dua ketergantungan urutan tes diperbaiki: fixture LLM kini menyediakan teknisi senior sendiri, dan tes penugasan membuat akun uniknya sendiri alih-alih mengasumsikan bootstrap akan mengisi database yang sudah berakun. Perilaku autentikasi production tidak diubah.
+
+Browser headless lokal memeriksa lebar **1440, 768, dan 380 px** dengan API fixture: antrean tampil, penugasan gagal lalu retry mempertahankan pilihan dan memperbarui antrean, ringkasan chat menampilkan hasil tersimpan, serta teknisi ditolak dari halaman supervisor. Tidak ditemukan overflow horizontal atau exception JavaScript pada alur tersebut; screenshot desktop/ponsel diperiksa. Uji browser ini memverifikasi tampilan/klien dengan data terkontrol. Pengujian backend memakai PGlite lokal dan inferensi ML proyek; ini tidak menggantikan uji production, kontensi PostgreSQL nyata, perangkat fisik, atau percobaan juri. Tidak ada dependency atau migrasi baru.
+
 ## Perubahan dan dampak
 
 ### Tindak lanjut: penugasan oleh supervisor

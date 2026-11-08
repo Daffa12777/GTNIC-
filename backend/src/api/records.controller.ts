@@ -43,7 +43,7 @@ export class RecordsController {
   }
   @Get('work-orders')
   async workOrders(@Query() query: RecordsQuery) {
-    const where: Prisma.WorkOrderWhereInput = { ...(query.status ? { status: query.status } : {}), ...(query.unit ? { pump_id: query.unit } : {}), ...(query.priority ? { priority: query.priority } : {}) };
+    const where: Prisma.WorkOrderWhereInput = { ...(query.status ? { status: query.status === 'group:active' ? { notIn: ['selesai', 'dibatalkan'] } : query.status } : {}), ...(query.unit ? { pump_id: query.unit } : {}), ...(query.priority ? { priority: query.priority } : {}) };
     if (query.technician) where.technician_id = query.technician === 'unassigned' ? null : query.technician;
     if (query.q?.trim()) {
       const contains = { contains: query.q.trim(), mode: 'insensitive' as const };

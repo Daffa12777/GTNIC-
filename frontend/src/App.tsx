@@ -10,6 +10,7 @@ import ProfileAvatar from './components/ProfileAvatar';
 import NotificationBell from './components/NotificationBell';
 import ServiceStatus from './components/ServiceStatus';
 import WorkOrders from './components/WorkOrders';
+import SupervisorTasks from './components/SupervisorTasks';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -17,7 +18,7 @@ import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 import { UnsavedChangesPrompt } from './useUnsavedChanges';
 
-const TABS: [Tab, string][] = [['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
+const TABS: [Tab, string][] = [['tugas', 'Tugas saya'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
 
 const store = {
   get(k: string, d: string) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -75,7 +76,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             <span className="brand-name">ManualMechanic</span>
           </a>
           <nav className="nav" aria-label="Navigasi utama">
-            {TABS.map(([k, l]) => (
+            {TABS.filter(([k]) => k !== 'tugas' || role === 'supervisor').map(([k, l]) => (
               <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => navigate(k)}>
                 {l}
                 {k === 'kasus' && waiting > 0 && <span className="count alert">{waiting}</span>}
@@ -107,8 +108,9 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
 
       <main id="main-content">
       <div className="page service-container"><ServiceStatus /></div>
-      {tab !== 'profil' && (!isMap || !ov) && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
+      {tab !== 'profil' && tab !== 'tugas' && (!isMap || !ov) && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
+      {tab === 'tugas' && <SupervisorTasks role={role} onOpenCase={openCase} flash={flash} onChanged={refresh} />}
       {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} onBack={() => { setSelectedMachine(null); navigate('ringkasan'); }} flash={flash} refresh={refresh} />}
       {ov && isMap && <FacilityMap ov={ov} updated={overview.updated} freshness={<RequestState {...overview} retry={refresh} />} demoRole={!user} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} onChanged={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} overview={ov} updated={overview.updated} onOpenUnit={(id) => navigate('ringkasan', id, true)} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}

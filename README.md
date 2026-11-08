@@ -37,8 +37,10 @@ Alur mencoba aplikasi:
 - **Interaksi peta:** zoom, pan saat diperbesar, fokus ke unit, rotasi 90°, hover/seleksi, dan **Reset tampilan** yang mempertahankan panel. Label bisa diakses dengan keyboard dan tersedia daftar unit alternatif. Denyut berhenti setelah delapan detik atau saat tab tidak aktif; reduced motion mematikannya.
 - **Monitoring dan ML:** validasi sensor, deteksi anomali dengan Isolation Forest, dan klasifikasi kondisi pompa, katup, pendingin, serta akumulator dengan Random Forest.
 - **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi. Supervisor dapat memilih/mengganti teknisi dari Work order dengan pemeriksaan keahlian, senior, ketersediaan, serta alasan kegagalan yang tetap terlihat.
+- **Tugas saya untuk supervisor:** antrean persetujuan, pekerjaan aktif tanpa teknisi, dan kasus eskalasi. Penugasan dapat dilakukan langsung dari antrean; jumlah total dan tautan daftar lengkap mengikuti data backend.
 - **RAG bersitasi:** pencarian manual Markdown dan riwayat perawatan menggunakan TF-IDF serta cosine similarity.
 - **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran dapat dihapus dan dicoba ulang saat permintaan gagal. Riwayat sesi menyimpan teks serta nama lampiran; hanya tiga pratinjau foto terbaru berada di memori sampai halaman dimuat ulang.
+- **Hasil tercatat pada chat:** snapshot status kasus, work order, teknisi/jadwal, dan pengajuan part dibaca dari database untuk memeriksa hasil jawaban agent. Snapshot dapat mencakup pekerjaan yang sudah ada sebelum pesan terakhir.
 - **Operasional:** kasus dan work order dengan filter/paginasi, inventaris beserta riwayat stok, notifikasi, profil pengguna, dan autentikasi sesi.
 - **UX dan ketahanan:** detail unit dengan jalan kembali ke peta, action bar persetujuan, pesan gagal yang menetap, konfirmasi dalam halaman, perlindungan isian, tampilan WO ponsel, serta cache data dengan status offline/kesegaran.
 - **Integrasi opsional:** Gemini untuk function calling dan Telegram untuk pengiriman notifikasi.
@@ -201,7 +203,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan 8 November 2026, termasuk penugasan supervisor, menghasilkan **60 tes frontend dan 82 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Tes integrasi ML dijalankan ulang terpisah setelah akses jaringan awal terhalang. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
+Pemeriksaan 8 November 2026, termasuk Tugas saya dan ringkasan chat, menghasilkan **66 tes frontend dan 86 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Uji browser headless lokal pada 1440, 768, dan 380 px memeriksa antrean supervisor, penugasan gagal/retry, ringkasan chat, serta batas tampilan teknisi menggunakan API fixture. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, penggunaan fitur baru di production, dan uji pengguna manusia belum diverifikasi. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 
@@ -215,6 +217,7 @@ Untuk proses deploy, lihat [dokumentasi teknis](docs/TECHNICAL.md#deployment) da
 | --- | --- |
 | [PRD](docs/PRD.md) | Masalah, pengguna, ruang lingkup, kebutuhan, dan kriteria penerimaan |
 | [Panduan pengguna](docs/USER_GUIDE.md) | Dashboard 3D, diagnosis, kasus, work order, inventaris, dan akun |
+| [Uji dua peran](docs/USER_TEST.md) | Skenario supervisor/teknisi untuk juri dan lembar hasil uji pengguna; hasil manusia belum dikumpulkan |
 | [Dokumentasi teknis](docs/TECHNICAL.md) | Komponen, data, konfigurasi, setup, 3D, ML, keamanan, dan troubleshooting |
 | [Referensi API](docs/API.md) | Endpoint, hak akses, payload, dan respons penting |
 | [Dataset](docs/DATASET.md) | Asal data, evaluasi, dan batasan generalisasi |

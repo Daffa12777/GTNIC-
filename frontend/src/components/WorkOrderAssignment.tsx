@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { AssignmentResult } from '../types';
 import { errorMessage, RequestState, usePolling } from '../usePolling';
@@ -11,6 +11,8 @@ export default function WorkOrderAssignment({ orderId, onDone, onCancel, onBusy 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const saving = useRef(false);
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => { section.current?.focus(); }, []);
   useUnsavedChanges(busy);
   const data = options.data;
   const value = selected ?? data?.current_technician_id ?? '';
@@ -23,7 +25,7 @@ export default function WorkOrderAssignment({ orderId, onDone, onCancel, onBusy 
     catch (error: unknown) { setError(errorMessage(error)); }
     finally { saving.current = false; setBusy(false); onBusy(false); }
   };
-  return <section style={{ padding: 16 }} aria-label={`Penugasan ${orderId}`}>
+  return <section ref={section} tabIndex={-1} style={{ padding: 16 }} aria-label={`Penugasan ${orderId}`}>
     <h2>Penugasan teknisi · {orderId}</h2>
     <RequestState {...options} retry={options.refresh} showUpdated={false} />
     {data && <form className="form-stack" aria-busy={busy} onSubmit={e => { e.preventDefault(); void submit(); }}>
