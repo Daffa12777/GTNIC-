@@ -34,9 +34,17 @@ Keluaran: `ml/artifacts/model.joblib`, `metrics.json`, `profiles.json`. Skrip ot
 `python train.py --demo` melatih dari data sintetis berformat UCI (`make_demo_data.py`) hanya agar proyek dapat dijalankan dan diuji tanpa unduhan. UI menampilkan peringatan selama model berasal dari data demo. Metrik dari data demo (hampir sempurna) bukan bukti kinerja.
 
 ## Model
-- Isolation Forest (scikit-learn), dilatih hanya pada siklus sehat, untuk deteksi anomali. Ambang = persentil ke-2 skor siklus sehat.
+- Isolation Forest (scikit-learn), dilatih pada siklus sehat atau 60 siklus dengan jumlah komponen terganggu paling sedikit ketika siklus sehat latih kurang dari 30. Ambang pada `train.py` saat ini adalah persentil ke-15 skor bank latih tersebut. Metrik terbaru mencatat 60 siklus untuk bank ini.
 - Random Forest per komponen (pendingin, katup, pompa, akumulator) untuk tingkat kerusakan dan probabilitasnya. Fitur: rata-rata dan simpangan baku tiap sensor per siklus (34 fitur).
 - Agent menggabungkan keluaran per komponen menjadi hipotesis: normal atau salah satu komponen bermasalah, lalu menimbang keluhan teknisi, riwayat, dan manual (RAG).
+
+## Evaluasi artefak terbaru
+
+Artefak `metrics.json` bertanda `uci_real` mencatat 1.653 siklus latih dan 552 siklus uji. Akurasi/macro-F1 masing-masing komponen adalah pendingin 0,9982/0,9982, katup 0,9873/0,9855, pompa 0,9982/0,9981, dan akumulator 0,9891/0,9875. Seluruh komponen benar bersamaan pada 0,9764 siklus uji.
+
+`overfit_check.json` menambahkan validasi silang acak lima lipatan dan split berurutan berdasarkan indeks baris 75/25. Akurasi berurutan adalah pendingin 1,0000, katup 0,3478, pompa 0,7301, dan akumulator 0,2772. Validasi silang acak yang tinggi belum membuktikan generalisasi ke segmen atau mesin baru. Pemeriksaan ini memakai urutan dataset; belum ada bukti bahwa ini merepresentasikan aliran waktu deployment pabrik.
+
+Deteksi anomali pada split uji adalah 0,7527 untuk 546 siklus bergangguan. False alarm 0,0000 dihitung hanya dari enam siklus sehat uji. Angka tersebut perlu disertai ukuran sampel, dan belum mendukung klaim bebas alarm palsu di lapangan. Metadata ML production pada pemeriksaan 8 November 2026 cocok dengan artefak evaluasi ini; training dan pemeriksaan overfitting tidak dijalankan ulang dalam tinjauan dokumentasi tersebut.
 
 ## Dataset lain yang dipertimbangkan
 | Dataset | Catatan |

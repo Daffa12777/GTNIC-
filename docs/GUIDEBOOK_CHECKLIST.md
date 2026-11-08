@@ -1,30 +1,30 @@
 # Checklist kesesuaian Guide Book GTNIC 2026 (AI Agent)
 
-Status: Siap = sudah ada di repo. Anda = harus dikerjakan tim sebelum pengumpulan (batas 10 November 2026, 23.59 WIB).
+Acuan tinjauan 8 November 2026. Status tersedia menunjukkan keberadaan implementasi, sedangkan temuan terbuka dan batas bukti dicatat pada [laporan tinjauan](REVIEW_2026-11-08.md). Tenggat serta format berkas perlu dicocokkan kembali dengan guidebook resmi panitia.
 
 ## Syarat teknis karya
 | Syarat | Status | Bukti |
 |---|---|---|
 | Bukan ChatGPT wrapper (reasoning, tool calling, atau RAG) | Siap | 12 tool bertipe di `backend/src/tools`, RAG di `backend/src/rag`, ML di `ml/`, loop function calling Gemini di `backend/src/agent/llm.service.ts` |
-| Menjalankan tindakan nyata, bukan hanya menjawab | Siap | Work order, jadwal teknisi, permintaan pembelian, notifikasi Telegram, tersimpan di PostgreSQL |
-| Otonomi dengan batas yang jelas | Siap | Keyakinan ≥ 80% dan risiko bukan tinggi → otomatis; 50–79% → tanya balik; < 50% → eskalasi; risiko tinggi → persetujuan supervisor (dipaksa di lapisan tool) |
-| UI publik yang dapat diakses | Anda | Deploy mengikuti `docs/DEPLOY.md`, isi tautan di proposal |
+| Menjalankan tindakan operasional | Tersedia | Work order, jadwal, pembelian, dan notifikasi tercatat di PostgreSQL. Pengiriman Telegram nyata memerlukan konfigurasi dan bukti terpisah. |
+| Otonomi dengan batas yang jelas | Perlu perbaikan alur LLM | Policy memiliki aturan keyakinan/risiko. Guardrail tool, rencana persetujuan LLM, dan penyatuan kasus masih mempunyai temuan 1–3 pada laporan tinjauan. |
+| UI publik yang dapat diakses | Terverifikasi 8 November | Domain utama merespons; dua akun demo dapat login dengan peran yang sesuai. |
 | Repo GitHub publik | Anda | Push repo ini; pastikan `.env` tidak ikut dan API key lama dicabut |
 | Video demo 3–5 menit, akses publik | Anda | Ikuti `docs/DEMO_SCRIPT.md` |
 | Surat Pernyataan Keaslian | Anda | Template di `docs/Surat_Pernyataan_Keaslian_Karya_TEMPLATE.md`, sesuaikan dengan lampiran resmi |
-| Proposal PDF (maks. 15 halaman, A4, TNR 12, spasi 1,5, margin kiri 4 cm dan lainnya 3 cm, logo GTNIC di sampul) | Anda | Gunakan proposal yang sudah dibuat; sesuaikan nama dataset dan arsitektur dengan dokumen ini (lihat catatan di bawah) |
+| Proposal PDF sesuai format panitia | Perlu revisi isi | Proposal CPESS yang ditinjau berisi 12 halaman A4 dan logo di sampul. Koreksi fitur foto, deployment, klaim LLM, dan bukti tes ada pada laporan tinjauan; format akhir tetap perlu dicocokkan dengan panduan resmi. |
 | Nama file `GTNIC2026_AIAgent_NamaTim.pdf` | Anda | Ganti NamaTim |
 
 ## Pemetaan ke kriteria penilaian
 | Kriteria (bobot) | Di mana terlihat |
 |---|---|
 | Kapabilitas dan otonomi agent (25) | Rantai tindakan otomatis, tanya balik, eskalasi, persetujuan; dua jalur masuk (sensor dan laporan teknisi) menuju kasus yang sama; pemicu otomatis oleh monitor |
-| Penalaran, perencanaan, keputusan (15) | Jejak 13–17 langkah per kasus; penggabungan probabilitas model, keluhan teknisi (dengan negasi), riwayat; deteksi gangguan majemuk; sensor mati tidak dituduh sebagai kerusakan mesin |
+| Penalaran, perencanaan, keputusan (15) | Jejak tool dan keputusan, probabilitas komponen, keluhan dengan negasi, riwayat, serta gangguan majemuk. Jumlah langkah mengikuti kasus dan mode. |
 | Penggunaan alat dan eksekusi (15) | 12 tool dengan validasi parameter, pencegahan duplikasi work order, error dikembalikan ke agent |
-| Arsitektur teknis (15) | React + NestJS + PostgreSQL (Supabase) + layanan ML FastAPI; RAG bersitasi; mode policy dan mode LLM dengan fallback; 10 tes backend dan 4 tes ML |
+| Arsitektur teknis (15) | React + NestJS + PostgreSQL + FastAPI; RAG bersitasi; chat multimodal. Pemeriksaan ulang mengonfirmasi 54 tes frontend dan 47 tes backend di luar E2E ML. |
 | Inovasi dan orisinalitas (10) | Sensor dan keluhan lapangan disatukan; guardrail di lapisan tool; riwayat pekerjaan yang ditutup masuk kembali ke indeks RAG |
 | Dampak dan relevansi (10) | Tema Enterprise Productivity: otomatisasi koordinasi maintenance dan triase. Estimasi waktu hemat harus diberi label asumsi, bukan hasil ukur |
-| UX (5) | UI minimalis, jejak penalaran terbaca, peran Teknisi/Supervisor |
+| UX (5) | Peta 3D interaktif, fokus/rotasi, panel unit, konfirmasi persetujuan, chat gambar, serta peran Teknisi/Supervisor. Uji pengguna lapangan masih diperlukan. |
 | Demo dan dokumentasi (5) | README, `docs/`, video demo |
 
 ## Catatan penting untuk proposal
@@ -32,3 +32,4 @@ Status: Siap = sudah ada di repo. Anda = harus dikerjakan tim sebelum pengumpula
 - Angka akurasi: tulis hanya angka dari `ml/artifacts/metrics.json` hasil training dengan dataset asli, sebut metode split-nya, dan sebut bahwa data berasal dari satu test rig.
 - Mode demo dengan pemilih peran bukan autentikasi. Mode JWT memakai login dan role guard server; jelaskan mode yang benar-benar digunakan dalam demo/proposal.
 - Telegram bersifat simulasi (pesan dicatat) sampai `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` diisi.
+- Fitur foto sudah tersedia pada chat LLM. Video pada proposal CPESS masih berupa placeholder; akun demo dan panduan uji sudah ada di README.

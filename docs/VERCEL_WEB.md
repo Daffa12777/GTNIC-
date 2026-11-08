@@ -1,6 +1,6 @@
 # Deployment web dan koneksi layanan ML
 
-> Catatan lingkungan deployment saat verifikasi historis yang disebut di dokumen. URL, konfigurasi provider, dan status layanan tidak diperiksa ulang saat dokumentasi baru disusun. Untuk arsitektur serta setup checkout terbaru lihat [dokumentasi teknis](TECHNICAL.md#deployment); jangan menganggap perubahan lokal sudah ada di production sebelum deploy dan smoke test.
+> Acuan pemeriksaan terbaru: 8 November 2026. Login kedua peran, overview, dan metadata ML diperiksa melalui domain frontend. Konfigurasi hosting serta kondisi layanan dapat berubah. Untuk arsitektur lihat [dokumentasi teknis](TECHNICAL.md#deployment).
 
 - Frontend: https://manualmechanic-gtnic.vercel.app
 - API: https://manualmechanic-api.vercel.app/api
@@ -16,10 +16,33 @@ Secret dikelola di Vercel dan tidak disimpan dalam repo atau bundle frontend.
 Simulator, agent otomatis, skenario, dan seeding dinonaktifkan lewat konfigurasi
 deployment. Backend mengakses layanan ML eksternal melalui `ML_URL`;
 redeploy web tidak melakukan training atau deployment layanan ML tersebut.
-Model yang dilaporkan endpoint saat integrasi 30 Oktober 2026 adalah
-`demo_synthetic`, sehingga bukan model yang dilatih dari dataset UCI asli.
-Gemini belum dikonfigurasi. Data operasional tetap berasal dari database;
-simulator dan agent otomatis tidak diaktifkan oleh penambahan URL ML.
+Pada pemeriksaan 8 November 2026, metadata ML production melaporkan `uci_real`,
+training `2026-11-07 02:07:53`, serta 2.205 siklus dan 552 siklus uji.
+Overview melaporkan Gemini tersedia dengan model `gemini-3.1-flash-lite`.
+Data operasional berasal dari database; simulator dan agent otomatis tetap nonaktif.
+Nilai model yang dipakai ditentukan environment deployment, sehingga contoh default
+di `.env.example` dapat berbeda.
+
+`GEMINI_API_KEY` dan `GEMINI_MODEL` dipasang pada environment **Production** project
+`manualmechanic-api`. File `.env` lokal diabaikan saat upload. Mengubah `ML_URL`
+memperbarui layanan sensor ML, sedangkan koneksi Gemini diatur terpisah.
+
+Pertahankan pula pengaturan project Production berikut, sesuai `backend/vercel.json`:
+
+```text
+SIM_ENABLED=false
+AUTO_AGENT=false
+DEMO_SCENARIO=false
+SCENARIO_CONTROLS_ENABLED=false
+SEED_DEMO_DATA=false
+DB_POOL_MAX=2
+```
+
+Pada pemulihan 7 November 2026, runtime hasil redeploy sempat menjalankan simulator
+dan mengalami timeout database. Flag di atas kemudian dipasang pada environment
+project, diikuti deployment dari source terbaru. Setelah setiap redeploy, pastikan
+overview melaporkan simulator/agent otomatis nonaktif dan periksa log jika muncul 503.
+Limiter memakai database; respons 503 dapat terjadi sebelum request mencapai Gemini.
 
 ## Update dari PowerShell
 
@@ -46,6 +69,10 @@ di-commit. `.vercelignore` mengecualikan semua file secret lokal dari upload.
 Untuk checkout baru, lakukan `vercel login` lalu `vercel link --project
 manualmechanic-api` dari backend dan `vercel link --project manualmechanic-gtnic`
 dari frontend. Jangan mengaktifkan paket Pro atau add-on berbayar untuk deployment ini.
+
+Jalankan **Status layanan → Uji Gemini** melalui akun yang login untuk menguji
+koneksi dari backend. Uji satu pesan teks dan satu gambar kecil setelah perubahan
+chat. Lampiran JPG/PNG/WebP dibatasi 2 MiB, dengan batas JSON chat 3 MiB.
 
 ## Verifikasi
 

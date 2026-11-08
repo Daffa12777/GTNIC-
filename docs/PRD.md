@@ -1,6 +1,6 @@
 # PRD — ManualMechanic
 
-Versi dokumen: 1.0. Tanggal: 1 November 2026. Status: spesifikasi berbasis implementasi checkout saat dokumentasi disusun, termasuk perubahan lokal yang belum di-commit.
+Versi dokumen: 1.1. Tanggal: 8 November 2026. Status: spesifikasi berbasis implementasi, termasuk chat gambar. Temuan yang belum memenuhi kontrak alur LLM dicatat di laporan tinjauan.
 
 ## Ringkasan produk
 
@@ -38,13 +38,14 @@ Dalam mode autentikasi, peran berasal dari akun backend. Pemilih peran pada demo
 | --- | --- |
 | Mesin | Unit tenaga hidrolik dengan komponen pompa, katup, pendingin, akumulator |
 | Data master demo | Enam unit, inventaris, teknisi, dan riwayat awal |
-| Dashboard | Peta 3D, pemilihan mesin, zoom/reset, panel kontekstual, pilihan unit berbasis teks |
+| Dashboard | Peta 3D, pemilihan mesin, zoom/pan/fokus/rotasi 90°, reset, panel kontekstual, pilihan unit berbasis teks |
 | Detail | Sensor, kondisi komponen, tindakan berikutnya, work order, kontrol demo sesuai izin |
 | Agent | Policy; Gemini function calling opsional; jejak langkah dan sitasi |
+| Asisten multimodal | Teks dan satu JPG/PNG/WebP maksimal 2 MB, pratinjau, pengiriman ulang saat gagal |
 | Operasional | Kasus, persetujuan, work order, inventaris, pembelian melalui tool, notifikasi |
 | Akun | Login/logout, refresh sesi, profil, ubah password, hapus akun sesuai batasan |
 
-Di luar ruang lingkup: kontrol PLC/aktuator, sensor fisik, prediksi sisa umur mesin, posisi teknisi live, peta multi-site, denah akurat, penjadwalan berbasis kalender lengkap, ERP eksternal, unggah aset melalui UI, dan registrasi mesin umum melalui UI/API.
+Di luar ruang lingkup: kontrol PLC/aktuator, sensor fisik, prediksi sisa umur mesin, posisi teknisi live, peta multi-site, denah akurat, penjadwalan berbasis kalender lengkap, ERP eksternal, unggah manual/model 3D melalui UI, dan registrasi mesin umum melalui UI/API. Unggahan foto pada chat termasuk ruang lingkup saat ini.
 
 ## Alur utama
 
@@ -77,6 +78,9 @@ Di luar ruang lingkup: kontrol PLC/aktuator, sensor fisik, prediksi sisa umur me
 | FR-14 | Sesi dan profil | Login, refresh, logout, pembaruan profil/password, dan batasan hapus akun tersedia |
 | FR-15 | Asal dan kesegaran data jelas | Mode simulasi/sintetis, pembaruan terakhir, offline, dan kegagalan layanan diinformasikan |
 | FR-16 | Penambahan dua unit demo | CLI menambah Pump-05/06 secara idempoten tanpa menimpa record lama; restart memuat unit ke simulator |
+| FR-17 | Chat membaca gambar | Mode LLM menerima satu JPG/PNG/WebP maksimal 2 MiB; backend memeriksa format/ukuran; preview dapat dihapus; gagal kirim mempertahankan lampiran |
+| FR-18 | Kamera dan animasi terkendali | Fokus mengikuti pilihan; rotasi bertahap 90°; pan aktif saat diperbesar; reset mempertahankan panel; denyut berhenti setelah delapan detik dan saat tab tersembunyi |
+| FR-19 | Retensi lampiran jelas | Riwayat sesi menyimpan nama gambar dan teks; isi gambar tersedia selama halaman terbuka dan perlu diunggah ulang setelah reload |
 
 ## Aturan keputusan dan keselamatan
 
@@ -124,6 +128,8 @@ Metrik berikut adalah rencana evaluasi, bukan hasil yang sudah dicapai:
 ## Rencana verifikasi dan batas bukti
 
 Uji frontend memeriksa pemilihan/penutupan panel, perubahan status, navigasi, sesi, cache, dan form. Tes backend memeriksa operasi lewat Prisma pada PGlite terisolasi; suite integrasi memerlukan layanan ML. Uji browser dengan respons API terkontrol memeriksa tampilan dan interaksi, tetapi tidak menggantikan uji login pengguna dan layanan produksi.
+
+Pemeriksaan 8 November 2026 menjalankan ulang 54 tes frontend dan 47 tes backend di luar suite integrasi ML. Kontrak persetujuan berbasis risiko dan penyatuan kasus belum dipenuhi sepenuhnya oleh jalur LLM; lihat [laporan tinjauan](REVIEW_2026-11-08.md). Foto merupakan bukti visual; kemampuan membaca gambar tidak membuktikan ketepatan diagnosis kerusakan fisik.
 
 Laporan lama di `docs/TEST_REPORT_2026-11-01.md` adalah snapshot pada waktunya. Jumlah tes dan hasil harus diperbarui dari eksekusi nyata, bukan diperlakukan sebagai jaminan permanen.
 
