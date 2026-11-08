@@ -48,3 +48,20 @@ it('rejects unsupported and oversized files and disables uploading outside LLM m
   view.rerender(<Chat {...props} useLlm={false} />);
   await waitFor(() => expect((screen.getByText('Tambah gambar') as HTMLButtonElement).disabled).toBe(true));
 });
+
+it('retires the oldest preview after the fourth upload without removing its report', async () => {
+  Element.prototype.scrollIntoView = vi.fn();
+  vi.spyOn(api, 'chat').mockImplementation(async (message) => ({ reply: `Diterima ${message}`, case: null }));
+  render(<Chat {...props} useLlm />);
+  for (let i = 0; i < 4; i++) {
+    fireEvent.change(screen.getByLabelText('Unggah gambar'), { target: { files: [new File(['photo'], `pompa-${i}.png`, { type: 'image/png' })] } });
+    await screen.findByAltText('Pratinjau lampiran');
+    fireEvent.change(screen.getByLabelText('Pesan untuk asisten'), { target: { value: `Foto ${i}` } });
+    fireEvent.click(screen.getByText('Kirim'));
+    await screen.findByText(`Diterima Foto ${i}`);
+  }
+  expect(screen.queryByAltText('Lampiran pompa-0.png')).toBeNull();
+  expect(screen.getByText('Foto 0')).toBeTruthy();
+  expect(screen.getByText(/pompa-0.png.*Pratinjau tidak lagi disimpan/)).toBeTruthy();
+  expect(screen.getAllByRole('img', { name: /Lampiran pompa-/ })).toHaveLength(3);
+});

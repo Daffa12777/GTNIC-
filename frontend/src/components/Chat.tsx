@@ -4,7 +4,7 @@ import type { ChatImage, ChatMsg } from '../types';
 import { CaseBadge, RiskBadge } from './ui';
 import { errorMessage } from '../usePolling';
 import Markdown from 'react-markdown';
-import { readChat, writeChat } from '../chatSession';
+import { readChat, retainChatMessages, writeChat } from '../chatSession';
 import { useUnsavedChanges } from '../useUnsavedChanges';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -27,6 +27,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
   // Chat stays mounted across tabs; warn on refresh only when its draft cannot be saved.
   useUnsavedChanges(busy || readingImage || !!attachment || (storageFailed && !!text), false);
   const sending = useRef(false);
+  const appendMessage = (message: ChatMsg) => setMsgs((current) => retainChatMessages([...current, message]));
   useEffect(() => { setStorageFailed(!writeChat(username, { messages: msgs, draft: text, openCase })); }, [username, msgs, text, openCase]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
@@ -59,17 +60,17 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
     const sentAttachment = attachment;
     sending.current = true;
     setText(''); setBusy(true);
-    setMsgs((x) => [...x, { from: 'user', text: m, image: sentAttachment?.image, imageName: sentAttachment?.name }]);
+    appendMessage({ from: 'user', text: m, image: sentAttachment?.image, imageName: sentAttachment?.name });
     try {
       const r = await api.chat(m, openCase, useLlm, msgs.slice(-8).map((item) => ({ from: item.from, text: item.text.slice(0, 1500) })), sentAttachment?.image);
       setAttachment(null); setImageError('');
       const warn = r.llm_error ? `\n\n[Mode LLM gagal: ${r.llm_error}. Jawaban ini dari mode biasa.]` : '';
-      setMsgs((x) => [...x, { from: 'agent', text: r.reply + warn, case: r.case }]);
+      appendMessage({ from: 'agent', text: r.reply + warn, case: r.case });
       setOpenCase(r.case?.id ?? openCase);
       onChanged();
     } catch (e: unknown) {
       setText(m);
-      setMsgs((x) => [...x, { from: 'agent', text: `Terjadi kesalahan: ${errorMessage(e)}` }]);
+      appendMessage({ from: 'agent', text: `Terjadi kesalahan: ${errorMessage(e)}` });
     } finally { sending.current = false; setBusy(false); }
   };
 
@@ -83,7 +84,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.from}`}>
               {m.image && <img className="chat-image" src={`data:${m.image.mimeType};base64,${m.image.data}`} alt={`Lampiran ${m.imageName ?? 'gambar'}`} />}
-              {m.imageName && <span className="chat-image-name">{m.imageName}{!m.image && ' · Pratinjau berakhir saat halaman dimuat ulang'}</span>}
+              {m.imageName && <span className="chat-image-name">{m.imageName}{!m.image && ' · Pratinjau tidak lagi disimpan'}</span>}
               {m.from === 'agent' ? <div className="markdown"><Markdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>{m.text}</Markdown></div> : m.text}
               {(m.case || m.caseId) && (
                 <div style={{ marginTop: 8 }} className="row wrap">
@@ -100,7 +101,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
         <div className="chat-attachment-area">
           {attachment && <div className="chat-attachment"><img src={`data:${attachment.image.mimeType};base64,${attachment.image.data}`} alt="Pratinjau lampiran" /><span>{attachment.name}</span><button type="button" className="btn sm" disabled={busy} onClick={() => { setAttachment(null); setImageError(''); }}>Hapus gambar</button></div>}
           {imageError && <p className="notice bad" role="alert">{imageError}</p>}
-          <p className="sub" id="chat-image-help">{readingImage ? 'Membaca gambar…' : useLlm ? 'Satu gambar JPG, PNG, atau WebP, maksimal 2 MB. Gambar dikirim ke Gemini saat pesan dikirim; pratinjau hanya selama halaman terbuka.' : 'Aktifkan Mode LLM untuk mengirim gambar.'}</p>
+          <p className="sub" id="chat-image-help">{readingImage ? 'Membaca gambar…' : useLlm ? 'Satu gambar JPG, PNG, atau WebP, maksimal 2 MB. Gambar dikirim ke Gemini saat pesan dikirim. Hanya tiga pratinjau terbaru ditampilkan selama halaman terbuka.' : 'Aktifkan Mode LLM untuk mengirim gambar.'}</p>
         </div>
         <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
           <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Unggah gambar" aria-describedby="chat-image-help" hidden disabled={busy || readingImage || !useLlm} onChange={chooseImage} />

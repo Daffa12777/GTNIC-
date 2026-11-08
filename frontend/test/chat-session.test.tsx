@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { readChat, writeChat, clearChats } from '../src/chatSession';
+import { readChat, writeChat, clearChats, retainChatMessages } from '../src/chatSession';
 import Chat from '../src/components/Chat';
 import { api } from '../src/api';
 afterEach(() => { cleanup(); sessionStorage.clear(); vi.restoreAllMocks(); });
@@ -9,6 +9,14 @@ it('restores messages and drafts for the same account only and clears on logout'
   expect(readChat('farras').messages[0].caseId).toBe('C-01');
   expect(readChat('mumtaz').messages).toHaveLength(0);
   clearChats(); expect(readChat('farras').messages).toHaveLength(0);
+});
+it('bounds in-memory history while preserving text and names for retired image previews', () => {
+  const messages = Array.from({ length: 110 }, (_, i) => ({ from: 'user' as const, text: `Laporan ${i}`, imageName: `foto-${i}.png`, image: { mimeType: 'image/png', data: `image-${i}` } }));
+  const kept = retainChatMessages(messages);
+  expect(kept).toHaveLength(100);
+  expect(kept[0]).toMatchObject({ text: 'Laporan 10', imageName: 'foto-10.png', image: undefined });
+  expect(kept.filter(m => m.image).map(m => m.imageName)).toEqual(['foto-107.png', 'foto-108.png', 'foto-109.png']);
+  expect(messages[10].image.data).toBe('image-10');
 });
 it('keeps a completed LLM case as context for the next question', async () => {
   Element.prototype.scrollIntoView = vi.fn();
