@@ -82,7 +82,7 @@ export class ApiController {
   @Post('chat')
   @RatePolicy('ai')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-  chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history); }
+  chat(@Body() b: ChatDto) { return this.agent.chat(b.message, b.case_id ?? null, b.use_llm, b.history, b.image); }
 
   @Post('triage')
   @RatePolicy('ai')

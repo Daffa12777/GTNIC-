@@ -45,7 +45,8 @@ export interface WorkOrder {
   id: string; pump_id: string; case_id: string; title: string; description: string; priority: string; status: string;
   technician: string | null; scheduled_at: string | null; part: string; created_at: number;
 }
-export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string }
+export interface ChatImage { mimeType: string; data: string }
+export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string; image?: ChatImage; imageName?: string }
 export interface InventoryItem { part_id: string; name: string; stock: number; location: string; min_stock: number }
 export interface Technician { id: string; name: string; skill: string; level: string; available: boolean }
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
