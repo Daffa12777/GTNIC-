@@ -57,6 +57,14 @@ Persetujuan dapat membuat atau menggunakan work order aktif, mengajukan pembelia
 
 Cari/filter pekerjaan berdasarkan data yang tersedia, termasuk unit, status, prioritas, dan teknisi. Tinjau judul, instruksi, part, jadwal, serta kasus terkait.
 
+Untuk menugaskan atau mengganti teknisi, login sebagai **supervisor**:
+
+1. Buka **Work order**, lalu klik **Tugaskan teknisi** atau **Ubah teknisi** pada pekerjaan aktif.
+2. Pilih nama teknisi yang tersedia dan sesuai keahlian, atau **Pilih otomatis** untuk pekerjaan tanpa penanggung jawab. Pekerjaan berisiko tinggi dan inspeksi eskalasi memerlukan teknisi senior. Pilihan otomatis pada pekerjaan yang sudah ditugaskan mempertahankan teknisi saat ini.
+3. Klik **Simpan penugasan**. Nama, status terjadwal, dan jadwal pekerjaan diperbarui setelah berhasil. Jadwal mengikuti aturan prioritas yang sudah digunakan agent; form ini tidak menyediakan kalender shift.
+
+Teknisi yang sibuk, tidak tersedia, atau tidak memenuhi keahlian ditampilkan beserta alasannya. Jika penyimpanan gagal, pesan tetap terlihat dalam form dan penugasan lama tetap berlaku. Klik **Perbarui pilihan** jika penugasan atau ketersediaan berubah. Dropdown **Teknisi** pada bagian filter hanya menyaring daftar, bukan menugaskan pekerjaan.
+
 Saat pekerjaan benar-benar selesai, isi akar masalah, tindakan, dan durasi. Penyelesaian memperbarui catatan pekerjaan/kasus serta riwayat; riwayat dapat ditemukan oleh pencarian berikutnya. Ini tidak otomatis melatih ulang model ML.
 
 ## Inventaris

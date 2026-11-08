@@ -5,6 +5,7 @@ import { DbService } from '../db/db.service';
 import { Analysis, MlService } from '../ml/ml.service';
 import { RagService } from '../rag/rag.service';
 import { SimService } from '../sim/sim.service';
+import { assignmentRequirements, technicianReason, unassignedReason } from './technician-assignment';
 
 const S = { type: 'STRING' }, I = { type: 'INTEGER' }, B = { type: 'BOOLEAN' };
 const obj = (properties: any, required: string[]) => ({ type: 'OBJECT', properties, required });
@@ -200,23 +201,60 @@ export class ToolsService {
     });
   }
 
-  async schedule_technician(a: { work_order_id: string; skill: string; senior?: boolean }) {
+  async assignmentOptions(id: string) {
+    const order = await this.db.client.workOrder.findUnique({ where: { id }, include: { case: true } });
+    if (!order) return { error: 'Work order tidak ditemukan.', code: 404 };
+    const needs = assignmentRequirements(order, order.case);
+    const technicians = await this.db.client.technician.findMany({ orderBy: { name: 'asc' } });
+    const active = await this.db.client.workOrder.findMany({ where: { technician_id: { not: null }, id: { not: id }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { technician_id: true } });
+    const busy = new Set(active.map(item => item.technician_id));
+    const candidates = technicians.map(t => {
+      const current = t.id === order.technician_id;
+      const reason = current ? null : technicianReason({ ...t, busy: busy.has(t.id) }, needs);
+      return { id: t.id, name: t.name, skill: t.skill, level: t.level, current, eligible: !reason, reason };
+    });
+    return { work_order_id: id, current_technician_id: order.technician_id, status: order.status, requirements: needs, reason: order.technician_id ? null : unassignedReason(technicians.map(t => ({ ...t, busy: busy.has(t.id) })), needs), technicians: candidates };
+  }
+
+  async assignWorkOrder(id: string, technicianId: string | null, expectedTechnicianId: string | null, actor: string) {
+    return this.db.transaction(async () => {
+      const order = await this.db.client.workOrder.findUnique({ where: { id }, include: { case: true } });
+      if (!order) return { error: 'Work order tidak ditemukan.', code: 404 };
+      const needs = assignmentRequirements(order, order.case);
+      const result = await this.schedule_technician({ work_order_id: id, ...needs }, { technicianId, expectedTechnicianId });
+      if (result.scheduled && !('duplicate' in result && result.duplicate)) {
+        // Audit independent of the case FK avoids reversing the work-order/case lock order.
+        await this.db.client.agentLog.create({ data: { ts: now(), step: 'manual_assignment', tool: 'schedule_technician', input: JSON.stringify({ actor, work_order_id: id, case_id: order.case_id, previous_technician_id: expectedTechnicianId }), output: JSON.stringify(result) } });
+      }
+      return result;
+    });
+  }
+
+  async schedule_technician(a: { work_order_id: string; skill: string; senior?: boolean }, manual?: { technicianId: string | null; expectedTechnicianId: string | null }) {
     return this.db.transaction(async () => {
       await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [a.work_order_id]);
       const wo = await this.db.client.workOrder.findUnique({ where: { id: a.work_order_id }, include: { technician: true } });
       if (!wo || ['selesai', 'dibatalkan'].includes(wo.status ?? '')) return { error: 'work order tidak tersedia', scheduled: false };
-      if (wo.technician) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
-      const candidates = a.senior
-        ? await this.db.q("SELECT * FROM technicians WHERE available=true AND level='senior' AND skill<>'supervisor' ORDER BY (skill=$1) DESC,id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill])
-        : await this.db.q('SELECT * FROM technicians WHERE available=true AND skill=$1 ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED', [a.skill]);
+      if (manual && wo.technician_id !== manual.expectedTechnicianId) return { error: 'Penugasan sudah berubah. Perbarui pilihan sebelum menyimpan.', code: 409, scheduled: false };
+      if (wo.technician && (!manual?.technicianId || manual.technicianId === wo.technician_id)) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
+      const candidates = manual?.technicianId
+        ? await this.db.q('SELECT * FROM technicians WHERE id=$1 FOR UPDATE', [manual.technicianId])
+        : await this.db.q("SELECT * FROM technicians t WHERE available=true AND skill=$1 AND ($2=false OR level='senior') AND NOT EXISTS (SELECT 1 FROM work_orders w WHERE w.technician_id=t.id AND w.status NOT IN ('selesai','dibatalkan')) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill, !!a.senior]);
       const technician = candidates[0];
-      if (!technician) return { error: 'tidak ada teknisi tersedia', scheduled: false };
+      if (!technician) return { error: manual?.technicianId ? 'Teknisi tidak ditemukan.' : `Tidak ada teknisi ${a.senior ? 'senior ' : ''}${a.skill} yang tersedia saat ini. Perbarui pilihan atau coba lagi setelah teknisi tersedia.`, scheduled: false };
+      const active = await this.db.one("SELECT id FROM work_orders WHERE technician_id=$1 AND id<>$2 AND status NOT IN ('selesai','dibatalkan')", [technician.id, wo.id]);
+      const reason = technicianReason({ ...technician, busy: !!active }, { skill: a.skill, senior: !!a.senior });
+      if (reason) return { error: reason, scheduled: false };
       const when = new Date(Date.now() + (wo.priority === 'tinggi' ? 2 * 3600e3 : (wo.priority === 'sedang' ? 1 : 2) * 86400e3));
       if (wo.priority !== 'tinggi') when.setHours(8, 0, 0, 0);
       const pad = (v: number) => String(v).padStart(2, '0');
       const scheduled_at = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
       await this.db.client.technician.update({ where: { id: technician.id }, data: { available: false } });
       await this.db.client.workOrder.update({ where: { id: wo.id }, data: { technician_id: technician.id, scheduled_at, status: 'terjadwal' } });
+      if (wo.technician_id && wo.technician_id !== technician.id) {
+        const remaining = await this.db.client.workOrder.count({ where: { technician_id: wo.technician_id, status: { notIn: ['selesai', 'dibatalkan'] } } });
+        if (!remaining) await this.db.client.technician.update({ where: { id: wo.technician_id }, data: { available: true } });
+      }
       return { scheduled: true, technician: technician.name, technician_id: technician.id, contact: technician.contact, scheduled_at };
     });
   }

@@ -8,8 +8,10 @@ import { RequestState, usePolling, errorMessage } from '../usePolling';
 import { Empty, PriorityBadge, PRIORITY_LABEL, WO_LABEL, WorkOrderBadge, fmtTime } from './ui';
 import { useUnsavedChanges } from '../useUnsavedChanges';
 import ConfirmDialog from './ConfirmDialog';
+import WorkOrderAssignment from './WorkOrderAssignment';
+import type { Role } from '../types';
 
-export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
+export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenCase }: { role?: Role; flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
   const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 }, (resume) => discardCompletion(resume));
   const query = filters.q;
   const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
@@ -30,6 +32,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
   const result = usePolling(load, 30000, true, ['work-orders', page, pageSize, search, status, priority, unit, technician]);
   const rows = result.data?.items ?? [];
   const [open, setOpen] = useState<string | null>(null);
+  const [assignment, setAssignment] = useState<string | null>(null);
   const [cause, setCause] = useState('');
   const [action, setAction] = useState('');
 
@@ -60,7 +63,7 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
 
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Work order</h1><p>Dibuat oleh agent melalui tool, lengkap dengan jadwal teknisi. Menutup work order menambah riwayat yang dipakai RAG.</p></div></div>
+      <div className="page-head"><div><h1>Work order</h1><p>Supervisor dapat meninjau dan mengatur penugasan pekerjaan yang dibuat agent. Menutup pekerjaan menambah riwayat untuk RAG.</p>{role !== 'supervisor' && <p className="sub">Penugasan teknisi hanya dapat diubah oleh supervisor.</p>}</div></div>
       <RequestState {...result} retry={result.refresh} />
       {dirty && <div className="notice warn" role="status">Ada laporan penyelesaian yang belum disimpan.</div>}
       <div className="filters">
@@ -84,9 +87,10 @@ export default function WorkOrders({ flash, onChanged, onOpenCase }: { flash: (m
                     <td className="work-order-title" data-label="Pekerjaan">{w.title}<div className="sub">{fmtTime(w.created_at)}{w.part ? ` · Part: ${w.part}` : ''}{w.case_id ? <> · <a href="#kasus" onClick={(e) => { e.preventDefault(); onOpenCase(w.case_id); }}>{w.case_id}</a></> : null}</div></td>
                     <td data-label="Prioritas"><PriorityBadge priority={w.priority} /></td>
                     <td data-label="Status"><WorkOrderBadge status={w.status} /></td>
-                    <td data-label="Teknisi">{w.technician ?? '-'}<div className="sub">{w.scheduled_at ?? ''}</div></td>
-                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => setOpen(next))) setOpen(next); }}>Selesaikan</button>}</td>
+                    <td data-label="Teknisi">{w.technician ?? (['selesai', 'dibatalkan'].includes(w.status) ? 'Tanpa penugasan' : 'Belum ditugaskan')}<div className="sub">{w.scheduled_at ?? w.assignment_reason ?? ''}</div></td>
+                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <div className="row wrap">{role === 'supervisor' && <button className="btn sm" disabled={busy} onClick={() => { if (discardCompletion()) setAssignment(assignment === w.id ? null : w.id); }}>{w.technician ? 'Ubah teknisi' : 'Tugaskan teknisi'}</button>}<button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => { setAssignment(null); setOpen(next); })) { setAssignment(null); setOpen(next); } }}>Selesaikan</button></div>}</td>
                   </tr>
+                  {assignment === w.id && role === 'supervisor' && <tr className="work-order-report"><td colSpan={7}><WorkOrderAssignment orderId={w.id} onBusy={setBusy} onCancel={() => setAssignment(null)} onDone={assigned => { setAssignment(null); flash(`${w.id} ditugaskan kepada ${assigned.technician}.`); void result.refresh(); onChanged(); }} /></td></tr>}
                   {open === w.id && (
                     <tr className="work-order-report"><td colSpan={7} style={{ background: '#fafbfc' }}>
                       <form className="row wrap" aria-busy={busy} onSubmit={(e) => { e.preventDefault(); void complete(w.id); }}>

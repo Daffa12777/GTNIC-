@@ -108,10 +108,14 @@ Body JSON `/api/chat` dibatasi 3 MiB; endpoint lain tetap 128 KiB. Jika hanya ga
 | POST | `/cases/:id/reject` | `{note}` maksimal 2000 karakter; supervisor saja; alasan tidak boleh kosong untuk risiko tinggi |
 | GET | `/work-orders` | Maksimal 60 pekerjaan terbaru |
 | POST | `/work-orders/:id/complete` | `{root_cause, action, duration_min?}` |
+| GET | `/work-orders/:id/assignment` | Supervisor: kebutuhan keahlian/senior, penugasan saat ini, kandidat dan alasan tidak memenuhi syarat |
+| POST | `/work-orders/:id/assign` | Supervisor: `{technician_id: string atau null, expected_technician_id: string atau null}`; `null` memilih otomatis atau mempertahankan penugasan saat ini |
 | GET | `/records/cases` | Daftar berpaginasi, keputusan tertunda diutamakan, dengan hitungan filter berdasarkan pencarian saat ini |
 | GET | `/records/work-orders` | Daftar berpaginasi + pilihan teknisi/unit |
 | GET | `/technicians` | Daftar teknisi |
 | GET | `/purchase-requests` | Maksimal 40 pengajuan pembelian terbaru |
+
+`expected_technician_id` wajib dikirim sesuai snapshot form, termasuk `null` untuk pekerjaan tanpa penanggung jawab. Penugasan yang sudah berubah, pekerjaan ditutup, atau teknisi tidak memenuhi syarat menghasilkan HTTP 409 dengan `detail` yang dapat ditampilkan. Backend memeriksa ulang ketersediaan dan pekerjaan aktif dalam transaksi; kegagalan penggantian tidak melepas teknisi sebelumnya. `/records/work-orders` menyertakan `assignment_reason` untuk pekerjaan aktif yang belum ditugaskan. Penugasan manual dicatat pada `agent_logs` dengan langkah `manual_assignment`, termasuk akun supervisor dan ID pekerjaan.
 
 Penyelesaian WO memerlukan `root_cause` dan `action` yang tidak kosong, masing-masing maksimal 2000 karakter; durasi opsional 0–100000 menit, default backend 60. Tidak ada endpoint umum untuk membuat WO manual melalui controller ini; pembuatan terjadi melalui alur tool agent.
 

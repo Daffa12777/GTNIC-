@@ -36,7 +36,7 @@ Alur mencoba aplikasi:
 - **Dashboard 3D:** enam unit demo memakai model GLB hasil Blender, pencahayaan, bayangan, zona, serta konteks area pabrik. Objek mengikuti daftar unit backend. Klik mesin membuka panel status, dugaan ML, alasan perhatian, kasus, dan work order.
 - **Interaksi peta:** zoom, pan saat diperbesar, fokus ke unit, rotasi 90°, hover/seleksi, dan **Reset tampilan** yang mempertahankan panel. Label bisa diakses dengan keyboard dan tersedia daftar unit alternatif. Denyut berhenti setelah delapan detik atau saat tab tidak aktif; reduced motion mematikannya.
 - **Monitoring dan ML:** validasi sensor, deteksi anomali dengan Isolation Forest, dan klasifikasi kondisi pompa, katup, pendingin, serta akumulator dengan Random Forest.
-- **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi.
+- **Agent maintenance:** diagnosis, pertanyaan klarifikasi, eskalasi, persetujuan supervisor, pemeriksaan stok, work order, pengajuan pembelian, dan penugasan teknisi. Supervisor dapat memilih/mengganti teknisi dari Work order dengan pemeriksaan keahlian, senior, ketersediaan, serta alasan kegagalan yang tetap terlihat.
 - **RAG bersitasi:** pencarian manual Markdown dan riwayat perawatan menggunakan TF-IDF serta cosine similarity.
 - **Chat teks dan gambar:** Gemini menerima keluhan beserta satu gambar. Lampiran dapat dihapus dan dicoba ulang saat permintaan gagal. Riwayat sesi menyimpan teks serta nama lampiran; hanya tiga pratinjau foto terbaru berada di memori sampai halaman dimuat ulang.
 - **Operasional:** kasus dan work order dengan filter/paginasi, inventaris beserta riwayat stok, notifikasi, profil pengguna, dan autentikasi sesi.
@@ -201,7 +201,7 @@ npm.cmd run build
 
 Tes backend menggunakan PostgreSQL melalui PGlite terisolasi, bukan database aplikasi. Tes yang lulus tidak membuktikan performa pada mesin fisik, keberhasilan Telegram/Gemini live, atau kesiapan deployment produksi.
 
-Pemeriksaan 8 November 2026 menghasilkan **57 tes frontend dan 76 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Smoke tambahan dengan Gemini live memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
+Pemeriksaan 8 November 2026, termasuk penugasan supervisor, menghasilkan **60 tes frontend dan 82 tes backend lulus**. Backend mencakup 14 tes integrasi dengan layanan ML proyek; tes orkestrasi memakai respons Gemini terkontrol dan database lokal terisolasi. Tes integrasi ML dijalankan ulang terpisah setelah akses jaringan awal terhalang. Smoke Gemini live pada perbaikan sebelumnya memeriksa pertanyaan alasan dan stok pada kasus yang sudah dieskalasi. Pytest ML, browser production, dan pengujian teknisi lapangan belum dijalankan ulang. Rincian ada di [validasi agent](docs/AGENT_VALIDATION_2026-11-08.md).
 
 ## Docker dan deployment
 

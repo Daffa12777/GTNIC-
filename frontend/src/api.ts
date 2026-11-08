@@ -2,7 +2,7 @@ import type { Case, CaseContext, Overview, ReadingsResp, Role, WorkOrder, Invent
 import type { UserProfile } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
-import type { ServicesStatus, LlmConnectionStatus, ChatImage } from './types';
+import type { ServicesStatus, LlmConnectionStatus, ChatImage, AssignmentOptions, AssignmentResult } from './types';
 import { invalidateAfterMutation } from './mutationCache';
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
@@ -91,6 +91,8 @@ export const api = {
   reject: (id: string, note: string) => post<Case>(`/cases/${id}/reject`, { note }),
   triage: () => post<{ ranking: unknown[]; cases: { pump_id: string; case_id?: string | null; status?: string }[] }>('/triage'),
   workOrders: (signal?: AbortSignal) => req<WorkOrder[]>('/work-orders', { signal }),
+  assignmentOptions: (id: string, signal?: AbortSignal) => req<AssignmentOptions>(`/work-orders/${encodeURIComponent(id)}/assignment`, { signal }),
+  assignTechnician: (id: string, technician_id: string | null, expected_technician_id: string | null) => post<AssignmentResult>(`/work-orders/${encodeURIComponent(id)}/assign`, { technician_id, expected_technician_id }),
   complete: (id: string, root_cause: string, action: string) => post(`/work-orders/${id}/complete`, { root_cause, action }),
   inventory: (signal?: AbortSignal) => req<InventoryItem[]>('/inventory', { signal }),
   createPart: (data: InventoryItem) => post<InventoryItem>('/inventory', data),

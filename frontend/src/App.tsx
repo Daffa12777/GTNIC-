@@ -112,7 +112,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} onBack={() => { setSelectedMachine(null); navigate('ringkasan'); }} flash={flash} refresh={refresh} />}
       {ov && isMap && <FacilityMap ov={ov} updated={overview.updated} freshness={<RequestState {...overview} retry={refresh} />} demoRole={!user} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} onChanged={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} overview={ov} updated={overview.updated} onOpenUnit={(id) => navigate('ringkasan', id, true)} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}
-      {ov && tab === 'wo' && <WorkOrders flash={flash} onChanged={refresh} onOpenCase={openCase} />}
+      {ov && tab === 'wo' && <WorkOrders role={role} flash={flash} onChanged={refresh} onOpenCase={openCase} />}
       {ov && tab === 'inventaris' && <Inventory role={role} />}
       {ov && <div hidden={tab !== 'asisten'}><Chat username={user?.username ?? 'demo'} useLlm={useLlm && ov.llm_available} onOpenCase={openCase} onChanged={refresh} /></div>}
       </main>

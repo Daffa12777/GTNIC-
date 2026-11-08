@@ -6,6 +6,14 @@ Acuan perbaikan awal: `8e11389` beserta rangkaian commit-nya; perbaikan percakap
 
 ## Perubahan dan dampak
 
+### Tindak lanjut: penugasan oleh supervisor
+
+Supervisor kini dapat menugaskan atau mengganti teknisi pada pekerjaan aktif melalui menu Work order. Form menawarkan pilihan manual atau otomatis, menampilkan kebutuhan keahlian/senior serta alasan kandidat tidak tersedia. Kegagalan tetap tampil inline dan tidak melepas penugasan lama. Pemilihan otomatis tetap tersedia pada agent; fitur ini bukan perubahan menjadi persetujuan wajib untuk seluruh tindakan otomatis.
+
+Validasi tambahan: enam tes backend memeriksa sesi/peran supervisor, input tidak sah, penugasan manual dan audit akun, form usang, penggantian gagal/berhasil, persyaratan senior/keahlian, pekerjaan ditutup, alasan ketiadaan teknisi, pilihan otomatis, serta dua request yang memperebutkan satu teknisi. Database tes menggunakan PGlite dan pool satu koneksi; hasil ini tidak mengukur kontensi pada PostgreSQL production. Tiga tes frontend memeriksa visibilitas berdasarkan peran, pilihan otomatis/manual, alasan kandidat, pesan gagal persisten, retry, serta snapshot penugasan saat penggantian.
+
+Hasil akhir lokal: **60 tes frontend dan 82 tes backend lulus**. Pada percobaan penuh pertama, 68 tes backend lulus dan 14 tes integrasi terhenti karena layanan ML tidak terjangkau dari sandbox; 14 tes tersebut kemudian lulus saat dijalankan ulang dengan akses jaringan ke layanan ML proyek. Build frontend, backend Node, dan backend Vercel lulus. Tidak ada migrasi atau dependency baru. Kontrol browser tidak tersedia, sehingga tampilan aktual desktop/ponsel dan penggunaan fitur ini di production belum diverifikasi. Fitur penugasan ini belum di-push atau di-deploy pada saat laporan ditulis.
+
 | Perbaikan | Sebelum | Sesudah dan dampak |
 | --- | --- | --- |
 | Risiko tindakan | Argumen LLM yang menyebut risiko rendah dapat melewati persetujuan | Tool mempertimbangkan kasus, rencana backend, dan ML terbaru. LLM tidak bisa memberi persetujuan sendiri. Kasus harus milik unit yang sama; pemeriksaan sensor/ML gagal menahan perbaikan. |

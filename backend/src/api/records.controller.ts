@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { DbService } from '../db/db.service';
 import type { Prisma } from '../generated/prisma/client';
+import { assignmentRequirements, unassignedReason } from '../tools/technician-assignment';
 const CASE_GROUPS: Record<string, string[]> = {
   keputusan: ['menunggu_persetujuan'], eskalasi: ['dieskalasi'],
   dijalankan: ['disetujui_dijalankan', 'selesai_otomatis'], selesai: ['selesai'],
@@ -48,12 +49,15 @@ export class RecordsController {
       const contains = { contains: query.q.trim(), mode: 'insensitive' as const };
       where.OR = [{ id: contains }, { title: contains }, { pump_id: contains }, { technician: { name: contains } }];
     }
-    const [total, items, technicians, units] = await Promise.all([
+    const [total, items, technicians, units, active] = await Promise.all([
       this.db.client.workOrder.count({ where }),
-      this.db.client.workOrder.findMany({ where, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { technician: { select: { name: true } } } }),
-      this.db.client.technician.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+      this.db.client.workOrder.findMany({ where, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { technician: { select: { name: true } }, case: { select: { fault: true, risk: true, status: true, state: true } } } }),
+      this.db.client.technician.findMany({ orderBy: { name: 'asc' } }),
       this.db.client.pump.findMany({ select: { id: true }, orderBy: { id: 'asc' } }),
+      this.db.client.workOrder.findMany({ where: { technician_id: { not: null }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { technician_id: true }, distinct: ['technician_id'] }),
     ]);
-    return { items: items.map((item) => ({ ...item, technician: item.technician?.name ?? null })), total, page: query.page, pageSize: query.pageSize, technicians, units: units.map((item) => item.id) };
+    const busy = new Set(active.map(item => item.technician_id));
+    const availability = technicians.map(t => ({ ...t, busy: busy.has(t.id) }));
+    return { items: items.map(({ case: current, technician, ...item }) => ({ ...item, technician: technician?.name ?? null, assignment_reason: !item.technician_id && !['selesai', 'dibatalkan'].includes(item.status ?? '') ? unassignedReason(availability, assignmentRequirements(item, current)) : null })), total, page: query.page, pageSize: query.pageSize, technicians: technicians.map(({ id, name }) => ({ id, name })), units: units.map((item) => item.id) };
   }
 }
