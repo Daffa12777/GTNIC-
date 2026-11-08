@@ -62,7 +62,7 @@ Jangan memakai database production untuk fixture. Setup Jest membuat database lo
 
 ## Batas yang masih berlaku
 
-- Production belum diverifikasi dengan versi perbaikan ini. Setelah deploy, periksa login dua peran, chat unit/foto, kasus pending, persetujuan, dan hasil WO pada data demo terkontrol.
+- Versi `7b11c9b` telah dideploy pada 8 November 2026. Login dua peran, overview/ML, serta chat alasan dan stok pada kasus production `C-0052` berhasil tanpa perubahan kasus atau WO baru. Rincian deployment ada di [panduan Vercel](VERCEL_WEB.md#redeploy-perbaikan-agent--8-november-2026). Persetujuan dan foto masih perlu pemeriksaan production tersendiri.
 - Timer otonomi masih membutuhkan backend persisten. Konfigurasi Vercel tetap menonaktifkan simulator dan agent otomatis; tes monitor tidak menyatakan timer itu berjalan di production.
 - Uji visual browser, heap ponsel, pytest ML, penggunaan oleh teknisi lapangan, dan benchmark produktivitas belum dilakukan pada putaran ini.
 - Angka penghematan 14 jam/bulan tetap estimasi skenario. Video publik, surat keaslian, dan validasi bisnis tidak digantikan oleh tes kode.

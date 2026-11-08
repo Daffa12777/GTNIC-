@@ -9,6 +9,20 @@
 - Kedua project memakai akun Vercel Hobby. Tidak membuat resource Azure atau Render.
 
 Frontend mem-proxy `/api/*` ke API sehingga cookie tetap pada origin frontend.
+
+## Redeploy perbaikan agent — 8 November 2026
+
+Source aplikasi yang dideploy: `7b11c9b` pada checkout `farras`, melalui Vercel CLI.
+
+| Project | Deployment | Hasil |
+| --- | --- | --- |
+| API | `dpl_G6Xapiw833wEQynYoiUoW3niXNTB` | READY, alias `manualmechanic-api.vercel.app` |
+| Frontend | `dpl_FaNvLzhuG9jXBWRVVD1FXMpyKQ3T` | READY, alias `manualmechanic-gtnic.vercel.app` |
+
+Pemeriksaan melalui domain frontend mengonfirmasi health 200, login 201 dan sesi 200 untuk supervisor/teknisi, overview enam unit dengan ML `uci_real` tersedia, serta simulator/agent otomatis tetap nonaktif. Route `/assistant`, aset JavaScript yang dirujuk HTML production, dan `/models/hydraulic-unit.glb` merespons 200. Bundle production memuat pembatasan tiga pratinjau foto; hash bundle cloud dapat berbeda dari build lokal.
+
+Chat live pada kasus existing `C-0052` diuji berurutan dengan “kenapa gitu?” dan “Stok seal kit pompa”. Keduanya merespons 201 tanpa fallback LLM; jawaban alasan berbeda dari ringkasan lama dan jawaban stok membaca inventaris. Snapshot kasus tetap sama serta tidak ada WO baru untuk kasus itu. Sesi uji logout setelah selesai. Persetujuan dan unggahan foto belum diuji ulang pada production ini; verifikasi HTTP/asset tidak menggantikan pemeriksaan visual browser.
+
 Environment production API berisi `DATABASE_URL`, `JWT_SECRET`, `AUTH_ENABLED=true`,
 `SESSION_COOKIE_SECURE=true`, dan `FRONTEND_ORIGIN=https://manualmechanic-gtnic.vercel.app`.
 Secret dikelola di Vercel dan tidak disimpan dalam repo atau bundle frontend.
