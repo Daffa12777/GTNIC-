@@ -118,3 +118,24 @@ it('requires clarification instead of repairing a low-confidence diagnosis', asy
   expect(result.case.question).toContain('kebocoran');
   expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
 }));
+
+it('stops before starting an action when the total deadline has passed and keeps the failed case', async () => fixture(async () => {
+  let clock = Date.now();
+  jest.spyOn(Date, 'now').mockImplementation(() => clock);
+  const fetch = jest.spyOn(global, 'fetch').mockImplementationOnce(async () => {
+    clock += 46000;
+    return response([call('create_work_order', order)]);
+  });
+  await expect(llm.chat('Pump-91 periksa pompa')).rejects.toThrow('batas waktu');
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(await db.client.maintenanceCase.findFirst({ where: { pump_id: 'Pump-91' } })).toMatchObject({ status: 'gagal' });
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+}));
+
+it('does not report success for an empty response or an exhausted tool loop', async () => fixture(async () => {
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([]));
+  await expect(llm.chat('Pump-91 periksa')).rejects.toThrow('tidak mengembalikan jawaban');
+  fetch.mockImplementation(async () => response([call('unknown_tool', {})]));
+  await expect(llm.chat('Pump-92 periksa')).rejects.toThrow('Batas langkah');
+  expect(await db.client.workOrder.count({ where: { pump_id: { in: ['Pump-91', 'Pump-92'] } } })).toBe(0);
+}));

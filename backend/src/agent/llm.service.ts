@@ -7,6 +7,14 @@ import type { ChatImageDto } from '../api/chat.dto';
 import type { MaintenancePlan, Risk } from '../domain';
 
 const MAX_STEPS = 12;
+const LLM_BUDGET_MS = 45000;
+const TOOL_ALLOWANCE_MS = 12000;
+const DEADLINE_MESSAGE = 'Agent mencapai batas waktu. Periksa jejak tindakan sebelum mencoba ulang.';
+function timeLeft(deadline: number, reserve = 0): number {
+  const remaining = deadline - Date.now();
+  if (remaining <= reserve) throw new Error(DEADLINE_MESSAGE);
+  return remaining;
+}
 interface LlmCaseState {
   pump_id: string | null;
   plan?: MaintenancePlan | null;
@@ -86,7 +94,7 @@ export class LlmService {
     return this.probePending;
   }
 
-  private async call(contents: any[]) {
+  private async call(contents: any[], deadline: number) {
     const body = {
       system_instruction: { parts: [{ text: SYSTEM }] }, contents,
       generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
@@ -98,7 +106,7 @@ export class LlmService {
       try {
         const r = await fetch(url, {
           method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
-          body: JSON.stringify(body), signal: AbortSignal.timeout(120000),
+          body: JSON.stringify(body), signal: AbortSignal.timeout(timeLeft(deadline)),
         });
         if (r.ok) { this.connected(); return (await r.json()) as any; }
         this.failed(r.status);
@@ -108,28 +116,34 @@ export class LlmService {
       } catch (e: any) {
         if (e === lastErr) throw e;
         this.failed();
-        lastErr = new Error(e?.name === 'TimeoutError' ? 'Gemini tidak merespons dalam 120 detik' : String(e?.message ?? e));
+        lastErr = new Error(e?.name === 'TimeoutError' ? DEADLINE_MESSAGE : String(e?.message ?? e));
       }
-      await new Promise((res) => setTimeout(res, 1500));
+      if (attempt === 0 && deadline - Date.now() > 2000) await new Promise((res) => setTimeout(res, 1500));
+      else break;
     }
     throw lastErr;
   }
 
-  private async loop(task: string, trace: Trace, state: LlmCaseState, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
+  private async loop(task: string, trace: Trace, state: LlmCaseState, deadline: number, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
     const contents: any[] = history.slice(-8).filter((h) => h.text).map((h) => ({ role: h.from === 'user' ? 'user' : 'model', parts: [{ text: String(h.text).slice(0, 1500) }] }));
     while (contents.length && contents[0].role !== 'user') contents.shift();
     contents.push({ role: 'user', parts: [...(image ? [{ inlineData: { mimeType: image.mimeType, data: image.data } }] : []), { text: task }] });
     let final = '', needs = false;
     for (let i = 0; i < MAX_STEPS; i++) {
-      const data = await this.call(contents);
+      const data = await this.call(contents, deadline);
       const parts = data.candidates?.[0]?.content?.parts ?? [];
       contents.push({ role: 'model', parts });
       const calls = parts.filter((p: any) => p.functionCall).map((p: any) => p.functionCall);
       const texts = parts.filter((p: any) => p.text).map((p: any) => p.text);
       if (texts.length) trace.add('reasoning', 'Penalaran LLM', texts.join('\n').slice(0, 600));
-      if (!calls.length) { final = texts.join('\n').trim(); break; }
+      if (!calls.length) {
+        final = texts.join('\n').trim();
+        if (!final) throw new Error('Gemini tidak mengembalikan jawaban. Periksa jejak sebelum mencoba ulang.');
+        break;
+      }
       const responses: any[] = [];
       for (const fc of calls) {
+        timeLeft(deadline, TOOL_ALLOWANCE_MS);
         const args = fc.name === 'create_work_order' ? { ...fc.args, approved: false } : fc.args || {};
         let error: string | undefined;
         if (args.pump_id && args.pump_id !== state.pump_id) error = 'Pilih satu unit secara eksplisit; tool tidak boleh berpindah dari unit kasus.';
@@ -155,11 +169,13 @@ export class LlmService {
         const res = error ? { error } : await trace.tool(fc.name, args);
         if (error) trace.add('decision', 'Tool ditahan', error);
         if (res?.requires_approval) needs = true;
+        await this.cases.save(trace.caseId, trace, 'diproses', state, { mode: 'llm', risk: state.risk, fault: state.plan?.fault, conf: state.plan?.confidence });
         responses.push({ functionResponse: { name: fc.name, response: { result: res } } });
       }
       contents.push({ role: 'user', parts: responses });
     }
-    return { final: final || 'Agent belum menyelesaikan jawaban. Periksa jejak kasus sebelum mencoba ulang.', needs: needs || state.plan?.risk === 'tinggi' };
+    if (!final) throw new Error('Batas langkah agent tercapai. Periksa jejak sebelum mencoba ulang.');
+    return { final, needs: needs || state.plan?.risk === 'tinggi' };
   }
 
   async diagnose(pumpId: string, complaint = '') {
@@ -176,6 +192,7 @@ export class LlmService {
   }
 
   private async respond(task: string, pumpId: string | null, current: Awaited<ReturnType<CaseStore['get']>> = null, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
+    const deadline = Date.now() + LLM_BUDGET_MS;
     let id: string;
     if (current) id = current.id;
     else if (pumpId) {
@@ -198,7 +215,7 @@ export class LlmService {
     const metadata = () => ({ mode: 'llm', fault: state.plan?.fault, conf: state.plan?.confidence, risk: state.risk });
     await this.cases.save(id, trace, 'diproses', state, metadata());
     let result: { final: string; needs: boolean };
-    try { result = await this.loop(pumpId ? `Konteks kasus ${id}, unit ${pumpId}. ${task}` : task, trace, state, history, image); }
+    try { result = await this.loop(pumpId ? `Konteks kasus ${id}, unit ${pumpId}. ${task}` : task, trace, state, deadline, history, image); }
     catch (error: unknown) {
       await this.cases.save(id, trace, state.plan?.risk === 'tinggi' ? 'menunggu_persetujuan' : 'gagal', state, { ...metadata(), summary: 'Layanan LLM gagal. Periksa rencana dan jejak tindakan sebelum mencoba ulang.' });
       throw error;
