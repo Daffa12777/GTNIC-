@@ -20,9 +20,30 @@ it('clears private content and cache when another tab ends the session', async (
     await screen.findByText('Private account A');
     queryClient.setQueryData(['inventory'], ['Private A']);
     session.mockResolvedValue({ enabled: true, user: null });
-    act(() => publishSessionChange());
+    act(() => { const other = new Channel('manualmechanic-session'); other.postMessage({ type: 'changed', source: 'another-tab' }); other.close(); });
     await screen.findByText('Masuk ke ManualMechanic');
     await waitFor(() => expect(queryClient.getQueryData(['inventory'])).toBeUndefined());
     expect(screen.queryByText('Private account A')).toBeNull();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('does not clear its own workspace when publishing a local login change', async () => {
+  class Channel {
+    static peers = new Set<Channel>();
+    onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
+    constructor(_name: string) { Channel.peers.add(this); }
+    postMessage(data: unknown) { for (const peer of Channel.peers) if (peer !== this) peer.onmessage?.(new MessageEvent('message', { data })); }
+    close() { Channel.peers.delete(this); }
+  }
+  vi.stubGlobal('BroadcastChannel', Channel);
+  vi.spyOn(api, 'session').mockResolvedValue({ enabled: true, user: { username: 'A', role: 'teknisi' } });
+  try {
+    render(<SessionGate>{() => <span>Private account A</span>}</SessionGate>);
+    await screen.findByText('Private account A');
+    queryClient.setQueryData(['inventory'], ['Private A']);
+    act(() => publishSessionChange());
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText('Private account A')).toBeTruthy();
+    expect(queryClient.getQueryData(['inventory'])).toEqual(['Private A']);
   } finally { vi.unstubAllGlobals(); }
 });
