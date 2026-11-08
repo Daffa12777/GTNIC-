@@ -12,7 +12,20 @@ Frontend mem-proxy `/api/*` ke API sehingga cookie tetap pada origin frontend.
 
 ## Redeploy perbaikan agent — 8 November 2026
 
-### Rilis terbaru: supervisor, chat, dan sesi
+### Rilis terbaru: kebijakan sesi 30 menit / 8 jam
+
+Source backend dan frontend: `5782bdc`, sudah berada pada `farras` serta `main`. Rilis ini tidak memerlukan migrasi atau perubahan environment. Sesi versi lama yang memakai deadline tujuh hari harus login ulang.
+
+| Project | Deployment terbaru | Hasil |
+| --- | --- | --- |
+| API | `dpl_5iY6EDADPpHAWFn98W4y4CFQscKY` | READY, alias `manualmechanic-api.vercel.app` |
+| Frontend | `dpl_EnaNm31XgskEJ1pqib7VhbHeMWeS` | READY, alias `manualmechanic-gtnic.vercel.app` |
+
+Verifikasi HTTP production dengan akun demo supervisor dan teknisi: login berhasil; cookie access/refresh memakai Secure/HttpOnly tanpa Max-Age/Expires; `/auth/session` mengembalikan idle 30 menit serta batas absolut delapan jam dari login; dua pembacaan sesi dan rotasi refresh mempertahankan deadline; `/auth/activity` memperpanjang idle tanpa mengubah batas absolut. Seluruh sesi uji diakhiri dengan logout. Kasus, WO, stok, dan akun tidak diubah.
+
+Browser production juga berhasil login sebagai supervisor lalu teknisi, masing-masing kembali ke dashboard `/`, membuka Profil, dan logout tanpa exception JavaScript. Waktu login hingga dashboard pada satu run sekitar 5,4 dan 5,2 detik; ini bukan benchmark cold start. Pemeriksaan kedaluwarsa yang menunggu 30 menit/delapan jam penuh dan perilaku pemulihan sesi setelah browser ditutup tidak dilakukan di production. Penolakan sesi idle/absolut dan batasan antar-tab sudah diuji pada database tes serta fixture browser lokal. Validasi source: 93 tes backend dan 75 frontend, build Node/Vercel/frontend lulus.
+
+### Rilis sebelumnya: supervisor, chat, dan sesi
 
 Branch `farras` berhasil digabung ke `main` melalui `fed2402`. Source backend production adalah commit tersebut; frontend final memakai `974575c`, termasuk perbaikan sinkronisasi sesi `49e0be2` dan pengaman login saat cleanup logout masih berjalan. Kedua branch kemudian diselaraskan. Rilis memakai checkout terpisah agar edit chat lokal dan penghapusan model lokal tidak ikut terpublikasi.
 
