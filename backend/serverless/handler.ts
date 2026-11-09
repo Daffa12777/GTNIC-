@@ -4,6 +4,7 @@ import type { Express, Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 import { configureHttpSecurity } from '../src/security/http-security';
 import { randomUUID } from 'node:crypto';
+import { errorDiagnostic } from '../src/db/error-diagnostic';
 
 let application: Promise<Express> | undefined;
 
@@ -33,8 +34,7 @@ export default async function handler(request: Request, response: Response): Pro
     server(request, response);
   } catch (error: unknown) {
     const requestId = randomUUID();
-    const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
-    console.error(`API initialization failed (${error instanceof Error ? error.name : 'UnknownError'}, code=${errorCode}), requestId=${requestId}`);
+    console.error(`API initialization failed (${error instanceof Error ? error.name : 'UnknownError'}, ${errorDiagnostic(error)}), requestId=${requestId}`);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Retry-After', '30');
     response.setHeader('X-Request-Id', requestId);

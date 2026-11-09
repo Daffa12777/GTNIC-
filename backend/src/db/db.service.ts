@@ -31,6 +31,7 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     const url = new URL(CONFIG.DATABASE_URL);
     const hostname = url.hostname;
     const supabase = hostname.endsWith('.supabase.com') || hostname.endsWith('.supabase.co');
+    this.log.log(`Database connection: provider=${supabase ? 'supabase' : 'postgres'}, mode=${hostname.endsWith('.pooler.supabase.com') ? url.port === '6543' ? 'transaction' : 'session' : 'direct'}, poolMax=${Number(process.env.DB_POOL_MAX || 5)}`);
     if (supabase) for (const key of ['sslmode', 'sslcert', 'sslrootcert', 'sslaccept']) url.searchParams.delete(key);
     this.prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.toString(), ssl: supabase ? { rejectUnauthorized: true, ca: readFileSync(join(ROOT, 'certs', 'supabase-ca.crt'), 'utf8') } : undefined, max: Number(process.env.DB_POOL_MAX || 5), connectionTimeoutMillis: 10000 }) });
   }

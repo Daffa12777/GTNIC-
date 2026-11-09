@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { errorDiagnostic } from '../db/error-diagnostic';
 @Catch()
 export class SafeExceptionFilter implements ExceptionFilter {
   private readonly log = new Logger('HttpError');
@@ -10,7 +11,7 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const status = exception instanceof HttpException ? exception.getStatus() : typeof parserStatus === 'number' && [400, 413, 415].includes(parserStatus) ? parserStatus : 500;
     const requestId = response.getHeader('X-Request-Id');
     if (status >= 500) {
-      this.log.error(`${request.method} ${request.path} failed (${exception instanceof Error ? exception.name : 'UnknownError'}), requestId=${String(requestId ?? '')}`);
+      this.log.error(`${request.method} ${request.path} failed (${exception instanceof Error ? exception.name : 'UnknownError'}, ${errorDiagnostic(exception)}), requestId=${String(requestId ?? '')}`);
       response.status(status).json({ statusCode: status, message: status === 503 ? 'Layanan sementara tidak tersedia. Coba lagi nanti.' : 'Terjadi kesalahan internal. Hubungi pengelola dengan ID permintaan.', requestId }); return;
     }
     const detail = exception instanceof HttpException ? exception.getResponse() : { message: status === 413 ? 'Ukuran permintaan melebihi batas yang diizinkan.' : status === 415 ? 'Format body tidak didukung.' : 'JSON tidak valid.' };
