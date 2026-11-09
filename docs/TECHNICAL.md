@@ -176,6 +176,8 @@ Status live unit bukan kolom `pumps`; sumbernya adalah monitor memori. Referensi
 
 `DATABASE_URL` untuk runtime, `DIRECT_URL` opsional untuk migrasi. Jalankan `npm.cmd run db:migrate` sebelum startup Node pada database baru. Database GTNIC lama yang belum memiliki riwayat Prisma memerlukan pemeriksaan schema sebelum baseline ditandai; jangan menandai baseline secara otomatis hanya agar migrasi lolos.
 
+Khusus runtime Vercel (`VERCEL=1`), endpoint shared pooler Supabase pada port 5432 dialihkan ke transaction mode port 6543, dengan host dan kredensial yang sama. Koneksi lokal, direct connection, dan migrasi tidak dialihkan. Session pooler sebelumnya menghabiskan slot ketika banyak instance serverless aktif; diagnostik production mengonfirmasi `P2039`, `XX000`, `session_pool_full`. Log hanya mencatat kode/kategori, bukan pesan driver mentah atau connection string. Acuan: [panduan koneksi Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
 ### Data demo dan pendaftaran unit
 
 `SEED_DEMO_DATA=true` mengisi data awal hanya jika tabel mesin kosong. Ini tidak menambahkan mesin ke instalasi yang sudah berisi data. Data awal berisi enam unit, tujuh part, enam teknisi, dan empat riwayat perawatan. Akun dikelola oleh bootstrap autentikasi terpisah.

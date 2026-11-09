@@ -7,6 +7,7 @@ import { PrismaClient, Prisma } from '../generated/prisma/client';
 import { CONFIG, ROOT } from '../config';
 import { now } from '../domain';
 import { ADDITIONAL_DEMO_PUMPS } from './additional-demo-pumps';
+import { runtimeDatabaseUrl } from './connection-url';
 
 /** Shape of legacy SQL projections. New mutations use generated Prisma model types. */
 export interface DbRow {
@@ -28,7 +29,7 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
 
   constructor() {
     if (!CONFIG.DATABASE_URL) throw new Error('DATABASE_URL wajib diisi. Gunakan PostgreSQL lokal/Docker atau Session pooler.');
-    const url = new URL(CONFIG.DATABASE_URL);
+    const url = runtimeDatabaseUrl(CONFIG.DATABASE_URL, process.env.VERCEL === '1');
     const hostname = url.hostname;
     const supabase = hostname.endsWith('.supabase.com') || hostname.endsWith('.supabase.co');
     this.log.log(`Database connection: provider=${supabase ? 'supabase' : 'postgres'}, mode=${hostname.endsWith('.pooler.supabase.com') ? url.port === '6543' ? 'transaction' : 'session' : 'direct'}, poolMax=${Number(process.env.DB_POOL_MAX || 5)}`);
