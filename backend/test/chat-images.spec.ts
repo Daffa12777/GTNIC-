@@ -57,7 +57,7 @@ it('sends inline image bytes to Gemini without persisting them in cases', async 
   } finally { fetch.mockRestore(); }
 });
 
-it('retains failed image analysis as a failed case and does not fall back to text-only diagnosis', async () => {
+it('reports failed image analysis without creating a unitless case or falling back to text-only diagnosis', async () => {
   const trace = { items: [], add: jest.fn(), tool: jest.fn() };
   const cases = { trace: jest.fn().mockReturnValue(trace), save: jest.fn() };
   const db = { nextId: jest.fn().mockResolvedValue('C-test') };
@@ -70,6 +70,7 @@ it('retains failed image analysis as a failed case and does not fall back to tex
     await expect(agent.chat('Periksa foto', null, false, [], image)).rejects.toMatchObject({ status: 400 });
     expect(db.nextId).not.toHaveBeenCalled();
     await expect(agent.chat('Periksa foto', null, true, [], image)).rejects.toMatchObject({ status: 503 });
-    expect(cases.save).toHaveBeenLastCalledWith('C-test', trace, 'gagal', { pump_id: null }, expect.objectContaining({ mode: 'llm' }));
+    expect(cases.save).not.toHaveBeenCalled();
+    expect(db.nextId).not.toHaveBeenCalled();
   } finally { CONFIG.GEMINI_API_KEY = key; fetch.mockRestore(); }
 });

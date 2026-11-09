@@ -47,7 +47,7 @@ export class Trace {
     const res = await this.tools.call(name, args, inspection);
     this.add('tool', `Memanggil ${name}`, short(name, res), name, args, res);
     await this.db.x('INSERT INTO agent_logs (ts, case_id, step, tool, input, output) VALUES ($1,$2,$3,$4,$5,$6)',
-      [now(), this.caseId, `step${this.items.length}`, name, JSON.stringify(args), JSON.stringify(res).slice(0, 2000)]);
+      [now(), this.caseId || null, `step${this.items.length}`, name, JSON.stringify(args), JSON.stringify(res).slice(0, 2000)]);
     return res;
   }
 }

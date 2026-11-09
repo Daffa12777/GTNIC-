@@ -54,7 +54,7 @@ export default function SessionGate({ children }: { children: (user: AuthUser | 
     submitting.current = true; setBusy(true); setError('');
     try { await queryClient.cancelQueries({ queryKey: ['session'] }); const value = await api.login(username.trim(), password); clearPrivateCache(); writeLocation('/', true); identity.current = value.user ? `${value.user.username}:${value.user.role}` : null; queryClient.setQueryData(['session'], value); setLoggedOut(false); setPassword(''); publishSessionChange(); await session.refresh(); } catch (failure: unknown) { setError(errorMessage(failure)); } finally { submitting.current = false; setBusy(false); }
   }}>
-    <h1>Masuk ke ManualMechanic</h1><p className="sub">Gunakan akun teknisi atau supervisor yang diberikan pengelola. Sesi berakhir setelah 30 menit tanpa aktivitas atau maksimal 8 jam sejak login.</p>
+    <h1>Masuk ke ManualMechanic</h1>
     <RequestState {...session} retry={session.refresh} showUpdated={false} />
     <label className="field">Username<input className="input" autoComplete="username" required maxLength={100} disabled={busy} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
     <div className="field"><label htmlFor="login-password">Kata sandi</label><PasswordInput id="login-password" autoComplete="current-password" required maxLength={256} disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /></div>

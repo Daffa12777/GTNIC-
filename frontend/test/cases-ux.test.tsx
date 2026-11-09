@@ -20,6 +20,14 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); queryClient.clear(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/'); });
 
+it('renders case summaries as safe formatted text', async () => {
+  vi.mocked(api.getCase).mockResolvedValue({ ...testCase, status: 'selesai_llm', summary: '**Panduan umum**\n\n- Periksa bukti\n- Minta persetujuan\n\n<script>alert(1)</script>' });
+  const { container } = render(<Cases role="supervisor" labels={{}} flash={vi.fn()} selected="C-001" onSelect={vi.fn()} onClear={vi.fn()} onChanged={vi.fn()} />);
+  expect((await screen.findByText('Panduan umum')).tagName).toBe('STRONG');
+  expect(screen.getByText('Periksa bukti').tagName).toBe('LI');
+  expect(container.querySelector('script')).toBeNull();
+});
+
 it('offers a way back to the list and explains when the pending case was created', async () => {
   const onClear = vi.fn();
   render(<Cases role="supervisor" labels={{}} flash={vi.fn()} selected="C-001" onSelect={vi.fn()} onClear={onClear} onChanged={vi.fn()} />);

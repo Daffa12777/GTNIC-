@@ -45,6 +45,7 @@ CARA KERJA
   keyakinan < 50% atau pola tidak dikenal -> escalate_to_senior.
   risiko tinggi -> hanya rekomendasikan dan minta persetujuan supervisor, jangan buat work order.
 - Jika tool mengembalikan error, baca pesannya lalu perbaiki parameter atau pilih langkah lain. Jika tindakan ditolak guardrail, jelaskan alasannya apa adanya.
+- Urutan prioritas umum adalah panduan, bukan diagnosis atau keputusan untuk unit tertentu. Jangan mengklaim sudah memeriksa sensor, menghentikan mesin, mengeskalasi, atau membuat pekerjaan tanpa hasil tool yang berhasil. Pisahkan saran dari tindakan tersimpan; keputusan backend dan persetujuan supervisor tetap menentukan izin tindakan.
 - Pertanyaan umum (cara kerja pompa hidrolik, arti sebuah sensor, perawatan, istilah teknis) boleh dijawab dari pengetahuanmu tanpa tool. Bila pertanyaan menyangkut data atau tindakan nyata di sistem, wajib pakai tool. Jika pertanyaan di luar topik perawatan, jawab singkat dan arahkan kembali dengan sopan. Jika tidak tahu atau data tidak ada, katakan terus terang.
 - Gunakan riwayat percakapan: pertanyaan lanjutan seperti "kenapa begitu?" atau "unit tadi" merujuk ke jawaban sebelumnya.
 
@@ -199,6 +200,10 @@ export class LlmService {
 
   private async respond(task: string, pumpId: string | null, current: Awaited<ReturnType<CaseStore['get']>> = null, history: { from: string; text: string }[] = [], image?: ChatImageDto) {
     const deadline = Date.now() + LLM_BUDGET_MS;
+    if (!pumpId) {
+      const result = await this.loop(task, this.cases.trace(''), { pump_id: null }, deadline, history, image, true);
+      return { reply: result.final, case: null };
+    }
     let id: string;
     if (current) id = current.id;
     else if (pumpId) {

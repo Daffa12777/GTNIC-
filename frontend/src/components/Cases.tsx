@@ -1,4 +1,5 @@
 import { useUrlFilters } from '../useUrlFilters';
+import Markdown from 'react-markdown';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Case, Overview, Role } from '../types';
@@ -57,11 +58,11 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
       {(text || note) && <div className="notice warn" role="status">Ada jawaban atau catatan yang belum dikirim.</div>}
       <div className="card">
         <div className="card-h">
-          <div className="row wrap"><h3>{c.id}</h3><span className="sub">{c.pump_id ?? 'Beberapa unit'} · {fmtTime(c.created_at)} · {caseAge(c.created_at)}</span></div>
+          <div className="row wrap"><h3>{c.id}</h3><span className="sub">{c.pump_id ?? 'Tanpa unit'} · {fmtTime(c.created_at)} · {caseAge(c.created_at)}</span></div>
           <div className="row wrap"><CaseBadge status={c.status} /><RiskBadge risk={c.risk} />{c.mode === 'llm' && <span className="sub">mode LLM</span>}</div>
         </div>
         <div className="card-b grid">
-          {c.summary && c.status !== 'menunggu_persetujuan' && <div className="callout">{c.summary}</div>}
+          {c.summary && c.status !== 'menunggu_persetujuan' && <div className="callout markdown"><Markdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>{c.summary}</Markdown></div>}
           {c.pump_id && <div className="case-current"><b>Status unit terakhir:</b> {current ? <StateBadge state={current.status.state} /> : 'Belum tersedia'}{updated != null && <span className="sub"> · data diterima {new Date(updated).toLocaleTimeString('id-ID')}</span>}{onOpenUnit && <button className="btn sm" onClick={() => onOpenUnit(c.pump_id!)}>Lihat detail unit</button>}</div>}
 
           {c.status === 'menunggu_klarifikasi' && c.question && (
@@ -164,8 +165,8 @@ export default function Cases({ role, labels, flash, selected, onSelect, onClear
           {result.data && list.length === 0 && <Empty>{query || status ? 'Tidak ada kasus yang cocok dengan filter.' : 'Belum ada kasus pada halaman ini.'}</Empty>}
           {list.map((c) => (
             <button key={c.id} className={`list-item ${c.id === selected ? 'sel' : ''}`} aria-pressed={c.id === selected} onClick={() => onSelect(c.id)}>
-              <div className="l1"><span className="id">{c.id} · {c.pump_id ?? '-'}</span><CaseBadge status={c.status} /></div>
-              <div className="l2">{labels[c.fault ?? ''] ?? c.fault ?? 'Diagnosis belum tersedia'} · {caseAge(c.created_at)}</div>
+              <div className="l1"><span className="id">{c.id} · {c.pump_id ?? 'Tanpa unit'}</span><CaseBadge status={c.status} /></div>
+              <div className="l2">{labels[c.fault ?? ''] ?? c.fault ?? (c.pump_id ? 'Diagnosis belum tersedia' : 'Arsip percakapan')} · {caseAge(c.created_at)}</div>
             </button>
           ))}
         </div>

@@ -39,6 +39,28 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => { CONFIG.GEMINI_API_KEY = oldKey; await testModule.close(); });
 
+it('keeps general chat out of cases and only exposes read-only tools', async () => fixture(async () => {
+  const before = await db.client.maintenanceCase.count();
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValueOnce(response([{ text: 'Prioritas berdasarkan risiko; belum ada tindakan dijalankan.' }]));
+  const result = await llm.chat('Urutan prioritas penanganan');
+  expect(result.case).toBeNull();
+  expect(await db.client.maintenanceCase.count()).toBe(before);
+  const body = JSON.parse(String(fetch.mock.calls[0][1]?.body));
+  expect(body.tools[0].function_declarations.map((tool: { name: string }) => tool.name)).not.toContain('create_work_order');
+}));
+
+it('logs general read-only queries without a case and rejects forged actions', async () => fixture(async () => {
+  const before = await db.client.maintenanceCase.count();
+  jest.spyOn(global, 'fetch')
+    .mockResolvedValueOnce(response([call('check_inventory', { part_name: 'seal' }), call('create_work_order', order)]))
+    .mockResolvedValueOnce(response([{ text: 'Stok diperiksa; tindakan tidak dijalankan.' }]));
+  const result = await llm.chat('Bagaimana mempersiapkan perawatan?');
+  expect(result.case).toBeNull();
+  expect(await db.client.maintenanceCase.count()).toBe(before);
+  expect(await db.client.agentLog.findFirst({ where: { case_id: null, tool: 'check_inventory' } })).toBeTruthy();
+  expect(await db.client.workOrder.count({ where: { pump_id: 'Pump-91' } })).toBe(0);
+}));
+
 // Real PostgreSQL-compatible transactions; provider/ML outputs are deterministic fixtures.
 async function fixture(work: () => Promise<void>) {
   const rollback = new Error('ROLLBACK_LLM_FIXTURE');

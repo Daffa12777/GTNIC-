@@ -78,7 +78,7 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
   return (
     <div className="page" style={{ maxWidth: 860 }}>
       <div className="page-head"><div><h1>Asisten lapangan</h1><p>Laporan teknisi masuk ke kasus yang sama dengan anomali dari sensor.{useLlm ? ' Mode LLM aktif.' : ''}</p></div></div>
-      <div className="row wrap"><span className="sub">Riwayat disimpan untuk sesi browser ini hingga logout (100 pesan terakhir).</span><button type="button" className="btn sm" disabled={busy || readingImage} onClick={() => setConfirmClear(true)}>Percakapan baru</button></div>
+      <div className="row wrap"><button type="button" className="btn sm" disabled={busy || readingImage} onClick={() => setConfirmClear(true)}>Percakapan baru</button></div>
       {storageFailed && <div className="notice warn" role="status">Browser tidak mengizinkan penyimpanan riwayat. Percakapan hanya bertahan selama halaman terbuka.</div>}
       <div className="card chat">
         <div className="msgs" role="log" aria-label="Percakapan asisten" aria-live="polite" aria-relevant="additions text">
@@ -104,10 +104,10 @@ export default function Chat({ username, useLlm, onOpenCase, onChanged }: { user
         <div className="chat-attachment-area">
           {attachment && <div className="chat-attachment"><img src={`data:${attachment.image.mimeType};base64,${attachment.image.data}`} alt="Pratinjau lampiran" /><span>{attachment.name}</span><button type="button" className="btn sm" disabled={busy} onClick={() => { setAttachment(null); setImageError(''); }}>Hapus gambar</button></div>}
           {imageError && <p className="notice bad" role="alert">{imageError}</p>}
-          <p className="sub" id="chat-image-help">{readingImage ? 'Membaca gambar…' : useLlm ? 'Satu gambar JPG, PNG, atau WebP, maksimal 2 MB. Gambar dikirim ke Gemini saat pesan dikirim. Hanya tiga pratinjau terbaru ditampilkan selama halaman terbuka.' : 'Aktifkan Mode LLM untuk mengirim gambar.'}</p>
+          {(readingImage || !useLlm) && <p className="sub" id="chat-image-help">{readingImage ? 'Membaca gambar…' : 'Aktifkan Mode LLM untuk mengirim gambar.'}</p>}
         </div>
         <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
-          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Unggah gambar" aria-describedby="chat-image-help" hidden disabled={busy || readingImage || !useLlm} onChange={chooseImage} />
+          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Unggah gambar" aria-describedby={readingImage || !useLlm ? 'chat-image-help' : undefined} hidden disabled={busy || readingImage || !useLlm} onChange={chooseImage} />
           <button type="button" className="btn" disabled={busy || readingImage || !useLlm} onClick={() => fileInput.current?.click()}>Tambah gambar</button>
           <input className="input" aria-label="Pesan untuk asisten" maxLength={8000} disabled={busy} placeholder="Tulis keluhan atau pertanyaan lanjutan…" value={text} onChange={(e) => setText(e.target.value)} />
           <button className="btn primary" disabled={busy || readingImage || (!text.trim() && !attachment) || (!!attachment && !useLlm)}>Kirim</button>
