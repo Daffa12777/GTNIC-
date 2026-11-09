@@ -49,6 +49,12 @@ it('keeps general chat out of cases and only exposes read-only tools', async () 
   expect(body.tools[0].function_declarations.map((tool: { name: string }) => tool.name)).not.toContain('create_work_order');
 }));
 
+it('keeps old general conversations stored but excludes them from the legacy case list', async () => fixture(async () => {
+  await db.client.maintenanceCase.create({ data: { id: 'C-archive-fixture', mode: 'llm', status: 'selesai_llm', summary: 'Panduan umum', created_at: Date.now() } });
+  expect((await cases.list(100)).some((item) => item.id === 'C-archive-fixture')).toBe(false);
+  expect(await cases.get('C-archive-fixture')).toBeTruthy();
+}));
+
 it('does not turn a failed general LLM question into an operational triage', async () => fixture(async () => {
   const before = await db.client.maintenanceCase.count();
   jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('{}', { status: 400 }));

@@ -92,7 +92,7 @@ export class CaseStore {
   }
 
   async list(limit = 30) {
-    const rows = await this.db.q('SELECT id, pump_id, status, fault, confidence, risk, summary, created_at, mode FROM cases ORDER BY created_at DESC LIMIT $1', [limit]);
+    const rows = await this.db.q("SELECT id, pump_id, status, fault, confidence, risk, summary, created_at, mode FROM cases WHERE pump_id IS NOT NULL OR mode IS DISTINCT FROM 'llm' OR EXISTS (SELECT 1 FROM work_orders WHERE case_id=cases.id) ORDER BY created_at DESC LIMIT $1", [limit]);
     return rows.map((r: any) => ({ ...r, confidence: r.confidence == null ? null : Number(r.confidence), created_at: Number(r.created_at) }));
   }
 

@@ -254,6 +254,25 @@ describe('Server sessions and request validation', () => {
     const orders = await get(`/api/records/work-orders?q=${marker}&pageSize=10&page=7&status=selesai`).expect(200);
     expect(orders.body.total).toBe(65); expect(orders.body.items).toHaveLength(5);
   });
+  it('excludes legacy general LLM conversations from case lists, search and counts without deleting them', async () => {
+    const db = app.get(DbService), server = app.getHttpServer(), marker = randomUUID();
+    await db.client.pump.create({ data: { id: marker } });
+    await db.client.maintenanceCase.createMany({ data: [
+      { id: `${marker}-chat`, summary: marker, mode: 'llm', status: 'selesai_llm' },
+      { id: `${marker}-unit`, summary: marker, mode: 'llm', status: 'menunggu_persetujuan', pump_id: marker },
+      { id: `${marker}-order`, summary: marker, mode: 'llm', status: 'selesai' },
+    ] });
+    await db.client.workOrder.create({ data: { id: `wo-${marker}`, case_id: `${marker}-order`, status: 'selesai' } });
+    const login = await request(server).post('/api/auth/login').set('x-mm-client', 'web').send({ username: 'supervisor', password }).expect(201);
+    const session = cookiesFrom(login.headers);
+    const result = await request(server).get(`/api/records/cases?q=${marker}&pageSize=5`).set('Cookie', session.access).expect(200);
+    expect(result.body.total).toBe(2);
+    expect(result.body.items.map((item: { id: string }) => item.id)).toEqual(expect.arrayContaining([`${marker}-unit`, `${marker}-order`]));
+    expect(result.body.counts).toMatchObject({ keputusan: 1, selesai: 1 });
+    const hidden = await request(server).get(`/api/records/cases?q=${marker}-chat&pageSize=5`).set('Cookie', session.access).expect(200);
+    expect(hidden.body.total).toBe(0);
+    expect(await db.client.maintenanceCase.findUnique({ where: { id: `${marker}-chat` } })).toBeTruthy();
+  });
   it('prioritizes pending decisions across pages and counts filters independently of the current page', async () => {
     const db = app.get(DbService); const server = app.getHttpServer(); const marker = randomUUID();
     await db.client.maintenanceCase.createMany({ data: [

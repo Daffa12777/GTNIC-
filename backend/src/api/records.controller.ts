@@ -23,7 +23,10 @@ export class RecordsController {
   constructor(private readonly db: DbService) {}
   @Get('cases')
   async cases(@Query() query: RecordsQuery) {
-    const base: Prisma.MaintenanceCaseWhereInput = { ...(query.unit ? { pump_id: query.unit } : {}) };
+    const base: Prisma.MaintenanceCaseWhereInput = {
+      AND: [{ OR: [{ pump_id: { not: null } }, { orders: { some: {} } }, { mode: null }, { mode: { not: 'llm' } }] }],
+      ...(query.unit ? { pump_id: query.unit } : {}),
+    };
     if (query.q?.trim()) base.OR = ['id', 'pump_id', 'summary'].map((key) => ({ [key]: { contains: query.q!.trim(), mode: 'insensitive' } }));
     const group = query.status?.startsWith('group:') ? CASE_GROUPS[query.status.slice(6)] : undefined;
     const where: Prisma.MaintenanceCaseWhereInput = { ...base, ...(group ? { status: { in: group } } : query.status ? { status: query.status } : {}) };
