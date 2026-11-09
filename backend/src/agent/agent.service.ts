@@ -426,6 +426,8 @@ export class AgentService {
         const err = String(e?.message ?? e).slice(0, 200);
         this.log.warn(`Mode LLM gagal pada chat: ${err}`);
         if (attachment) throw new ServiceUnavailableException('Gambar belum berhasil dianalisis. Coba kirim ulang.');
+        const hasUnit = /\b(?:pump|pompa|unit)[\s-]*0*\d+\b/i.test(message) || (caseId && (await this.cases.get(caseId))?.pump_id);
+        if (!hasUnit) return { reply: 'Jawaban LLM belum tersedia. Coba lagi nanti; tidak ada tindakan dijalankan.', case: null, llm_error: err };
         return { ...(await this.chatPolicy(message, caseId)), llm_error: err };
       }
     }

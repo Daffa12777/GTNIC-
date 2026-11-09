@@ -49,6 +49,16 @@ it('keeps general chat out of cases and only exposes read-only tools', async () 
   expect(body.tools[0].function_declarations.map((tool: { name: string }) => tool.name)).not.toContain('create_work_order');
 }));
 
+it('does not turn a failed general LLM question into an operational triage', async () => fixture(async () => {
+  const before = await db.client.maintenanceCase.count();
+  jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('{}', { status: 400 }));
+  const triage = jest.spyOn(agent, 'triage');
+  const result = await agent.chat('Urutan prioritas penanganan', null, true);
+  expect(result).toMatchObject({ case: null, llm_error: expect.any(String) });
+  expect(triage).not.toHaveBeenCalled();
+  expect(await db.client.maintenanceCase.count()).toBe(before);
+}));
+
 it('logs general read-only queries without a case and rejects forged actions', async () => fixture(async () => {
   const before = await db.client.maintenanceCase.count();
   jest.spyOn(global, 'fetch')
