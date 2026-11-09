@@ -10,6 +10,14 @@
 
 Frontend mem-proxy `/api/*` ke API sehingga cookie tetap pada origin frontend.
 
+## Pemulihan koneksi database — 9 November 2026
+
+Gangguan 500/503 pada sesi, overview, inbox, dan layanan dikonfirmasi berasal dari Supabase session pool yang penuh: diagnostik `P2039`, SQLSTATE `XX000`, kategori `session_pool_full`. Runtime Vercel sebelumnya memakai mode session dengan pool maksimum dua per instance. Source `46cd7a5` mengalihkan shared pooler Supabase dari port 5432 ke transaction mode 6543 hanya saat `VERCEL=1`, tanpa mengambil atau mengganti kredensial; koneksi lokal/direct tidak berubah.
+
+Backend production: `dpl_JD37MeEDg9D4uJ4hmZvNmd1LbPkw`, READY pada `manualmechanic-api.vercel.app`. Log runtime setelah deploy mengonfirmasi `mode=transaction`. Seluruh 101 tes backend (17 suite) dan build Vercel lulus; integrasi tes memakai ML yang sudah dideploy.
+
+Verifikasi live: login supervisor dan teknisi, dashboard `/`, buka profil, dan logout berhasil tanpa exception JavaScript. Filter arsip kasus juga sudah diverifikasi: `C-0058` tetap tersimpan dan dapat dibaca melalui ID, tetapi tidak muncul pada pencarian maupun kedua endpoint daftar; 31 kasus operasional tampil saat pemeriksaan. Ini smoke test, bukan uji beban atau jaminan ketersediaan jangka panjang. Frontend tidak diubah pada pemulihan ini.
+
 ## Redeploy perbaikan agent — 8 November 2026
 
 ### Rilis terbaru: kebijakan sesi 30 menit / 8 jam
