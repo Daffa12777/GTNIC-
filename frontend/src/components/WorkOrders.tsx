@@ -96,6 +96,7 @@ export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenC
                       <form className="row wrap" aria-busy={busy} onSubmit={(e) => { e.preventDefault(); void complete(w.id); }}>
                         <label className="field">Akar masalah<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Akar masalah yang ditemukan" value={cause} onChange={(e) => setCause(e.target.value)} /></label>
                         <label className="field">Tindakan<textarea className="textarea" rows={3} required maxLength={2000} disabled={busy} placeholder="Tindakan yang dilakukan" value={action} onChange={(e) => setAction(e.target.value)} /></label>
+                        {w.part?.trim() && <p className="sub">Menyelesaikan pekerjaan akan mengurangi stok {w.part} sebanyak 1 unit.</p>}
                         <button className="btn primary" disabled={busy || !cause.trim() || !action.trim()}>{busy ? 'Menyimpan…' : 'Simpan dan tutup'}</button>
                         {error && <div className="form-error" role="alert">{error}</div>}
                       </form>

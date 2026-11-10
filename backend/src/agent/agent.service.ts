@@ -371,8 +371,24 @@ export class AgentService {
       } });
       return { ok: true as const, work_order: woId, pump_id: wo.pump_id, recovery };
     }
+    const partName = String(wo.part ?? '').trim();
+    const parts = partName ? await this.db.q<{ part_id: string; stock: number | null }>(
+      'SELECT part_id, stock FROM inventory WHERE part_id=$1 OR LOWER(name)=LOWER($1) ORDER BY part_id FOR UPDATE', [partName],
+    ) : [];
+    if (partName && parts.length !== 1) return { error: 'Part WO tidak ditemukan secara unik di inventaris. Periksa nama atau ID part sebelum menyelesaikan pekerjaan.' };
+    const part = parts[0];
+    if (part && (part.stock ?? 0) < 1) return { error: 'Stok part WO kosong. Tambahkan stok sebelum menyelesaikan pekerjaan.' };
     const closed = await this.db.one<{ id: string }>("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2 AND status NOT IN ('selesai','dibatalkan') RETURNING id", [now(), woId]);
     if (!closed) return { error: 'work order sudah selesai atau dibatalkan' };
+    if (part) {
+      // shortcut: one unit per listed part; add quantities when WO supports multiple units.
+      const balance = Number(part.stock) - 1;
+      await this.db.client.inventory.update({ where: { part_id: part.part_id }, data: { stock: balance } });
+      await this.db.client.stockMovement.create({ data: {
+        id: `wo-complete:${woId}`, partId: part.part_id, delta: -1, balance,
+        reason: `Pemakaian part ${woId}`, actor: 'work-order',
+      } });
+    }
     if (wo.technician_id) await this.db.x('UPDATE technicians SET available=true WHERE id=$1', [wo.technician_id]);
     const c = wo.case_id ? await this.cases.get(wo.case_id) : null;
     await this.db.client.caseHistory.create({ data: {

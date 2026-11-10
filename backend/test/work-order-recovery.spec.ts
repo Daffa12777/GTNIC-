@@ -36,6 +36,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   jest.restoreAllMocks(); CONFIG.SIM_ENABLED = false;
+  await db.client.stockMovement.deleteMany({ where: { partId: pumpId } });
+  await db.client.inventory.deleteMany({ where: { part_id: pumpId } });
   await db.client.agentLog.deleteMany({ where: { tool: 'recover_demo_readings', input: { contains: orderId } } });
   await db.client.caseHistory.deleteMany({ where: { pump_id: pumpId } });
   await db.client.workOrder.deleteMany({ where: { pump_id: pumpId } });
@@ -47,6 +49,46 @@ afterAll(async () => { CONFIG.SIM_ENABLED = originalSimulation; await moduleRef.
 const prediction = (broken: boolean): MlRaw => ({
   source: 'fixture', anomaly: { score: broken ? -1 : 0, threshold: -0.5, is_anomaly: broken },
   components: Object.fromEntries(COMP_KEYS.map(key => [key, { level: 1, severity: broken && key === 'pump' ? 1 : 0, confidence: 0.99, p_degraded: broken && key === 'pump' ? 0.99 : 0, probs: {} }])),
+});
+
+it('consumes one part once when duplicate requests complete a work order', async () => {
+  await db.client.inventory.create({ data: { part_id: pumpId, name: `Seal ${pumpId}`, stock: 2 } });
+  await db.client.workOrder.update({ where: { id: orderId }, data: { part: `SEAL ${pumpId.toUpperCase()}` } });
+  await Promise.all([agent.completeWorkOrder(orderId), agent.completeWorkOrder(orderId)]);
+  expect((await db.client.inventory.findUniqueOrThrow({ where: { part_id: pumpId } })).stock).toBe(1);
+  expect(await db.client.stockMovement.findMany({ where: { partId: pumpId } })).toEqual([
+    expect.objectContaining({ delta: -1, balance: 1, reason: `Pemakaian part ${orderId}` }),
+  ]);
+});
+
+it('refuses completion when the listed part is missing or out of stock', async () => {
+  await db.client.workOrder.update({ where: { id: orderId }, data: { part: pumpId } });
+  expect(await agent.completeWorkOrder(orderId)).toEqual({ error: expect.stringContaining('tidak ditemukan') });
+  await db.client.inventory.create({ data: { part_id: pumpId, name: pumpId, stock: 0 } });
+  expect(await agent.completeWorkOrder(orderId)).toEqual({ error: expect.stringContaining('kosong') });
+  expect((await db.client.workOrder.findUniqueOrThrow({ where: { id: orderId } })).status).toBe('terbuka');
+  expect(await db.client.caseHistory.count({ where: { work_order_id: orderId } })).toBe(0);
+});
+
+it('rolls back part consumption if sensor recovery fails', async () => {
+  await db.client.inventory.create({ data: { part_id: pumpId, name: pumpId, stock: 2 } });
+  await db.client.workOrder.update({ where: { id: orderId }, data: { part: pumpId } });
+  jest.spyOn(sim, 'recover').mockRejectedValue(new Error('recovery failed'));
+  await expect(agent.completeWorkOrder(orderId)).rejects.toThrow('recovery failed');
+  expect((await db.client.inventory.findUniqueOrThrow({ where: { part_id: pumpId } })).stock).toBe(2);
+  expect(await db.client.stockMovement.count({ where: { partId: pumpId } })).toBe(0);
+});
+
+it('allows only one of two work orders to consume the last part', async () => {
+  await db.client.inventory.create({ data: { part_id: pumpId, name: pumpId, stock: 1 } });
+  await db.client.workOrder.update({ where: { id: orderId }, data: { part: pumpId } });
+  const secondId = `${orderId}-second`;
+  await db.client.workOrder.create({ data: { id: secondId, pump_id: pumpId, part: pumpId, status: 'terbuka' } });
+  const results = await Promise.all([agent.completeWorkOrder(orderId), agent.completeWorkOrder(secondId)]);
+  expect(results.filter(result => 'ok' in result)).toHaveLength(1);
+  expect(results.filter(result => 'error' in result)).toEqual([{ error: expect.stringContaining('kosong') }]);
+  expect((await db.client.inventory.findUniqueOrThrow({ where: { part_id: pumpId } })).stock).toBe(0);
+  expect(await db.client.stockMovement.count({ where: { partId: pumpId } })).toBe(1);
 });
 
 it('refreshes an already running instance after completion, even when reading timestamps match', async () => {

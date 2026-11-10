@@ -241,7 +241,7 @@ Refresh token disimpan sebagai hash, dirotasi, dan dapat dicabut; penggunaan ula
 
 API memvalidasi JSON, origin, header klien, dan izin peran. Dalam mode autentikasi role dibaca dari sesi/database, bukan dipercaya dari `x-role`. Mode `AUTH_ENABLED=false` hanya untuk demo lokal dan ditolak untuk production publik sesuai validasi konfigurasi.
 
-Mutasi inventaris menggunakan `operationId`, saldo harapan, dan alasan. Stok negatif, saldo yang berubah sejak form dibuka, serta pengiriman ulang operasi ditangani backend. Rate limiter memakai database bersama dan dapat mengembalikan 503 bila store gagal. Tidak ada klaim bahwa penerapan ini telah melalui audit keamanan independen.
+Mutasi inventaris menggunakan `operationId`, saldo harapan, dan alasan. Stok negatif, saldo yang berubah sejak form dibuka, serta pengiriman ulang operasi ditangani backend. Penyelesaian WO yang mencantumkan part memotong satu unit stok dalam transaksi penutupan dan mencatat mutasi dengan referensi WO. Part dicocokkan berdasarkan ID atau nama lengkap tanpa membedakan huruf besar/kecil. Part ambigu, tidak ditemukan, atau kosong menolak penutupan. WO tanpa part dan rekonsiliasi WO lama yang sudah selesai tidak memotong stok. Saat ini WO hanya menyimpan satu part tanpa jumlah. Rate limiter memakai database bersama dan dapat mengembalikan 503 bila store gagal. Tidak ada klaim bahwa penerapan ini telah melalui audit keamanan independen.
 
 Telegram menggunakan outbox persisten dengan percobaan ulang terbatas; timeout/crash dapat menghasilkan pengiriman ulang. Notifikasi UI bersifat operasional tim, dengan penanda dibaca per akun.
 
