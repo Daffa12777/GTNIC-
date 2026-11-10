@@ -12,10 +12,11 @@ Prototipe untuk GTNIC 2026, kategori AI Agent. Sistem menggabungkan visualisasi 
 
 | Peran | Username | Password | Contoh penggunaan |
 | --- | --- | --- | --- |
-| Owner (akses supervisor) | `mumtaz` | `verstappen` | Meninjau persetujuan kasus dan mengelola inventaris |
+| Owner (akses supervisor) | `mumtaz` | `verstappen` | Mengelola supervisor, tim, persetujuan kasus, dan inventaris |
+| Supervisor | `daffa` | `Daffa!123444` | Meninjau persetujuan, membuat akun teknisi, dan menugaskan pekerjaan |
 | Teknisi | `farras` | `leclerc` | Membaca kondisi mesin, melaporkan gejala, dan menyelesaikan work order |
 
-Kedua akun bersama ini disediakan untuk penilaian demo; login dan perannya diperiksa pada 8 November 2026. Aksi supervisor dapat mengubah data demo. Mohon pertahankan username dan password selama penilaian. Untuk instalasi sendiri, buat akun dan secret melalui langkah setup di bawah.
+Akun bersama ini disediakan untuk penilaian demo; login dan peran ketiganya diverifikasi di production pada 10 November 2026. Aksi Owner dan supervisor dapat mengubah data demo. Mohon pertahankan username dan password selama penilaian. Untuk instalasi sendiri, buat akun dan secret melalui langkah setup di bawah. Akun teknisi tambahan memakai password privat dan tidak dicantumkan di repository.
 
 Alur mencoba aplikasi:
 
@@ -243,4 +244,4 @@ Referensi dataset: Helwig, N., Pignanelli, E., & Schütze, A. (2015), *Condition
 
 Owner memiliki seluruh akses supervisor dan dapat membuat/menonaktifkan supervisor. Supervisor dapat membuat akun teknisi melalui **Tim**. Teknisi melihat WO miliknya melalui **Tugas saya**. Akun baru tidak dapat memilih sendiri peran atau menaikkan hak akses.
 
-Akun demo `mumtaz` ditetapkan sebagai Owner pertama atas pilihan pengelola. Profil teknisi demo lama perlu dihubungkan secara eksplisit ke akun login sebelum menerima penugasan baru pada mode autentikasi. Panduan langkah demi langkah ada di [Pengelolaan akun tim](docs/TEAM_ACCOUNTS.md).
+Akun demo `mumtaz` tetap menjadi Owner; `daffa` menjadi supervisor. Profil Andi, Budi, Eko, dan Fajar sudah ditautkan ke akun teknisi masing-masing. Profil akun `farras` bernama **Farras Mumtaz**, menggantikan nama demo Citra tanpa mengubah ID maupun riwayat penugasannya. Profil Dewi yang tidak memiliki akun atau riwayat pekerjaan sudah dihapus. Panduan langkah demi langkah ada di [Pengelolaan akun tim](docs/TEAM_ACCOUNTS.md).
