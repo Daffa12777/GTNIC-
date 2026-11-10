@@ -359,7 +359,18 @@ export class AgentService {
     await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [woId]);
     const wo = await this.db.one('SELECT * FROM work_orders WHERE id=$1', [woId]);
     if (!wo) return { error: 'work order tidak ditemukan' };
-    if (wo.status === 'selesai') return { error: 'work order sudah selesai' };
+    if (wo.status === 'selesai') {
+      if (!wo.pump_id || !wo.closed_at) return { error: 'work order sudah selesai' };
+      const latest = await this.db.one<{ ts: number }>('SELECT ts FROM sensor_readings WHERE pump_id=$1 ORDER BY id DESC LIMIT 1', [wo.pump_id]);
+      // Repair old demo completions only when no sensor reading followed the closure.
+      if (latest && Number(latest.ts) >= Number(wo.closed_at)) return { error: 'work order sudah selesai' };
+      const recovery = await this.sim.recover(wo.pump_id);
+      await this.db.client.agentLog.create({ data: {
+        ts: now(), case_id: wo.case_id || null, step: 'recovery_reconciliation', tool: 'recover_demo_readings',
+        input: JSON.stringify({ work_order_id: woId, pump_id: wo.pump_id }), output: JSON.stringify({ readings: recovery.length }),
+      } });
+      return { ok: true as const, work_order: woId, pump_id: wo.pump_id, recovery };
+    }
     const closed = await this.db.one<{ id: string }>("UPDATE work_orders SET status='selesai', closed_at=$1 WHERE id=$2 AND status NOT IN ('selesai','dibatalkan') RETURNING id", [now(), woId]);
     if (!closed) return { error: 'work order sudah selesai atau dibatalkan' };
     if (wo.technician_id) await this.db.x('UPDATE technicians SET available=true WHERE id=$1', [wo.technician_id]);

@@ -36,6 +36,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   jest.restoreAllMocks(); CONFIG.SIM_ENABLED = false;
+  await db.client.agentLog.deleteMany({ where: { tool: 'recover_demo_readings', input: { contains: orderId } } });
   await db.client.caseHistory.deleteMany({ where: { pump_id: pumpId } });
   await db.client.workOrder.deleteMany({ where: { pump_id: pumpId } });
   await db.client.sensorReading.deleteMany({ where: { pump_id: pumpId } });
@@ -99,4 +100,21 @@ it('persists one recovery when two requests complete the same work order concurr
   expect(results.filter(result => 'ok' in result && result.ok)).toHaveLength(1);
   expect(await db.client.sensorReading.count({ where: { pump_id: pumpId } })).toBe(45);
   expect(await db.client.caseHistory.count({ where: { work_order_id: orderId } })).toBe(1);
+});
+
+it('repairs a legacy completed order once without rewriting its completion or adding history', async () => {
+  await db.client.workOrder.update({ where: { id: orderId }, data: { status: 'selesai', closed_at: 100 } });
+  const results = await Promise.all([agent.completeWorkOrder(orderId), agent.completeWorkOrder(orderId)]);
+  expect(results.filter(result => 'ok' in result && result.ok)).toHaveLength(1);
+  expect((await db.client.workOrder.findUniqueOrThrow({ where: { id: orderId } })).closed_at).toBe(100);
+  expect(await db.client.caseHistory.count({ where: { work_order_id: orderId } })).toBe(0);
+  expect(await db.client.sensorReading.count({ where: { pump_id: pumpId } })).toBe(45);
+  expect(await db.client.agentLog.count({ where: { tool: 'recover_demo_readings', input: { contains: orderId } } })).toBe(1);
+});
+
+it('does not replace new sensor data for an already completed order', async () => {
+  await db.client.workOrder.update({ where: { id: orderId }, data: { status: 'selesai', closed_at: 30 } });
+  expect(await agent.completeWorkOrder(orderId)).toMatchObject({ error: 'work order sudah selesai' });
+  expect(await db.client.sensorReading.count({ where: { pump_id: pumpId } })).toBe(40);
+  expect((await sim.recent(pumpId, 1))[0].features.PS1_mean).toBe(-999);
 });
