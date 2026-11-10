@@ -12,7 +12,7 @@ Prototipe untuk GTNIC 2026, kategori AI Agent. Sistem menggabungkan visualisasi 
 
 | Peran | Username | Password | Contoh penggunaan |
 | --- | --- | --- | --- |
-| Supervisor | `mumtaz` | `verstappen` | Meninjau persetujuan kasus dan mengelola inventaris |
+| Owner (akses supervisor) | `mumtaz` | `verstappen` | Meninjau persetujuan kasus dan mengelola inventaris |
 | Teknisi | `farras` | `leclerc` | Membaca kondisi mesin, melaporkan gejala, dan menyelesaikan work order |
 
 Kedua akun bersama ini disediakan untuk penilaian demo; login dan perannya diperiksa pada 8 November 2026. Aksi supervisor dapat mengubah data demo. Mohon pertahankan username dan password selama penilaian. Untuk instalasi sendiri, buat akun dan secret melalui langkah setup di bawah.
@@ -238,3 +238,9 @@ Dokumen konsep lama [PROJECT_DETAIL.md](docs/PROJECT_DETAIL.md) dipertahankan se
 - Simulasi, snapshot data, dan koneksi layanan perlu diperiksa sebelum presentasi.
 
 Referensi dataset: Helwig, N., Pignanelli, E., & Schütze, A. (2015), *Condition monitoring of hydraulic systems*, UCI Machine Learning Repository, DOI [10.24432/C5CW21](https://doi.org/10.24432/C5CW21). Ketentuan dataset mengikuti sumbernya. Lisensi penggunaan kode proyek belum ditetapkan dalam repositori.
+
+## Pengelolaan akun tim
+
+Owner memiliki seluruh akses supervisor dan dapat membuat/menonaktifkan supervisor. Supervisor dapat membuat akun teknisi melalui **Tim**. Teknisi melihat WO miliknya melalui **Tugas saya**. Akun baru tidak dapat memilih sendiri peran atau menaikkan hak akses.
+
+Akun demo `mumtaz` ditetapkan sebagai Owner pertama atas pilihan pengelola. Profil teknisi demo lama perlu dihubungkan secara eksplisit ke akun login sebelum menerima penugasan baru pada mode autentikasi. Panduan langkah demi langkah ada di [Pengelolaan akun tim](docs/TEAM_ACCOUNTS.md).

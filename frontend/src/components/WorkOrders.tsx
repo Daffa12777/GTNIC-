@@ -10,8 +10,9 @@ import { useUnsavedChanges } from '../useUnsavedChanges';
 import ConfirmDialog from './ConfirmDialog';
 import WorkOrderAssignment from './WorkOrderAssignment';
 import type { Role } from '../types';
+import { canSupervise } from '../types';
 
-export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenCase }: { role?: Role; flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
+export default function WorkOrders({ role = 'teknisi', mine = false, flash, onChanged, onOpenCase }: { role?: Role; mine?: boolean; flash: (m: string) => void; onChanged: () => void; onOpenCase: (id: string) => void }) {
   const [filters, updateFilters] = useUrlFilters({ q: '', status: '', priority: '', unit: '', technician: '', page: 1, pageSize: 20 }, (resume) => discardCompletion(resume));
   const query = filters.q;
   const setQuery = (value: string) => updateFilters({ q: value, page: 1 }, true);
@@ -28,8 +29,8 @@ export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenC
   const pageSize = filters.pageSize;
   const setPageSize = (value: number) => updateFilters({ pageSize: value, page: 1 });
   const search = useDebounced(query);
-  const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, technician }), signal), [page, pageSize, search, status, priority, unit, technician]);
-  const result = usePolling(load, 30000, true, ['work-orders', page, pageSize, search, status, priority, unit, technician]);
+  const load = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ page: String(page), pageSize: String(pageSize), q: search, status, priority, unit, ...(mine ? { mine: 'true' } : { technician }) }), signal), [page, pageSize, search, status, priority, unit, technician, mine]);
+  const result = usePolling(load, 30000, true, ['work-orders', mine ? 'mine' : 'all', page, pageSize, search, status, priority, unit, technician]);
   const rows = result.data?.items ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [assignment, setAssignment] = useState<string | null>(null);
@@ -63,7 +64,7 @@ export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenC
 
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Work order</h1><p>Supervisor dapat meninjau dan mengatur penugasan pekerjaan yang dibuat agent. Menutup pekerjaan menambah riwayat untuk RAG.</p>{role !== 'supervisor' && <p className="sub">Penugasan teknisi hanya dapat diubah oleh supervisor.</p>}</div></div>
+      <div className="page-head"><div><h1>{mine ? 'Tugas saya' : 'Work order'}</h1><p>{mine ? 'Pekerjaan yang ditugaskan kepada akun Anda. Catat hasil pemeriksaan setelah pekerjaan selesai.' : 'Tinjau pekerjaan, penanggung jawab, dan hasil perawatan.'}</p>{!canSupervise(role) && <p className="sub">Penugasan teknisi hanya dapat diubah oleh owner atau supervisor.</p>}</div></div>
       <RequestState {...result} retry={result.refresh} />
       {dirty && <div className="notice warn" role="status">Ada laporan penyelesaian yang belum disimpan.</div>}
       <div className="filters">
@@ -71,7 +72,7 @@ export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenC
         <label>Status<select className="sel" value={status} onChange={(e) => { setStatus(e.target.value); }}><option value="">Semua status</option><option value="group:active">Semua pekerjaan aktif</option>{Object.entries(WO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Prioritas<select className="sel" value={priority} onChange={(e) => { setPriority(e.target.value); }}><option value="">Semua prioritas</option>{Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Unit<select className="sel" value={unit} onChange={(e) => { setUnit(e.target.value); }}><option value="">Semua unit</option>{result.data?.units.map((s) => <option key={s}>{s}</option>)}</select></label>
-        <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        {!mine && <label>Teknisi<select className="sel" value={technician} onChange={(e) => { setTechnician(e.target.value); }}><option value="">Semua teknisi</option><option value="unassigned">Belum ditugaskan</option>{result.data?.technicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
       </div>
       <Pagination page={page} pageSize={pageSize} total={result.data?.total ?? 0} loading={result.loading} onPage={setPage} onPageSize={(size) => { setPageSize(size); }} />
       <div className="card">
@@ -88,9 +89,9 @@ export default function WorkOrders({ role = 'teknisi', flash, onChanged, onOpenC
                     <td data-label="Prioritas"><PriorityBadge priority={w.priority} /></td>
                     <td data-label="Status"><WorkOrderBadge status={w.status} /></td>
                     <td data-label="Teknisi">{w.technician ?? (['selesai', 'dibatalkan'].includes(w.status) ? 'Tanpa penugasan' : 'Belum ditugaskan')}<div className="sub">{w.scheduled_at ?? w.assignment_reason ?? ''}</div></td>
-                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <div className="row wrap">{role === 'supervisor' && <button className="btn sm" disabled={busy} onClick={() => { if (discardCompletion()) setAssignment(assignment === w.id ? null : w.id); }}>{w.technician ? 'Ubah teknisi' : 'Tugaskan teknisi'}</button>}<button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => { setAssignment(null); setOpen(next); })) { setAssignment(null); setOpen(next); } }}>Selesaikan</button></div>}</td>
+                    <td className="work-order-actions">{!['selesai', 'dibatalkan'].includes(w.status) && <div className="row wrap">{canSupervise(role) && <button className="btn sm" disabled={busy} onClick={() => { if (discardCompletion()) setAssignment(assignment === w.id ? null : w.id); }}>{w.technician ? 'Ubah teknisi' : 'Tugaskan teknisi'}</button>}{(canSupervise(role) || w.can_complete !== false) && <button className="btn sm" disabled={busy} onClick={() => { const next = open === w.id ? null : w.id; if (discardCompletion(() => { setAssignment(null); setOpen(next); })) { setAssignment(null); setOpen(next); } }}>Selesaikan</button>}</div>}</td>
                   </tr>
-                  {assignment === w.id && role === 'supervisor' && <tr className="work-order-report"><td colSpan={7}><WorkOrderAssignment orderId={w.id} onBusy={setBusy} onCancel={() => setAssignment(null)} onDone={assigned => { setAssignment(null); flash(`${w.id} ditugaskan kepada ${assigned.technician}.`); void result.refresh(); onChanged(); }} /></td></tr>}
+                  {assignment === w.id && canSupervise(role) && <tr className="work-order-report"><td colSpan={7}><WorkOrderAssignment orderId={w.id} onBusy={setBusy} onCancel={() => setAssignment(null)} onDone={assigned => { setAssignment(null); flash(`${w.id} ditugaskan kepada ${assigned.technician}.`); void result.refresh(); onChanged(); }} /></td></tr>}
                   {open === w.id && (
                     <tr className="work-order-report"><td colSpan={7} style={{ background: '#fafbfc' }}>
                       <form className="row wrap" aria-busy={busy} onSubmit={(e) => { e.preventDefault(); void complete(w.id); }}>

@@ -6,6 +6,7 @@ export function invalidateAfterMutation(path: string): void {
   if (path === '/profile') roots = ['profile', 'session'];
   else if (path === '/inbox/read') roots = ['inbox'];
   else if (path === '/services/llm/check') roots = ['services'];
+  else if (path.startsWith('/technicians')) roots = ['team', 'technicians', 'work-orders', 'assignment-options', 'case-context'];
   else if (path.startsWith('/inventory')) roots = ['inventory', 'stock-movements', 'overview', 'case-context'];
   else if (path === '/auto') roots = ['overview'];
   else if (/^\/(cases|work-orders|scenario)\//.test(path) || ['/diagnose', '/chat', '/triage'].includes(path)) {

@@ -104,7 +104,7 @@ it('holds forged low-risk/approved arguments and persists an executable plan for
   const pendingPhoto = await agent.chat('Periksa foto tambahan', result.case.id, true, [], image);
   expect(pendingPhoto.reply).toContain('Foto tambahan dapat dijelaskan');
   expect(pendingPhoto.case).toEqual(result.case);
-  const api = new ApiController(db, agent, cases, llm, {} as never, tools as never, {} as never, {} as never);
+  const api = new ApiController(db, agent, cases, llm, {} as never, tools as never, {} as never, {} as never, {} as never);
   await expect(api.approve(result.case.id, 'teknisi')).rejects.toMatchObject({ status: 403 });
   const approved = await api.approve(result.case.id, 'supervisor');
   expect(approved).toMatchObject({ status: 'disetujui_dijalankan', mode: 'llm' });

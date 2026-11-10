@@ -7,7 +7,8 @@ import { DbService } from '../db/db.service';
 import { CONFIG } from '../config';
 import type { ChangePasswordDto, UpdateProfileDto } from './profile.dto';
 
-export type Role = 'teknisi' | 'supervisor';
+export type Role = 'teknisi' | 'supervisor' | 'owner';
+export const canSupervise = (role?: string): boolean => role === 'owner' || role === 'supervisor';
 export interface User { username: string; role: Role; name?: string | null }
 interface AccessClaims { sub: string; sid: string; typ: 'access' }
 const derive = promisify(scrypt);
@@ -82,7 +83,7 @@ export class AuthService implements OnModuleInit {
   }
   private cookie(req: Request, name: string): string { return req.headers.cookie?.split(';').map((v) => v.trim()).find((v) => v.startsWith(`${name}=`))?.slice(name.length + 1) ?? ''; }
   private publicUser(user: { username: string; role: string; name?: string | null }): User {
-    if (user.role !== 'teknisi' && user.role !== 'supervisor') throw new UnauthorizedException('Peran akun tidak valid.');
+    if (user.role !== 'teknisi' && user.role !== 'supervisor' && user.role !== 'owner') throw new UnauthorizedException('Peran akun tidak valid.');
     return { username: user.username, role: user.role, ...(user.name ? { name: user.name } : {}) };
   }
   private async account(req: Request) {
@@ -139,8 +140,10 @@ export class AuthService implements OnModuleInit {
       await this.db.q('SELECT id FROM app_users WHERE id=$1 FOR UPDATE', [user.id]);
       const current = await this.db.client.user.findUniqueOrThrow({ where: { id: user.id } });
       await this.confirmPassword(user.id, current.passwordHash, password);
+      if (current.role === 'owner' && await this.db.client.user.count({ where: { active: true, role: 'owner' } }) <= 1) throw new ConflictException('Owner terakhir tidak dapat dihapus.');
       if (current.role === 'supervisor' && await this.db.client.user.count({ where: { active: true, role: 'supervisor' } }) <= 1) throw new ConflictException('Supervisor terakhir tidak dapat dihapus. Siapkan supervisor pengganti terlebih dahulu.');
       if (await this.db.client.user.count({ where: { active: true } }) <= 1) throw new ConflictException('Akun aktif terakhir tidak dapat dihapus.');
+      if (await this.db.client.technician.findUnique({ where: { userId: user.id } })) throw new ConflictException('Akun masih terhubung ke profil teknisi dan riwayat pekerjaan. Hubungi pengelola.');
       await this.db.client.user.delete({ where: { id: user.id } });
     });
   }

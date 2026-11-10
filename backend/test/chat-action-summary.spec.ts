@@ -36,7 +36,7 @@ it('reads persisted results scoped to the exact case, including assignment and p
 it('returns a successful action reply even if the summary query fails, without rerunning the agent', async () => {
   const chat = jest.fn().mockResolvedValue({ reply: 'Tindakan selesai.', case: { id: 'summary-C-1' } });
   jest.spyOn(cases, 'actionSummary').mockRejectedValue(new Error('temporary database error'));
-  const controller = new ApiController(db, { chat } as unknown as AgentService, cases, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const controller = new ApiController(db, { chat } as unknown as AgentService, cases, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   const result = await controller.chat({ message: 'Pump-01 panas', use_llm: false, history: [] });
   expect(result.reply).toBe('Tindakan selesai.');
   expect(result.action_summary_error).toContain('Periksa jejak kasus');
@@ -46,7 +46,7 @@ it('returns a successful action reply even if the summary query fails, without r
 it('does not invent results for a reply without a linked case', async () => {
   const chat = jest.fn().mockResolvedValue({ reply: 'Stok seal = 3', case: null });
   const summary = jest.spyOn(cases, 'actionSummary');
-  const controller = new ApiController(db, { chat } as unknown as AgentService, cases, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const controller = new ApiController(db, { chat } as unknown as AgentService, cases, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   expect(await controller.chat({ message: 'Stok seal', use_llm: false, history: [] })).toEqual({ reply: 'Stok seal = 3', case: null });
   expect(summary).not.toHaveBeenCalled();
 });

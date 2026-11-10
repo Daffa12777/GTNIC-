@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, Req, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
+import type { Request } from 'express';
+import { AuthService, canSupervise } from '../auth/auth.service';
 import { CompleteWorkOrderDto } from './complete-work-order.dto';
 import { ChatDto } from './chat.dto';
 import { RatePolicy } from '../security/rate-policy';
@@ -21,7 +23,7 @@ const num = (v: any) => (v == null ? v : Number(v));
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class ApiController {
   constructor(private db: DbService, private agent: AgentService, private cases: CaseStore, private llm: LlmService,
-    private sim: SimService, private ml: MlService, private monitor: MonitorService, private status: StatusStore) {}
+    private sim: SimService, private ml: MlService, private monitor: MonitorService, private status: StatusStore, private auth: AuthService) {}
 
   private fail<T>(r: T): T {
     if (r && typeof r === 'object' && (r as any).error) throw bad((r as any).error);
@@ -29,7 +31,7 @@ export class ApiController {
   }
   /** Peran demo (header x-role). Bukan autentikasi sungguhan; hanya memisahkan hak persetujuan. */
   private needSupervisor(role?: string) {
-    if ((role || '').toLowerCase() !== 'supervisor') throw bad('Hanya supervisor yang dapat menyetujui atau menolak.', 403);
+    if (!canSupervise(role)) throw bad('Hanya owner atau supervisor yang dapat menyetujui atau menolak.', 403);
   }
   private needSimulation(role?: string) {
     this.needSupervisor(role);
@@ -155,8 +157,11 @@ export class ApiController {
 
   @Post('work-orders/:id/complete')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-  async complete(@Param('id') id: string, @Body() b: CompleteWorkOrderDto) {
-    return this.fail(await this.agent.completeWorkOrder(id, b.root_cause.trim(), b.action.trim(), b.duration_min ?? 60));
+  async complete(@Param('id') id: string, @Body() b: CompleteWorkOrderDto, @Req() req: Request) {
+    const user = this.auth.enabled ? await this.auth.current(req) : null;
+    if (this.auth.enabled && !user) throw bad('Sesi berakhir. Silakan masuk kembali.', 401);
+    const actor = user ? { userId: await this.auth.accountId(req), role: user.role } : undefined;
+    return this.fail(await this.agent.completeWorkOrder(id, b.root_cause.trim(), b.action.trim(), b.duration_min ?? 60, actor));
   }
 
   @Get('inventory')

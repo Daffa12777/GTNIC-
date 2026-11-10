@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Role } from '../types';
+import { canSupervise } from '../types';
 import { RequestState, usePolling } from '../usePolling';
 import { CaseBadge, Empty, PriorityBadge, RiskBadge, fmtTime } from './ui';
 import WorkOrderAssignment from './WorkOrderAssignment';
 import { useUnsavedChanges } from '../useUnsavedChanges';
 
 export default function SupervisorTasks({ role, onOpenCase, flash, onChanged }: { role: Role; onOpenCase: (id: string) => void; flash: (text: string) => void; onChanged: () => void }) {
-  const enabled = role === 'supervisor';
+  const enabled = canSupervise(role);
   const pendingLoad = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ status: 'group:keputusan', pageSize: '5' }), signal), []);
   const escalatedLoad = useCallback((signal: AbortSignal) => api.casesPage(new URLSearchParams({ status: 'group:eskalasi', pageSize: '5' }), signal), []);
   const ordersLoad = useCallback((signal: AbortSignal) => api.workOrdersPage(new URLSearchParams({ status: 'group:active', technician: 'unassigned', pageSize: '5' }), signal), []);

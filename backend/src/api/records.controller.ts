@@ -1,6 +1,8 @@
-import { Controller, Get, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import type { Request } from 'express';
+import { AuthService, canSupervise } from '../auth/auth.service';
 import { DbService } from '../db/db.service';
 import type { Prisma } from '../generated/prisma/client';
 import { assignmentRequirements, unassignedReason } from '../tools/technician-assignment';
@@ -16,11 +18,12 @@ class RecordsQuery {
   @IsOptional() @IsString() @MaxLength(20) priority?: string;
   @IsOptional() @IsString() @MaxLength(80) unit?: string;
   @IsOptional() @IsString() @MaxLength(160) technician?: string;
+  @IsOptional() @IsIn(['true']) mine?: string;
 }
 @Controller('records')
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class RecordsController {
-  constructor(private readonly db: DbService) {}
+  constructor(private readonly db: DbService, private readonly auth: AuthService) {}
   @Get('cases')
   async cases(@Query() query: RecordsQuery) {
     const base: Prisma.MaintenanceCaseWhereInput = {
@@ -45,9 +48,11 @@ export class RecordsController {
     return { items: [...pending, ...rest], total, counts, page: query.page, pageSize: query.pageSize };
   }
   @Get('work-orders')
-  async workOrders(@Query() query: RecordsQuery) {
+  async workOrders(@Query() query: RecordsQuery, @Req() req: Request) {
     const where: Prisma.WorkOrderWhereInput = { ...(query.status ? { status: query.status === 'group:active' ? { notIn: ['selesai', 'dibatalkan'] } : query.status } : {}), ...(query.unit ? { pump_id: query.unit } : {}), ...(query.priority ? { priority: query.priority } : {}) };
     if (query.technician) where.technician_id = query.technician === 'unassigned' ? null : query.technician;
+    const userId = this.auth.enabled ? await this.auth.accountId(req) : null;
+    if (query.mine) { delete where.technician_id; where.technician = { userId: userId ?? '__no_account__' }; }
     if (query.q?.trim()) {
       const contains = { contains: query.q.trim(), mode: 'insensitive' as const };
       where.OR = [{ id: contains }, { title: contains }, { pump_id: contains }, { technician: { name: contains } }];
@@ -55,12 +60,13 @@ export class RecordsController {
     const [total, items, technicians, units, active] = await Promise.all([
       this.db.client.workOrder.count({ where }),
       this.db.client.workOrder.findMany({ where, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { technician: { select: { name: true } }, case: { select: { fault: true, risk: true, status: true, state: true } } } }),
-      this.db.client.technician.findMany({ orderBy: { name: 'asc' } }),
+      this.db.client.technician.findMany({ orderBy: { name: 'asc' }, include: { user: { select: { role: true, active: true } } } }),
       this.db.client.pump.findMany({ select: { id: true }, orderBy: { id: 'asc' } }),
       this.db.client.workOrder.findMany({ where: { technician_id: { not: null }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { technician_id: true }, distinct: ['technician_id'] }),
     ]);
     const busy = new Set(active.map(item => item.technician_id));
-    const availability = technicians.map(t => ({ ...t, busy: busy.has(t.id) }));
-    return { items: items.map(({ case: current, technician, ...item }) => ({ ...item, technician: technician?.name ?? null, assignment_reason: !item.technician_id && !['selesai', 'dibatalkan'].includes(item.status ?? '') ? unassignedReason(availability, assignmentRequirements(item, current)) : null })), total, page: query.page, pageSize: query.pageSize, technicians: technicians.map(({ id, name }) => ({ id, name })), units: units.map((item) => item.id) };
+    const availability = technicians.map(t => ({ ...t, busy: busy.has(t.id), accountActive: !this.auth.enabled || (t.user?.active === true && t.user.role === 'teknisi') }));
+    const own = userId ? technicians.find(t => t.userId === userId)?.id : undefined;
+    return { items: items.map(({ case: current, technician, ...item }) => ({ ...item, technician: technician?.name ?? null, can_complete: !this.auth.enabled || canSupervise(req.headers['x-role'] as string) || (!!own && item.technician_id === own), assignment_reason: !item.technician_id && !['selesai', 'dibatalkan'].includes(item.status ?? '') ? unassignedReason(availability, assignmentRequirements(item, current)) : null })), total, page: query.page, pageSize: query.pageSize, technicians: technicians.map(({ id, name }) => ({ id, name })), units: units.map((item) => item.id) };
   }
 }

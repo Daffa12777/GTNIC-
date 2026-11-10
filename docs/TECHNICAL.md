@@ -61,7 +61,8 @@ Reservasi kasus mengunci baris unit dan memakai kembali kasus terbuka atau kasus
 | `/units/:id` | Detail/operasional unit, grafik sensor, diagnosis, work order, kontrol demo sesuai izin |
 | `/cases`, `/cases/:id` | Daftar dan detail kasus |
 | `/work-orders` | Pekerjaan dan penyelesaiannya |
-| `/tasks` | Antrean tanggung jawab supervisor: persetujuan, WO aktif tanpa teknisi, dan eskalasi |
+| `/tasks` | Owner/supervisor melihat antrean keputusan dan penugasan; teknisi melihat WO milik akunnya |
+| `/team` | Owner/supervisor mengelola akun teknisi dan hubungan profil; Owner juga membuat/menonaktifkan supervisor |
 | `/inventory` | Inventaris serta manajemen stok supervisor |
 | `/assistant` | Asisten maintenance |
 | `/profile` | Profil akun yang login |
@@ -237,7 +238,13 @@ Cookie access/refresh tetap HttpOnly, SameSite=Lax, dan Secure sesuai konfiguras
 
 Frontend mengirim aktivitas dari pointer, keyboard, wheel, atau touch pada tab terlihat, maksimal sekali per menit per tab. Polling, animasi, dan rotasi token tidak dihitung sebagai aktivitas. Ini penanda interaksi klien, bukan bukti kehadiran manusia; klien yang sudah memiliki kredensial dapat memanggil endpoint aktivitas sendiri. Endpoint memvalidasi JWT serta sesi aktif di server, memakai kunci baris, waktu server, dan batas absolut; timestamp klien tidak dipercaya. Timer UI memeriksa ulang sesi ke backend sebelum menutup workspace agar tab aktif lain yang telah memperpanjang sesi tidak menyebabkan logout keliru. Jika sesi benar-benar habis atau pemeriksaan gagal, data privat/riwayat chat dibersihkan dan form login ditampilkan. Isian yang belum disimpan dapat hilang ketika sesi berakhir.
 
-Refresh token disimpan sebagai hash, dirotasi, dan dapat dicabut; penggunaan ulang token lama dapat mencabut sesi terkait. Password baru mencabut seluruh sesi. Supervisor aktif terakhir tidak dapat dihapus.
+Refresh token disimpan sebagai hash, dirotasi, dan dapat dicabut; penggunaan ulang token lama dapat mencabut sesi terkait. Password baru mencabut seluruh sesi. Supervisor aktif terakhir dan Owner aktif terakhir dilindungi dari penghapusan. Akun yang masih memiliki profil teknisi tidak dapat dihapus melalui Profil.
+
+Hierarki peran adalah Owner → Supervisor → Teknisi. Owner mewarisi izin supervisor, sementara endpoint pembuatan/penonaktifan supervisor hanya menerima Owner. Pendaftaran publik dan perubahan peran melalui Profil tidak tersedia. Endpoint akun menentukan role di server dan menolak field role dari klien. Password akun baru minimal 12 karakter, disimpan sebagai hash scrypt bersalt; audit akun tidak menyimpan password atau hash.
+
+Relasi unik opsional `technicians.userId` menghubungkan profil penugasan dengan `app_users`. Data demo lama tetap tersimpan dan tidak ditautkan secara otomatis. Pada mode autentikasi, penugasan baru memerlukan akun teknisi aktif. Query `/records/work-orders?mine=true` membatasi hasil berdasarkan sesi di backend, termasuk jika filter teknisi klien dimanipulasi. Penyelesaian WO memeriksa pemilik penugasan dalam transaksi; Owner/supervisor dapat menyelesaikan semua WO. Mode demo lokal tanpa autentikasi mempertahankan profil demo.
+
+Setelah menjalankan migrasi, operator dapat menjalankan `npm.cmd run owner:setup -- <username-supervisor>` di folder backend untuk Owner pertama. Skrip hanya menaikkan supervisor aktif jika belum ada Owner, mencatat audit, dan mencabut sesi lama. Panduan pengguna ada di [pengelolaan akun tim](TEAM_ACCOUNTS.md).
 
 API memvalidasi JSON, origin, header klien, dan izin peran. Dalam mode autentikasi role dibaca dari sesi/database, bukan dipercaya dari `x-role`. Mode `AUTH_ENABLED=false` hanya untuk demo lokal dan ditolak untuk production publik sesuai validasi konfigurasi.
 

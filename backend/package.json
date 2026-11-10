@@ -11,6 +11,7 @@
     "demo:seed": "npm run build && node dist/scripts/seed-demo.js",
     "demo:add-pumps": "npm run build && node dist/scripts/register-demo-pumps.js",
     "auth:setup": "npm run build && node dist/scripts/setup-local-auth.js",
+    "owner:setup": "npm run build && node dist/scripts/setup-owner.js",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "prestart:dev": "prisma generate",

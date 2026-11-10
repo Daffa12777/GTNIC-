@@ -205,15 +205,15 @@ export class ToolsService {
     const order = await this.db.client.workOrder.findUnique({ where: { id }, include: { case: true } });
     if (!order) return { error: 'Work order tidak ditemukan.', code: 404 };
     const needs = assignmentRequirements(order, order.case);
-    const technicians = await this.db.client.technician.findMany({ orderBy: { name: 'asc' } });
+    const technicians = await this.db.client.technician.findMany({ orderBy: { name: 'asc' }, include: { user: { select: { role: true, active: true } } } });
     const active = await this.db.client.workOrder.findMany({ where: { technician_id: { not: null }, id: { not: id }, status: { notIn: ['selesai', 'dibatalkan'] } }, select: { technician_id: true } });
     const busy = new Set(active.map(item => item.technician_id));
     const candidates = technicians.map(t => {
       const current = t.id === order.technician_id;
-      const reason = current ? null : technicianReason({ ...t, busy: busy.has(t.id) }, needs);
+      const reason = current ? null : technicianReason({ ...t, busy: busy.has(t.id), accountActive: process.env.AUTH_ENABLED === 'false' || (t.user?.active === true && t.user.role === 'teknisi') }, needs);
       return { id: t.id, name: t.name, skill: t.skill, level: t.level, current, eligible: !reason, reason };
     });
-    return { work_order_id: id, current_technician_id: order.technician_id, status: order.status, requirements: needs, reason: order.technician_id ? null : unassignedReason(technicians.map(t => ({ ...t, busy: busy.has(t.id) })), needs), technicians: candidates };
+    return { work_order_id: id, current_technician_id: order.technician_id, status: order.status, requirements: needs, reason: order.technician_id ? null : unassignedReason(technicians.map(t => ({ ...t, busy: busy.has(t.id), accountActive: process.env.AUTH_ENABLED === 'false' || (t.user?.active === true && t.user.role === 'teknisi') })), needs), technicians: candidates };
   }
 
   async assignWorkOrder(id: string, technicianId: string | null, expectedTechnicianId: string | null, actor: string) {
@@ -239,9 +239,13 @@ export class ToolsService {
       if (wo.technician && (!manual?.technicianId || manual.technicianId === wo.technician_id)) return { scheduled: true, technician: wo.technician.name, technician_id: wo.technician.id, scheduled_at: wo.scheduled_at, duplicate: true };
       const candidates = manual?.technicianId
         ? await this.db.q('SELECT * FROM technicians WHERE id=$1 FOR UPDATE', [manual.technicianId])
-        : await this.db.q("SELECT * FROM technicians t WHERE available=true AND skill=$1 AND ($2=false OR level='senior') AND NOT EXISTS (SELECT 1 FROM work_orders w WHERE w.technician_id=t.id AND w.status NOT IN ('selesai','dibatalkan')) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill, !!a.senior]);
+        : await this.db.q("SELECT * FROM technicians t WHERE available=true AND skill=$1 AND ($2=false OR level='senior') AND ($3=true OR EXISTS (SELECT 1 FROM app_users u WHERE u.id=t.\"userId\" AND u.active=true AND u.role='teknisi')) AND NOT EXISTS (SELECT 1 FROM work_orders w WHERE w.technician_id=t.id AND w.status NOT IN ('selesai','dibatalkan')) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED", [a.skill, !!a.senior, process.env.AUTH_ENABLED === 'false']);
       const technician = candidates[0];
       if (!technician) return { error: manual?.technicianId ? 'Teknisi tidak ditemukan.' : `Tidak ada teknisi ${a.senior ? 'senior ' : ''}${a.skill} yang tersedia saat ini. Perbarui pilihan atau coba lagi setelah teknisi tersedia.`, scheduled: false };
+      if (process.env.AUTH_ENABLED !== 'false') {
+        const account = await this.db.client.user.findFirst({ where: { technician: { id: technician.id }, role: 'teknisi', active: true } });
+        if (!account) return { error: 'Profil belum memiliki akun teknisi aktif. Hubungkan akun melalui Kelola tim.', scheduled: false };
+      }
       const active = await this.db.one("SELECT id FROM work_orders WHERE technician_id=$1 AND id<>$2 AND status NOT IN ('selesai','dibatalkan')", [technician.id, wo.id]);
       const reason = technicianReason({ ...technician, busy: !!active }, { skill: a.skill, senior: !!a.senior });
       if (reason) return { error: reason, scheduled: false };

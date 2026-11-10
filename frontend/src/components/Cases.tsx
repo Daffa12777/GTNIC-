@@ -43,7 +43,7 @@ export function CaseDetail({ id, role, labels, flash, onChanged, overview, updat
     try { const result = await fn(); if (decision && result.status === 'gagal') { setActionError(result.summary ?? 'Tindakan belum berhasil. Periksa detail kasus.'); await detail.refresh(); onChanged(); return false; } setText(''); setNote(''); setDecision(null); await detail.refresh(); flash(typeof msg === 'function' ? msg(result) : msg); onChanged(); return true; } catch (e: unknown) { if (decision) setActionError(errorMessage(e)); else flash(errorMessage(e)); return false; } finally { setBusy(false); }
   };
   const probs = c.probs ? Object.entries(c.probs).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
-  const isSup = role === 'supervisor';
+  const isSup = role === 'supervisor' || role === 'owner';
   const highRisk = c.risk === 'tinggi' || c.plan?.risk === 'tinggi';
   const current = overview?.pumps.find((pump) => pump.id === c.pump_id);
   const evidence = (c.trace ?? []).filter((item) => item.title === 'Perbandingan dengan kondisi sehat' || item.tool === 'check_sensor_validity' || item.tool === 'get_sensor_data').filter((item) => item.detail || item.result).slice(0, 3);

@@ -20,7 +20,8 @@ Hipotesis produk: peta kondisi yang interaktif serta alur kasus yang terintegras
 | --- | --- | --- |
 | Teknisi | Memeriksa unit, melaporkan gejala, menjawab klarifikasi, menyelesaikan pekerjaan | Membaca kondisi dan inventaris, memulai diagnosis, mengisi hasil work order |
 | Supervisor | Menilai rekomendasi dan mengelola resource | Persetujuan/penolakan kasus, kelola stok, agent otomatis, kontrol demo yang diizinkan |
-| Pengelola instalasi | Menyiapkan data, akun, model, dan layanan | CLI/database/deployment; bukan peran UI terpisah |
+| Owner | Mengelola penanggung jawab sistem | Seluruh akses supervisor, membuat dan menonaktifkan akun supervisor |
+| Pengelola instalasi | Menyiapkan data, model, dan layanan | CLI/database/deployment, termasuk setup Owner pertama |
 
 Dalam mode autentikasi, peran berasal dari akun backend. Pemilih peran pada demo lokal bukan autentikasi pengguna.
 

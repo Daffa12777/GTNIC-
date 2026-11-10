@@ -160,3 +160,18 @@ it('does not replace new sensor data for an already completed order', async () =
   expect(await db.client.sensorReading.count({ where: { pump_id: pumpId } })).toBe(40);
   expect((await sim.recent(pumpId, 1))[0].features.PS1_mean).toBe(-999);
 });
+
+it('checks completion ownership before mutating work or inventory', async () => {
+  const user = await db.client.user.create({ data: { username: pumpId, role: 'teknisi', passwordHash: 'fixture' } });
+  const technician = await db.client.technician.create({ data: { id: pumpId, userId: user.id, available: false } });
+  try {
+    await db.client.workOrder.update({ where: { id: orderId }, data: { technician_id: technician.id } });
+    await expect(agent.completeWorkOrder(orderId, '', '', 60, { userId: 'someone-else', role: 'teknisi' })).rejects.toThrow('ditugaskan kepada akun Anda');
+    expect((await db.client.workOrder.findUniqueOrThrow({ where: { id: orderId } })).status).toBe('terbuka');
+    await expect(agent.completeWorkOrder(orderId, '', '', 60, { userId: user.id, role: 'teknisi' })).resolves.toMatchObject({ ok: true });
+  } finally {
+    await db.client.workOrder.update({ where: { id: orderId }, data: { technician_id: null } });
+    await db.client.technician.delete({ where: { id: technician.id } });
+    await db.client.user.delete({ where: { id: user.id } });
+  }
+});

@@ -4,6 +4,7 @@ import { Badge, Empty } from './ui';
 import { RequestState, usePolling } from '../usePolling';
 import InventoryEditor from './InventoryEditor';
 import type { Role } from '../types';
+import { canSupervise } from '../types';
 import { useDebounced } from '../useDebounced';
 import SearchField from './SearchField';
 
@@ -23,8 +24,8 @@ export default function Inventory({ role }: { role: Role }) {
     <div className="page">
       <div className="page-head"><div><h1>Inventaris dan tim</h1><p>Data yang dibaca dan diubah agent lewat tool: stok, teknisi, dan permintaan pembelian.</p></div></div>
       <RequestState {...result} retry={result.refresh} />
-      {role === 'supervisor' && result.data && <InventoryEditor parts={inv} refresh={result.refresh} />}
-      {role !== 'supervisor' && <p className="sub">Hanya supervisor yang dapat mengelola stok dan spare part.</p>}
+      {canSupervise(role) && result.data && <InventoryEditor parts={inv} refresh={result.refresh} />}
+      {!canSupervise(role) && <p className="sub">Hanya owner atau supervisor yang dapat mengelola stok dan spare part.</p>}
       <div className="filters"><SearchField label="Cari spare part" value={query} onChange={(value) => { setQuery(value); }} placeholder="Nama atau lokasi" pending={query !== search} /></div>
       {result.data && <div className="grid inventory-grid">
         <div className="card">

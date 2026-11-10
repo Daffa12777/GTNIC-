@@ -1,7 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Headers, HttpException, Param, Post, Req, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
 import { IsOptional, IsString, Length, ValidateIf } from 'class-validator';
 import type { Request } from 'express';
-import { AuthService } from '../auth/auth.service';
+import { AuthService, canSupervise } from '../auth/auth.service';
 import { ToolsService } from '../tools/tools.service';
 
 class AssignTechnicianDto {
@@ -13,7 +13,7 @@ class AssignTechnicianDto {
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class WorkOrderAssignmentController {
   constructor(private readonly tools: ToolsService, private readonly auth: AuthService) {}
-  private supervisor(role?: string) { if (role !== 'supervisor') throw new ForbiddenException('Hanya supervisor yang dapat menugaskan teknisi.'); }
+  private supervisor(role?: string) { if (!canSupervise(role)) throw new ForbiddenException('Hanya owner atau supervisor yang dapat menugaskan teknisi.'); }
   @Get(':id/assignment')
   async options(@Param('id') id: string, @Headers('x-role') role?: string) {
     this.supervisor(role);

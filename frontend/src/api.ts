@@ -1,5 +1,6 @@
 import type { Case, CaseContext, Overview, ReadingsResp, Role, WorkOrder, InventoryItem, Technician, PurchaseRequest, Notification, SessionInfo } from './types';
 import type { UserProfile } from './types';
+import type { TeamData, NewAccount, NewTechnician } from './types';
 import type { Inbox } from './types';
 import type { RecordsPage, WorkOrdersPage } from './types';
 import type { ServicesStatus, LlmConnectionStatus, ChatImage, AssignmentOptions, AssignmentResult, ActionSummary } from './types';
@@ -104,6 +105,11 @@ export const api = {
   adjustStock: (id: string, data: { operationId: string; delta: number; expectedStock: number; reason: string }) => post(`/inventory/${encodeURIComponent(id)}/stock`, data),
   stockMovements: (id: string, signal?: AbortSignal) => req<{ id: string; delta: number; balance: number; reason: string; actor: string; createdAt: string }[]>(`/inventory/${encodeURIComponent(id)}/movements`, { signal }),
   technicians: (signal?: AbortSignal) => req<Technician[]>('/technicians', { signal }),
+  team: (signal?: AbortSignal) => req<TeamData>('/technicians/manage', { signal }),
+  createTechnician: (body: NewTechnician) => post('/technicians', body),
+  createSupervisor: (body: NewAccount) => post('/technicians/supervisors', body),
+  linkTechnician: (id: string, username: string) => post(`/technicians/${encodeURIComponent(id)}/account`, { username }),
+  deactivateSupervisor: (username: string) => post(`/technicians/supervisors/${encodeURIComponent(username)}/deactivate`),
   purchases: (signal?: AbortSignal) => req<PurchaseRequest[]>('/purchase-requests', { signal }),
   notifications: (signal?: AbortSignal) => req<Notification[]>('/notifications', { signal }),
   inbox: (signal?: AbortSignal) => req<Inbox>('/inbox', { signal }),

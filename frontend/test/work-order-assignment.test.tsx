@@ -12,6 +12,17 @@ const options: AssignmentOptions = { work_order_id: 'WO-1', current_technician_i
 const order: WorkOrder = { id: 'WO-1', pump_id: 'Pump-01', case_id: 'C-1', title: 'Periksa pompa', description: '', priority: 'tinggi', status: 'terbuka', technician: null, technician_id: null, scheduled_at: null, part: '', created_at: 1, assignment_reason: options.reason };
 afterEach(() => window.history.replaceState(null, '', '/'));
 
+it('allows Owner assignment and requests only the signed-in technician tasks', async () => {
+  const load = vi.spyOn(api, 'workOrdersPage').mockResolvedValue({ items: [{ ...order, can_complete: false }], total: 1, page: 1, pageSize: 20, technicians: [], units: [] });
+  const props = { flash: vi.fn(), onChanged: vi.fn(), onOpenCase: vi.fn() };
+  const view = render(<WorkOrders {...props} role="teknisi" mine />);
+  await screen.findByText(order.title);
+  expect(load.mock.calls[0][0].get('mine')).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Selesaikan' })).toBeNull();
+  view.rerender(<WorkOrders {...props} role="owner" />);
+  await screen.findByRole('button', { name: 'Tugaskan teknisi' });
+});
+
 it('shows assignment only to supervisors and explains an unassigned order', async () => {
   vi.spyOn(api, 'workOrdersPage').mockResolvedValue({ items: [order], total: 1, page: 1, pageSize: 20, technicians: [], units: ['Pump-01'] });
   vi.spyOn(api, 'assignmentOptions').mockResolvedValue(options);

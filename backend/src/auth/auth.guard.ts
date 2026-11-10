@@ -16,7 +16,7 @@ export class AuthGuard implements CanActivate {
     const user = await this.auth.current(req);
     if (!user) throw new UnauthorizedException('Sesi berakhir. Silakan masuk kembali.');
     const roles = this.reflector.getAllAndOverride<readonly string[]>('roles', [context.getHandler(), context.getClass()]);
-    if (roles && !roles.includes(user.role)) throw new ForbiddenException('Peran akun tidak memiliki izin.');
+    if (roles && !roles.includes(user.role) && !(user.role === 'owner' && roles.includes('supervisor'))) throw new ForbiddenException('Peran akun tidak memiliki izin.');
     // The role is derived from the authenticated session, never from client input.
     req.headers['x-role'] = user.role;
     return true;

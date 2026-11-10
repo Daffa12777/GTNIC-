@@ -12,8 +12,9 @@ import { ToolsService } from '../src/tools/tools.service';
 import { MlService } from '../src/ml/ml.service';
 import { SimService } from '../src/sim/sim.service';
 import { RagService } from '../src/rag/rag.service';
+import { setupFirstOwner } from '../src/auth/owner-bootstrap';
 
-let app: INestApplication, db: DbService, supervisor: string, technician: string;
+let app: INestApplication, db: DbService, supervisor: string, technician: string, owner: string;
 const password = randomBytes(20).toString('hex'), prefix = 'assignment-test';
 const keys = ['AUTH_ENABLED', 'JWT_SECRET', 'AUTH_TECHNICIAN_USERNAME', 'AUTH_TECHNICIAN_PASSWORD_HASH', 'AUTH_SUPERVISOR_USERNAME', 'AUTH_SUPERVISOR_PASSWORD_HASH'];
 const previous = keys.map(key => process.env[key]);
@@ -44,6 +45,9 @@ beforeAll(async () => {
   }
   supervisor = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: `${prefix}-supervisor`, password }).expect(201)).headers);
   technician = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: `${prefix}-technician`, password }).expect(201)).headers);
+  await db.client.user.create({ data: { username: `${prefix}-owner`, passwordHash: process.env.AUTH_SUPERVISOR_PASSWORD_HASH!, role: 'supervisor' } });
+  await setupFirstOwner(db, `${prefix}-owner`);
+  owner = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: `${prefix}-owner`, password }).expect(201)).headers);
 });
 beforeEach(async () => {
   availability = await db.client.technician.findMany({ select: { id: true, available: true } });
@@ -52,13 +56,19 @@ beforeEach(async () => {
     { id: `${prefix}-B`, name: 'Teknisi B', skill: 'mekanik', level: 'senior', available: true },
     { id: `${prefix}-E`, name: 'Teknisi E', skill: 'listrik', level: 'senior', available: true },
   ] });
+  for (const suffix of ['A', 'B', 'E']) {
+    const user = await db.client.user.create({ data: { username: `${prefix}-profile-${suffix}`, role: 'teknisi', passwordHash: process.env.AUTH_TECHNICIAN_PASSWORD_HASH! } });
+    await db.client.technician.update({ where: { id: `${prefix}-${suffix}` }, data: { userId: user.id } });
+  }
 });
 afterEach(async () => {
   await db.client.agentLog.deleteMany({ where: { step: 'manual_assignment', input: { contains: prefix } } });
+  await db.client.agentLog.deleteMany({ where: { step: 'account_management', input: { contains: prefix }, tool: { not: 'setup_first_owner' } } });
   await db.client.workOrder.deleteMany({ where: { id: { startsWith: prefix } } });
   await db.client.maintenanceCase.deleteMany({ where: { id: { startsWith: prefix } } });
   await db.client.pump.deleteMany({ where: { id: { startsWith: prefix } } });
-  await db.client.technician.deleteMany({ where: { id: { startsWith: prefix } } });
+  await db.client.technician.deleteMany({ where: { OR: [{ id: { startsWith: prefix } }, { user: { username: { startsWith: `${prefix}-new` } } }] } });
+  await db.client.user.deleteMany({ where: { OR: [{ username: { startsWith: `${prefix}-profile-` } }, { username: { startsWith: `${prefix}-new` } }] } });
   for (const t of availability) await db.client.technician.update({ where: { id: t.id }, data: { available: t.available } });
 });
 afterAll(async () => {
@@ -73,6 +83,51 @@ it('requires a real supervisor session and rejects forged roles and malformed as
   await api().get(`/api/work-orders/${id}/assignment`).set('Cookie', technician).expect(403);
   await send(id, {}).expect(400);
   await send(id, { expected_technician_id: null, approved: true }).expect(400);
+});
+
+it('allows only a supervisor to create a linked technician account and forbids role escalation', async () => {
+  const body = { username: `${prefix}-new`, name: 'Teknisi Baru', password, skill: 'mekanik', level: 'junior' };
+  await api().post('/api/technicians').set('x-mm-client', 'web').set('x-role', 'supervisor').send(body).expect(401);
+  await api().post('/api/technicians').set('x-mm-client', 'web').set('Cookie', technician).set('x-role', 'supervisor').send(body).expect(403);
+  await api().post('/api/technicians').set('x-mm-client', 'web').set('Cookie', supervisor).send({ ...body, role: 'supervisor' }).expect(400);
+  const created = await api().post('/api/technicians').set('x-mm-client', 'web').set('Cookie', supervisor).send(body).expect(201);
+  expect(created.body).toMatchObject({ name: body.name, skill: 'mekanik', level: 'junior', user: { username: body.username, role: 'teknisi' } });
+  expect(JSON.stringify(created.body)).not.toContain('password');
+  const user = await db.client.user.findUniqueOrThrow({ where: { username: body.username } });
+  expect(user.passwordHash).not.toBe(password);
+  const login = await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: body.username, password }).expect(201);
+  expect(login.body.user.role).toBe('teknisi');
+  await api().post('/api/technicians').set('x-mm-client', 'web').set('Cookie', supervisor).send(body).expect(409);
+});
+
+it('links an existing account explicitly and cannot link a supervisor or steal an account', async () => {
+  await db.client.technician.update({ where: { id: `${prefix}-A` }, data: { userId: null } });
+  const path = `/api/technicians/${prefix}-A/account`;
+  await api().post(path).set('Cookie', supervisor).set('x-mm-client', 'web').send({ username: `${prefix}-supervisor` }).expect(400);
+  await api().post(path).set('Cookie', supervisor).set('x-mm-client', 'web').send({ username: `${prefix}-technician` }).expect(201);
+  await api().post(`/api/technicians/${prefix}-B/account`).set('Cookie', supervisor).set('x-mm-client', 'web').send({ username: `${prefix}-technician` }).expect(409);
+  const mine = await order('mine'), other = await order('other');
+  await db.client.workOrder.update({ where: { id: mine }, data: { technician_id: `${prefix}-A` } });
+  await db.client.workOrder.update({ where: { id: other }, data: { technician_id: `${prefix}-B` } });
+  const rows = await api().get('/api/records/work-orders').set('Cookie', technician).query({ mine: 'true', technician: `${prefix}-B`, q: prefix }).expect(200);
+  expect(rows.body.items.map((item: { id: string }) => item.id)).toEqual([mine]);
+  await api().get('/api/technicians/manage').set('Cookie', technician).expect(403);
+});
+
+it('only allows Owner to create or deactivate supervisors and protects the last Owner', async () => {
+  const body = { username: `${prefix}-new-supervisor`, name: 'Supervisor Baru', password };
+  await api().post('/api/technicians/supervisors').set('Cookie', supervisor).set('x-mm-client', 'web').set('x-role', 'owner').send(body).expect(403);
+  await api().post('/api/technicians/supervisors').set('Cookie', owner).set('x-mm-client', 'web').send({ ...body, role: 'owner' }).expect(400);
+  const response = await api().post('/api/technicians/supervisors').set('Cookie', owner).set('x-mm-client', 'web').send(body).expect(201);
+  expect(response.body).toMatchObject({ username: body.username, role: 'supervisor', active: true });
+  const session = cookies((await api().post('/api/auth/login').set('x-mm-client', 'web').send({ username: body.username, password }).expect(201)).headers);
+  const id = await order('owner');
+  await send(id, { technician_id: `${prefix}-A`, expected_technician_id: null }, owner).expect(201);
+  await api().post(`/api/technicians/supervisors/${body.username}/deactivate`).set('Cookie', owner).set('x-mm-client', 'web').send({}).expect(201);
+  await api().get('/api/technicians/manage').set('Cookie', session).expect(401);
+  await api().post(`/api/technicians/supervisors/${prefix}-owner/deactivate`).set('Cookie', owner).set('x-mm-client', 'web').send({}).expect(400);
+  await api().post('/api/profile/delete').set('Cookie', owner).set('x-mm-client', 'web').send({ currentPassword: password }).expect(409);
+  await expect(setupFirstOwner(db, `${prefix}-supervisor`)).rejects.toThrow('Owner sudah tersedia');
 });
 
 it('filters supervisor assignment tasks to active unassigned work orders', async () => {
@@ -117,6 +172,15 @@ it('explains incompatible skill and seniority and refuses a closed work order', 
   expect((await send(id, { technician_id: `${prefix}-E`, expected_technician_id: null }).expect(409)).body.detail).toContain('keahlian mekanik');
   await db.client.workOrder.update({ where: { id }, data: { status: 'selesai' } });
   await send(id, { technician_id: `${prefix}-B`, expected_technician_id: null }).expect(409);
+});
+
+it('refuses dummy profiles and profiles with an inactive login account', async () => {
+  const id = await order('account-required');
+  await db.client.technician.update({ where: { id: `${prefix}-A` }, data: { userId: null } });
+  expect((await send(id, { technician_id: `${prefix}-A`, expected_technician_id: null }).expect(409)).body.detail).toContain('akun teknisi aktif');
+  await db.client.user.update({ where: { username: `${prefix}-profile-B` }, data: { active: false } });
+  expect((await send(id, { technician_id: `${prefix}-B`, expected_technician_id: null }).expect(409)).body.detail).toContain('akun teknisi aktif');
+  expect((await db.client.workOrder.findUniqueOrThrow({ where: { id } })).technician_id).toBeNull();
 });
 
 it('explains why an unassigned order cannot be automatically assigned', async () => {

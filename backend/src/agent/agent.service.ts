@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { canSupervise, type Role } from '../auth/auth.service';
 import { ChatImageDto, validateChatImage } from '../api/chat.dto';
 import { CONFIG } from '../config';
 import { DbService } from '../db/db.service';
@@ -354,11 +355,15 @@ export class AgentService {
     });
   }
 
-  async completeWorkOrder(woId: string, rootCause = '', action = '', durationMin = 60) {
+  async completeWorkOrder(woId: string, rootCause = '', action = '', durationMin = 60, actor?: { userId: string; role: Role }) {
     const result = await this.db.transaction(async () => {
     await this.db.q('SELECT id FROM work_orders WHERE id=$1 FOR UPDATE', [woId]);
     const wo = await this.db.one('SELECT * FROM work_orders WHERE id=$1', [woId]);
     if (!wo) return { error: 'work order tidak ditemukan' };
+    if (actor && !canSupervise(actor.role)) {
+      const technician = await this.db.client.technician.findFirst({ where: { id: wo.technician_id ?? '__unassigned__', userId: actor.userId, user: { active: true, role: 'teknisi' } } });
+      if (!technician) throw new ForbiddenException('Anda hanya dapat menyelesaikan pekerjaan yang ditugaskan kepada akun Anda.');
+    }
     if (wo.status === 'selesai') {
       if (!wo.pump_id || !wo.closed_at) return { error: 'work order sudah selesai' };
       const latest = await this.db.one<{ ts: number }>('SELECT ts FROM sensor_readings WHERE pump_id=$1 ORDER BY id DESC LIMIT 1', [wo.pump_id]);

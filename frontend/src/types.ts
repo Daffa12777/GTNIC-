@@ -1,4 +1,5 @@
-export type Role = 'teknisi' | 'supervisor';
+export type Role = 'teknisi' | 'supervisor' | 'owner';
+export const canSupervise = (role: Role): boolean => role === 'owner' || role === 'supervisor';
 export interface AuthUser { username: string; role: Role; name?: string | null }
 export interface UserProfile extends AuthUser { name: string | null; email: string | null }
 export interface SessionInfo { enabled: boolean; user: AuthUser | null; expiresAt?: number; absoluteExpiresAt?: number }
@@ -45,6 +46,7 @@ export interface WorkOrder {
   id: string; pump_id: string; case_id: string; title: string; description: string; priority: string; status: string;
   technician: string | null; scheduled_at: string | null; part: string; created_at: number;
   technician_id?: string | null; assignment_reason?: string | null;
+  can_complete?: boolean;
 }
 export interface AssignmentOptions {
   work_order_id: string; current_technician_id: string | null; status: string;
@@ -60,6 +62,10 @@ export interface ActionSummary {
 export interface ChatMsg { from: 'user' | 'agent'; text: string; case?: Case | null; caseId?: string; image?: ChatImage; imageName?: string; actionSummary?: ActionSummary | null; actionSummaryError?: string }
 export interface InventoryItem { part_id: string; name: string; stock: number; location: string; min_stock: number }
 export interface Technician { id: string; name: string; skill: string; level: string; available: boolean }
+export interface TeamAccount { username: string; name: string | null; role: Role; active: boolean }
+export interface TeamData { technicians: (Technician & { user: TeamAccount | null })[]; accounts: TeamAccount[]; supervisors: TeamAccount[] }
+export interface NewAccount { username: string; name: string; password: string }
+export interface NewTechnician extends NewAccount { skill: string; level: string }
 export interface PurchaseRequest { id: string; part_name: string; qty: number; reason: string; status: string }
 export interface Notification { id: number; ts: number; recipient: string; message: string; status: string }
 export interface Inbox { unread: number; approvalCount: number; approvals: { id: string; pump_id: string | null; summary: string | null }[]; notifications: (Notification & { read: boolean })[] }

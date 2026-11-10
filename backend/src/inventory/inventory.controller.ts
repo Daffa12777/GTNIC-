@@ -1,13 +1,13 @@
 import { Body, Controller, ForbiddenException, Get, Headers, Param, Post, Req, SetMetadata, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Request } from 'express';
-import { AuthService } from '../auth/auth.service';
+import { AuthService, canSupervise } from '../auth/auth.service';
 import { InventoryService } from './inventory.service';
 import { AdjustStockDto, CreatePartDto } from './inventory.dto';
 @Controller('inventory')
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class InventoryController {
   constructor(private readonly inventory: InventoryService, private readonly auth: AuthService) {}
-  private supervisor(role: string) { if (role !== 'supervisor') throw new ForbiddenException('Hanya supervisor yang dapat mengubah inventaris.'); }
+  private supervisor(role: string) { if (!canSupervise(role)) throw new ForbiddenException('Hanya owner atau supervisor yang dapat mengubah inventaris.'); }
   @Post() @SetMetadata('roles', ['supervisor'])
   create(@Body() data: CreatePartDto, @Headers('x-role') role: string) { this.supervisor(role); return this.inventory.create(data); }
   @Post(':id/stock') @SetMetadata('roles', ['supervisor'])

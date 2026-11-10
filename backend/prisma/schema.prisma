@@ -71,6 +71,8 @@ model Technician {
   available Boolean? @default(true)
   contact String?
   orders WorkOrder[]
+  userId String? @unique
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
   @@index([available, skill, level])
   @@map("technicians")
 }
@@ -195,6 +197,7 @@ model User {
   active Boolean @default(true)
   createdAt DateTime @default(now())
   sessions RefreshSession[]
+  technician Technician?
   @@map("app_users")
 }
 

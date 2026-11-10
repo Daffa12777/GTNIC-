@@ -11,6 +11,8 @@ import NotificationBell from './components/NotificationBell';
 import ServiceStatus from './components/ServiceStatus';
 import WorkOrders from './components/WorkOrders';
 import SupervisorTasks from './components/SupervisorTasks';
+import TeamManagement from './components/TeamManagement';
+import { canSupervise } from './types';
 import type { Role, AuthUser } from './types';
 import SessionGate from './SessionGate';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -18,7 +20,7 @@ import { RequestState, usePolling, errorMessage } from './usePolling';
 import { useNavigation, type Tab } from './navigation';
 import { UnsavedChangesPrompt } from './useUnsavedChanges';
 
-const TABS: [Tab, string][] = [['tugas', 'Tugas saya'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['asisten', 'Asisten']];
+const TABS: [Tab, string][] = [['tugas', 'Tugas saya'], ['kasus', 'Kasus'], ['wo', 'Work order'], ['inventaris', 'Inventaris'], ['tim', 'Tim'], ['asisten', 'Asisten']];
 
 const store = {
   get(k: string, d: string) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -76,7 +78,7 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             <span className="brand-name">ManualMechanic</span>
           </a>
           <nav className="nav" aria-label="Navigasi utama">
-            {TABS.filter(([k]) => k !== 'tugas' || role === 'supervisor').map(([k, l]) => (
+            {TABS.filter(([k]) => k !== 'tim' || canSupervise(role)).map(([k, l]) => (
               <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => navigate(k)}>
                 {l}
                 {k === 'kasus' && waiting > 0 && <span className="count alert">{waiting}</span>}
@@ -96,8 +98,8 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
             </label>
             {!ov?.llm_available && <span className="sub">Mode LLM belum tersedia pada layanan.</span>}
             <label className="ctl">Agent otomatis
-              <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={role !== 'supervisor' || !ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" title={role !== 'supervisor' ? 'Hanya supervisor yang dapat mengubah agent otomatis.' : undefined} />
-              {role !== 'supervisor' && <span className="sub">Hanya supervisor</span>}
+              <button role="switch" aria-checked={!!ov?.auto} className={`switch ${ov?.auto ? 'on' : ''}`} disabled={!canSupervise(role) || !ov || autoBusy || !!overview.error} onClick={toggleAuto} aria-label="Agent otomatis" title={!canSupervise(role) ? 'Hanya owner atau supervisor yang dapat mengubah agent otomatis.' : undefined} />
+              {!canSupervise(role) && <span className="sub">Hanya owner atau supervisor</span>}
             </label>
             <p className="sub">Mode LLM mengubah cara Asisten menjawab. Agent otomatis memantau unit dan dapat membuat kasus serta tindakan; risiko tinggi memerlukan persetujuan supervisor.</p>
           </div></details>
@@ -110,8 +112,9 @@ function Workspace({ user, logout, loggingOut }: { user: AuthUser | null; logout
       <div className="page service-container"><ServiceStatus /></div>
       {tab !== 'profil' && tab !== 'tugas' && (!isMap || !ov) && <div className="page connection"><RequestState {...overview} retry={refresh} />{!user && <span className="sub">Lingkungan demo · Pergantian peran bukan autentikasi pengguna.</span>}</div>}
       {user && tab === 'profil' && <Profile logout={logout} loggingOut={loggingOut} />}
-      {tab === 'tugas' && <SupervisorTasks role={role} onOpenCase={openCase} flash={flash} onChanged={refresh} />}
-      {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={role === 'supervisor'} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} onBack={() => { setSelectedMachine(null); navigate('ringkasan'); }} flash={flash} refresh={refresh} />}
+      {tab === 'tugas' && (canSupervise(role) ? <SupervisorTasks role={role} onOpenCase={openCase} flash={flash} onChanged={refresh} /> : <WorkOrders role={role} mine flash={flash} onChanged={refresh} onOpenCase={openCase} />)}
+      {tab === 'tim' && <TeamManagement role={role} />}
+      {ov && tab === 'ringkasan' && pumpId && <Dashboard ov={ov} canManage={canSupervise(role)} selected={pumpId} onSelect={(id) => navigate('ringkasan', id, true)} onOpenCase={openCase} onBack={() => { setSelectedMachine(null); navigate('ringkasan'); }} flash={flash} refresh={refresh} />}
       {ov && isMap && <FacilityMap ov={ov} updated={overview.updated} freshness={<RequestState {...overview} retry={refresh} />} demoRole={!user} selected={selectedMachine ?? (tab === 'tampilan3d' ? pumpId : null)} onSelect={(id) => { if (tab === 'tampilan3d') navigate('ringkasan'); setSelectedMachine(id); }} onOpenCase={openCase} onOpenUnit={(id) => navigate('ringkasan', id, true)} onChanged={refresh} />}
       {ov && tab === 'kasus' && <Cases role={role} labels={ov.fault_labels} overview={ov} updated={overview.updated} onOpenUnit={(id) => navigate('ringkasan', id, true)} flash={flash} selected={caseId} onSelect={openCase} onClear={() => navigate('kasus')} onChanged={refresh} authenticated={!!user} />}
       {ov && tab === 'wo' && <WorkOrders role={role} flash={flash} onChanged={refresh} onOpenCase={openCase} />}
