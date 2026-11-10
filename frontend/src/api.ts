@@ -33,7 +33,10 @@ async function req<T>(path: string, init?: RequestInit, retry = true): Promise<T
   const abort = () => timeout.abort();
   init?.signal?.addEventListener('abort', abort, { once: true });
   if (init?.signal?.aborted) timeout.abort();
-  const timer = window.setTimeout(() => timeout.abort(), init?.method === 'POST' ? 130000 : 15000);
+  let timeoutMs = 15000;
+  if (init?.method === 'POST') timeoutMs = 130000;
+  else if (path === '/overview' || path === '/services') timeoutMs = 45000;
+  const timer = window.setTimeout(() => timeout.abort(), timeoutMs);
   try {
   const r = await fetch(`${API}${path}`, {
     ...init,

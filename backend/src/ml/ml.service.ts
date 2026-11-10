@@ -16,31 +16,59 @@ export interface Analysis {
   label: Fault; confidence: number; probs: Record<string, number>;
   components: Record<string, CompResult>; flags: string[]; source: string;
 }
+interface MlMetadata {
+  source?: string;
+  trained_at?: string | number;
+  features?: string[];
+  metrics?: Record<string, unknown>;
+  error?: string;
+}
 
 /** Klien layanan ML (FastAPI). Mengubah keluaran per komponen menjadi hipotesis gangguan bernormalisasi. */
 @Injectable()
 export class MlService {
+  private pendingMeta: Promise<MlMetadata> | null = null;
   private headers() {
     const h: Record<string, string> = { 'content-type': 'application/json' };
     if (CONFIG.ML_API_KEY) h['x-api-key'] = CONFIG.ML_API_KEY;
     return h;
   }
 
-  async predict(features: Record<string, number>): Promise<MlRaw> {
-    const r = await fetch(`${CONFIG.ML_URL}/predict`, {
-      method: 'POST', headers: this.headers(), body: JSON.stringify({ features }), signal: AbortSignal.timeout(10000),
-    });
-    if (!r.ok) throw new Error(`ML service HTTP ${r.status}: ${(await r.text()).slice(0, 160)}`);
-    return (await r.json()) as MlRaw;
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const timeoutMs = path === '/predict' ? 10000 : 6000;
+    // ML inference is read-only, so one retry can recover a serverless cold start safely.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(`${CONFIG.ML_URL}${path}`, {
+          ...init, headers: this.headers(), signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (response.ok) return await response.json() as T;
+        const message = `ML service HTTP ${response.status}: ${(await response.text()).slice(0, 160)}`;
+        if (attempt === 0 && [502, 503, 504].includes(response.status)) continue;
+        throw new Error(message);
+      } catch (error: unknown) {
+        const errorName = error && typeof error === 'object' && 'name' in error ? error.name : null;
+        const transient = errorName === 'TypeError' || errorName === 'TimeoutError';
+        if (attempt === 1 || !transient) throw error;
+      }
+    }
+    throw new Error('Layanan ML belum tersedia.');
   }
 
-  async meta(): Promise<any> {
+  predict(features: Record<string, number>): Promise<MlRaw> {
+    return this.request('/predict', { method: 'POST', body: JSON.stringify({ features }) });
+  }
+
+  meta(): Promise<MlMetadata> {
+    this.pendingMeta ??= this.loadMeta().finally(() => { this.pendingMeta = null; });
+    return this.pendingMeta;
+  }
+
+  private async loadMeta(): Promise<MlMetadata> {
     try {
-      const r = await fetch(`${CONFIG.ML_URL}/meta`, { headers: this.headers(), signal: AbortSignal.timeout(6000) });
-      if (!r.ok) throw new Error(String(r.status));
-      return await r.json();
-    } catch (e: any) {
-      return { error: `layanan ML tidak dapat dihubungi (${e?.message ?? e})` };
+      return await this.request('/meta');
+    } catch (error: unknown) {
+      return { error: `layanan ML tidak dapat dihubungi (${error instanceof Error ? error.message : String(error)})` };
     }
   }
 

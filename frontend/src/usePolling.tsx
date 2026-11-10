@@ -14,8 +14,8 @@ function loaderKey(load: object): QueryKey {
 }
 
 /** Stable resource keys share cache and requests; filters never show another resource's data. */
-export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interval: number, enabled = true, key?: QueryKey, staleTime = 30000) {
-  const query = useQuery({ queryKey: key ?? loaderKey(load), queryFn: ({ signal }) => load(signal), enabled, staleTime, refetchInterval: interval, refetchIntervalInBackground: false }, queryClient);
+export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interval: number | ((data: T | undefined) => number), enabled = true, key?: QueryKey, staleTime = 30000) {
+  const query = useQuery({ queryKey: key ?? loaderKey(load), queryFn: ({ signal }) => load(signal), enabled, staleTime, refetchInterval: query => typeof interval === 'number' ? interval : interval(query.state.data), refetchIntervalInBackground: false }, queryClient);
   const refresh = useCallback(async () => { await query.refetch({ cancelRefetch: false }); }, [query.refetch]);
   return { data: enabled ? query.data ?? null : null, error: query.error ? errorMessage(query.error) : '', updated: query.dataUpdatedAt || null, loading: enabled && query.fetchStatus !== 'paused' && (query.isFetching || query.isPending), stale: query.isStale, refresh };
 }

@@ -1,10 +1,24 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ServiceStatus from '../src/components/ServiceStatus';
 import { api } from '../src/api';
 import { queryClient } from '../src/queryClient';
 beforeEach(() => queryClient.clear());
-afterEach(() => { cleanup(); queryClient.clear(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); queryClient.clear(); vi.restoreAllMocks(); vi.useRealTimers(); });
+
+it('recovers an initially unavailable ML service without reloading the page', async () => {
+  vi.useFakeTimers();
+  const ready = { checkedAt: Date.now(), database: { ok: true }, ml: { ok: true }, llm: { state: 'unconfigured' as const, checkedAt: null, code: null, message: 'Gemini belum dikonfigurasi.' } };
+  const services = vi.spyOn(api, 'services').mockResolvedValueOnce({ ...ready, ml: { ok: false } }).mockResolvedValue(ready);
+  render(<ServiceStatus />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+  expect(screen.getByText('ML sensor: Tidak tersedia')).toBeTruthy();
+  await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+  expect(screen.getByText('ML sensor: Terhubung')).toBeTruthy();
+  expect(services).toHaveBeenCalledTimes(2);
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(services).toHaveBeenCalledTimes(2);
+});
 it('does not probe Gemini automatically and shows an explicit test failure', async () => {
   vi.spyOn(api, 'services').mockResolvedValue({ checkedAt: Date.now(), database: { ok: true }, ml: { ok: true }, llm: { state: 'unchecked', checkedAt: null, code: null, message: 'Belum diuji' } });
   const check = vi.spyOn(api, 'checkLlm').mockResolvedValue({ state: 'error', checkedAt: Date.now(), code: 'HTTP_429', message: 'Kuota tercapai' });

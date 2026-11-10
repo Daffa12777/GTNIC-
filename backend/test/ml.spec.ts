@@ -9,6 +9,50 @@ const raw = (degraded: Partial<Record<typeof COMP_KEYS[number], number>> = {}): 
 });
 const service = new MlService();
 
+afterEach(() => jest.restoreAllMocks());
+
+it('recovers metadata after the first ML request times out', async () => {
+  const fetch = jest.spyOn(global, 'fetch')
+    .mockRejectedValueOnce(new DOMException('Cold start', 'TimeoutError'))
+    .mockResolvedValueOnce(Response.json({ source: 'uci_real', trained_at: 123 }));
+  expect(await new MlService().meta()).toMatchObject({ source: 'uci_real' });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('shares metadata requests while the ML instance is starting', async () => {
+  const fetch = jest.spyOn(global, 'fetch').mockImplementation(async () => {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    return Response.json({ source: 'uci_real' });
+  });
+  const ml = new MlService();
+  const results = await Promise.all([ml.meta(), ml.meta()]);
+  expect(results.every(result => result.source === 'uci_real')).toBe(true);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('retries a temporary inference failure and returns the actual model output', async () => {
+  const fetch = jest.spyOn(global, 'fetch')
+    .mockResolvedValueOnce(new Response('Starting', { status: 503 }))
+    .mockResolvedValueOnce(Response.json(raw()));
+  expect(await service.predict({ PS1_mean: 160 })).toEqual(raw());
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it.each([401, 403, 422])('does not retry an ML configuration or validation error (%s)', async status => {
+  const fetch = jest.spyOn(global, 'fetch').mockResolvedValue(new Response('Rejected', { status }));
+  await expect(service.predict({})).rejects.toThrow(`HTTP ${status}`);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('stops after two transient failures and allows a later metadata request to recover', async () => {
+  const fetch = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response('Unavailable', { status: 503 }));
+  const ml = new MlService();
+  expect(await ml.meta()).toMatchObject({ error: expect.any(String) });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  fetch.mockResolvedValueOnce(Response.json({ source: 'uci_real' }));
+  expect(await ml.meta()).toMatchObject({ source: 'uci_real' });
+});
+
 it('keeps normal first when every component is more likely healthy', () => {
   const analysis = service.toAnalysis(raw({ pump: 0.3, valve: 0.3, cooler: 0.3, accumulator: 0.3 }), {});
   expect(analysis.label).toBe('normal');
