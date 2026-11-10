@@ -378,7 +378,7 @@ export class AgentService {
     });
     if ('ok' in result && result.ok) {
       const order = await this.db.client.workOrder.findUnique({ where: { id: woId } });
-      if (order?.pump_id) this.sim.resetPump(order.pump_id);
+      if (order?.pump_id) await this.sim.recover(order.pump_id);
       await this.tools.refreshKnowledge();
     }
     return result;

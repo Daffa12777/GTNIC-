@@ -133,6 +133,18 @@ export class SimService {
   setDropout(id: string, sensor: string | null) { if (this.state[id]) this.state[id].dropout = sensor; }
   resetPump(id: string) { if (this.state[id]) this.state[id] = { fault: null, severity: 0, rate: 0, dropout: null }; }
 
+  /**
+   * Setelah perbaikan selesai: reset kondisi dan catat beberapa bacaan sehat baru.
+   * Status unit dihitung dari bacaan sensor terakhir, jadi tanpa bacaan baru unit tetap Kritis
+   * ketika simulator tidak berjalan (mis. di hosting serverless).
+   */
+  async recover(id: string, n = 5) {
+    if (!this.state[id]) return;
+    this.resetPump(id);
+    const t = now();
+    for (let i = 0; i < n; i++) await this.push(id, this.sample(id, true), t - (n - 1 - i) * CONFIG.TICK_SECONDS);
+  }
+
   /** Skenario demo: Pump-02 pendingin menurun bertahap (jalur otomatis), Pump-03 kebocoran pompa berat mendadak (jalur persetujuan). */
   startScenario() {
     this.startFault('Pump-02', 'cooler', 0.06);
