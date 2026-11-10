@@ -371,15 +371,17 @@ export class AgentService {
     } });
     if (c && ['selesai_otomatis', 'disetujui_dijalankan', 'dieskalasi', 'selesai_llm'].includes(c.status)) {
       const trace = this.cases.trace(c.id, c.trace);
-      trace.add('action', 'Pekerjaan selesai', `${woId} ditutup. Hasil disimpan ke riwayat kasus dan indeks pengetahuan diperbarui.`);
+      trace.add('action', 'Pekerjaan selesai', `${woId} ditutup. Hasil disimpan ke riwayat kasus.`);
       await this.cases.save(c.id, trace, 'selesai', c.state, { fault: c.fault, conf: c.confidence, risk: c.risk, summary: c.summary });
     }
-    return { ok: true, work_order: woId };
+    const recovery = wo.pump_id ? await this.sim.recover(wo.pump_id) : [];
+    return { ok: true as const, work_order: woId, pump_id: wo.pump_id, recovery };
     });
     if ('ok' in result && result.ok) {
-      const order = await this.db.client.workOrder.findUnique({ where: { id: woId } });
-      if (order?.pump_id) await this.sim.recover(order.pump_id);
-      await this.tools.refreshKnowledge();
+      if (result.pump_id) this.sim.applyRecovery(result.pump_id, result.recovery);
+      try { await this.tools.refreshKnowledge(); }
+      catch { this.log.warn(`Work order ${woId} selesai; pembaruan indeks panduan tertunda.`); }
+      return { ok: true, work_order: woId };
     }
     return result;
   }

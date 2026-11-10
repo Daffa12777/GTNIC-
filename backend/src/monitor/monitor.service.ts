@@ -40,7 +40,7 @@ export class MonitorService implements OnApplicationBootstrap, OnModuleDestroy {
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
   async computeStatus(pumpId: string): Promise<PumpStatus> {
-    const rows = this.sim.recent(pumpId, 1);
+    const rows = await this.sim.recent(pumpId, 1);
     if (!rows.length) return { state: 'tidak ada data' };
     const latest = this.sim.display(rows[0].features);
     const valid = await this.tools.check_sensor_validity({ pump_id: pumpId });

@@ -31,7 +31,7 @@ export const TOOL_SPECS: [string, string, any][] = [
  */
 @Injectable()
 export class ToolsService {
-  private cache = new Map<string, { ts: number; a: Analysis }>();
+  private cache = new Map<string, { version: string | number; a: Analysis }>();
   private zeroable?: Set<string>;
 
   constructor(private db: DbService, private ml: MlService, private sim: SimService, private rag: RagService) {}
@@ -49,7 +49,7 @@ export class ToolsService {
   async get_sensor_data(a: { pump_id: string; window?: number }) {
     if (!(await this.getPump(a.pump_id))) return { error: `unit tidak ditemukan: ${a.pump_id}` };
     const n = Math.max(1, Math.min(Number(a.window ?? CONFIG.WINDOW), 300));
-    const rows = this.sim.recent(a.pump_id, n);
+    const rows = await this.sim.recent(a.pump_id, n);
     if (!rows.length) return { error: 'belum ada data sensor' };
     const last = rows[rows.length - 1];
     return { pump_id: a.pump_id, n: rows.length, latest: this.sim.display(last.features), nominal: this.sim.nominalDisplay(), rows };
@@ -71,7 +71,7 @@ export class ToolsService {
   }
 
   async check_sensor_validity(a: { pump_id: string }) {
-    const rows = this.sim.recent(a.pump_id, 5);
+    const rows = await this.sim.recent(a.pump_id, 5);
     const bad: string[] = [];
     if (rows.length) {
       const zeroable = this.zeroableSensors();
@@ -88,16 +88,16 @@ export class ToolsService {
   /** Analisis ML untuk satu unit, di-cache per pembacaan terbaru. */
   async analyze(pump_id: string): Promise<Analysis | { error: string }> {
     if (!(await this.getPump(pump_id))) return { error: `unit tidak ditemukan: ${pump_id}` };
-    const rows = this.sim.recent(pump_id, 1);
+    const rows = await this.sim.recent(pump_id, 1);
     if (!rows.length) return { error: 'belum ada data sensor' };
-    const ts = rows[0].ts;
+    const version = rows[0].id ?? rows[0].ts;
     const hit = this.cache.get(pump_id);
-    if (hit && hit.ts === ts) return hit.a;
-    const feats = this.sim.smoothed(pump_id, 1)!;
+    if (hit && hit.version === version) return hit.a;
+    const feats = rows[0].features;
     try {
       const raw = await this.ml.predict(feats);
       const a = this.ml.toAnalysis(raw, this.names);
-      this.cache.set(pump_id, { ts, a });
+      this.cache.set(pump_id, { version, a });
       return a;
     } catch (e: any) {
       return { error: `layanan ML gagal: ${e?.message ?? e}` };

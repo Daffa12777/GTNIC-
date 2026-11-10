@@ -11,7 +11,7 @@ interface Profiles {
   sensors: Record<string, { name: string; unit: string }>;
   components: Record<string, { name: string; levels: number[]; meaning: Record<string, string> }>;
 }
-export interface Reading { ts: number; features: Record<string, number> }
+export interface Reading { id?: string; ts: number; features: Record<string, number> }
 interface PumpSim { fault: string | null; severity: number; rate: number; dropout: string | null }
 
 const KEEP = 240;
@@ -102,15 +102,13 @@ export class SimService {
     }
   }
 
-  recent(id: string, n: number): Reading[] { return (this.ring[id] || []).slice(-n); }
-
-  /** Rata-rata fitur pada n pembacaan terakhir (meredam derau antar siklus). */
-  smoothed(id: string, n = 3): Record<string, number> | null {
-    const r = this.recent(id, n);
-    if (!r.length) return null;
-    const o: Record<string, number> = {};
-    for (const k of Object.keys(r[0].features)) o[k] = r.reduce((a, b) => a + b.features[k], 0) / r.length;
-    return o;
+  async recent(id: string, n: number): Promise<Reading[]> {
+    if (CONFIG.SIM_ENABLED) return (this.ring[id] || []).slice(-n);
+    // Serverless instances must read committed data rather than another instance's old snapshot.
+    const rows = await this.db.q<{ id: bigint; ts: number; features: unknown }>('SELECT id, ts, features FROM sensor_readings WHERE pump_id=$1 ORDER BY id DESC LIMIT $2', [id, n]);
+    return rows.reverse().map(row => ({
+      id: String(row.id), ts: Number(row.ts), features: asObj(row.features, {}) as Record<string, number>,
+    }));
   }
 
   display(features: Record<string, number>): Record<string, number> {
@@ -133,16 +131,21 @@ export class SimService {
   setDropout(id: string, sensor: string | null) { if (this.state[id]) this.state[id].dropout = sensor; }
   resetPump(id: string) { if (this.state[id]) this.state[id] = { fault: null, severity: 0, rate: 0, dropout: null }; }
 
-  /**
-   * Setelah perbaikan selesai: reset kondisi dan catat beberapa bacaan sehat baru.
-   * Status unit dihitung dari bacaan sensor terakhir, jadi tanpa bacaan baru unit tetap Kritis
-   * ketika simulator tidak berjalan (mis. di hosting serverless).
-   */
-  async recover(id: string, n = 5) {
-    if (!this.state[id]) return;
-    this.resetPump(id);
+  /** Persist demo recovery inside the work-order transaction; publish memory only after commit. */
+  async recover(id: string, n = 5): Promise<Reading[]> {
+    const readings: Reading[] = [];
     const t = now();
-    for (let i = 0; i < n; i++) await this.push(id, this.sample(id, true), t - (n - 1 - i) * CONFIG.TICK_SECONDS);
+    for (let i = 0; i < n; i++) {
+      const reading = { ts: t - (n - 1 - i) * CONFIG.TICK_SECONDS, features: this.sample(id, true) };
+      await this.db.x('INSERT INTO sensor_readings (pump_id, ts, features) VALUES ($1,$2,$3::jsonb)', [id, reading.ts, JSON.stringify(reading.features)]);
+      readings.push(reading);
+    }
+    return readings;
+  }
+
+  applyRecovery(id: string, readings: Reading[]): void {
+    this.resetPump(id);
+    this.ring[id] = [...(this.ring[id] || []), ...readings].slice(-KEEP);
   }
 
   /** Skenario demo: Pump-02 pendingin menurun bertahap (jalur otomatis), Pump-03 kebocoran pompa berat mendadak (jalur persetujuan). */

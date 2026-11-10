@@ -72,7 +72,7 @@ export class ApiController {
     const p = await this.db.one('SELECT * FROM pumps WHERE id=$1', [id]);
     if (!p) throw bad('unit tidak ditemukan', 404);
     const n = Math.max(2, Math.min(Number(limit) || 60, 240));
-    const rows = this.sim.recent(id, n).map((r) => ({ ts: r.ts, ...this.sim.display(r.features) }));
+    const rows = (await this.sim.recent(id, n)).map((r) => ({ ts: r.ts, ...this.sim.display(r.features) }));
     const sensors = DISPLAY_SENSORS.map((s) => ({ key: s, ...this.sim.profiles.sensors[s] }));
     return { pump: p, sensors, nominal: this.sim.nominalDisplay(), readings: rows, status: this.status.map[id] ?? null, components: this.sim.profiles.components };
   }
